@@ -7,19 +7,20 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useProfile } from '@/features/auth/AuthProvider';
+import { MyAttendanceBadge, MyAttendanceCard } from '@/features/attendance/MyAttendance';
+import { useMyAttendance } from '@/features/attendance/hooks';
 import { InstallBanner } from '@/features/install/InstallBanner';
 import { MemberProgram } from '@/features/program/MemberProgram';
 import { useMyResponses, useTraining, useTrainings } from '@/features/trainings/hooks';
 import { MemberRsvp } from '@/features/trainings/MemberRsvp';
 import { MyAnswerBadge } from '@/features/trainings/MyAnswerBadge';
 import { HOUR_MS, formatDayMonth } from '@/lib/time';
-import { partitionTrainings, startsAt } from '@/features/trainings/schedule';
+import { endsAt, partitionTrainings, startsAt } from '@/features/trainings/schedule';
 import { TrainingCard } from '@/features/trainings/TrainingCard';
 import { TrainingList } from '@/features/trainings/TrainingList';
 import { TrainingSummary } from '@/features/trainings/TrainingSummary';
 import { useNow } from '@/lib/clock';
 import { tr } from '@/strings/tr';
-import { ComingSoon } from '../shared/ComingSoon';
 import { ProfilePanel } from '../shared/ProfilePanel';
 
 export function MemberHomePage() {
@@ -103,15 +104,20 @@ export function MemberHomePage() {
 
 export function MemberTrainingsPage() {
   const responses = useMyResponses();
+  const attendance = useMyAttendance();
   return (
     <>
       <PageHeader title={tr.trainings.title} />
       <TrainingList
         basePath="/uye/antrenmanlar"
         emptyUpcomingBody={tr.trainings.emptyUpcomingMember}
-        footer={(t, now) => (
-          <MyAnswerBadge training={t} response={responses.data?.find((r) => r.training_id === t.id)} now={now} />
-        )}
+        footer={(t, now) =>
+          endsAt(t) <= now ? (
+            <MyAttendanceBadge training={t} records={attendance.data ?? []} now={now} />
+          ) : (
+            <MyAnswerBadge training={t} response={responses.data?.find((r) => r.training_id === t.id)} now={now} />
+          )
+        }
       />
     </>
   );
@@ -120,6 +126,7 @@ export function MemberTrainingsPage() {
 export function MemberTrainingDetailPage() {
   const { id } = useParams();
   const training = useTraining(id);
+  const attendance = useMyAttendance();
 
   return (
     <>
@@ -137,6 +144,7 @@ export function MemberTrainingDetailPage() {
       {training.data && (
         <div className="flex flex-col gap-4">
           <TrainingSummary training={training.data} />
+          {training.data.status === 'completed' && attendance.isSuccess && <MyAttendanceCard training={training.data} records={attendance.data} />}
           {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="mine" />}
           <MemberRsvp training={training.data} />
           {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="rest" />}
@@ -145,8 +153,6 @@ export function MemberTrainingDetailPage() {
     </>
   );
 }
-
-export const MemberStatsPage = () => <ComingSoon title={tr.nav.stats} />;
 
 export function MemberProfilePage() {
   return (

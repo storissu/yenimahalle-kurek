@@ -5,7 +5,7 @@
 //   npm run e2e            (expects the app built with dummy env and served on BASE_URL; see docs/RUNBOOK.md)
 //   BASE_URL=http://localhost:4173  BROWSER_CHANNEL=msedge|chrome|  (empty = Playwright's bundled Chromium)
 import { chromium } from 'playwright-core';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const BASE = process.env.BASE_URL ?? 'http://localhost:4173';
@@ -69,6 +69,8 @@ const callerOf = (req) => {
   }
 };
 db.programs = {}; // trainingId -> { program, assignments, crew }
+db.attendance = []; // { training_id, slot_index, member_id, status, note, recorded_by, recorded_at }
+db.attendanceSaves = []; // what save_attendance received
 db.saves = []; // payloads received by save_program
 const dbError = (route, code, message, status = 400) => json(route, { code, details: null, hint: null, message }, status);
 const istanbulDate = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date(ms));
@@ -161,7 +163,12 @@ async function newPage(scheme = 'light') {
     if (path === '/rest/v1/trainings') {
       if (req.method() === 'GET') {
         const id = eqParam('id');
-        return json(route, db.trainings.filter((t) => !id || t.id === id));
+        const rawId = url.searchParams.get('id');
+        const idList = rawId?.startsWith('in.(') ? rawId.slice(4, -1).split(',') : null;
+        const bounds = url.searchParams.getAll('starts_at');
+        const lo = bounds.find((b) => b.startsWith('gte.'))?.slice(4);
+        const hi = bounds.find((b) => b.startsWith('lt.'))?.slice(3);
+        return json(route, db.trainings.filter((t) => (!id || t.id === id) && (!idList || idList.includes(t.id)) && (!lo || t.starts_at >= lo) && (!hi || t.starts_at < hi)));
       }
       if (req.method() === 'POST') {
         const t = makeTraining(body());
@@ -259,6 +266,77 @@ async function newPage(scheme = 'light') {
         crew,
       };
       return route.fulfill({ status: 204, headers: cors });
+    }
+
+    // ---- Phase 4: attendance + monthly statistics (mirrors the SQL rules) ----
+    const caller = callerOf(req);
+    const monthOfTraining = (t) => istanbulDate(Date.parse(t.starts_at)).slice(0, 7);
+    const monthKeyParam = () => String(body().p_month ?? '').slice(0, 7);
+    const monthRows = (monthKey) => {
+      const rows = roster.filter((p) => p.role === 'member' && p.is_active).map((p) => ({ member_id: p.id, full_name: p.full_name, sessions: 0, training_days: 0, rank: null }));
+      const days = new Map();
+      for (const a of db.attendance) {
+        if (a.status !== 'present') continue;
+        const t = db.trainings.find((x) => x.id === a.training_id);
+        const row = rows.find((r) => r.member_id === a.member_id);
+        if (!t || !row || t.status !== 'completed' || monthOfTraining(t) !== monthKey) continue;
+        row.sessions += 1;
+        days.set(row.member_id, (days.get(row.member_id) ?? new Set()).add(a.training_id));
+      }
+      rows.forEach((r) => (r.training_days = days.get(r.member_id)?.size ?? 0));
+      const ranked = rows.filter((r) => r.sessions > 0).sort((a, b) => b.sessions - a.sessions);
+      ranked.forEach((r, i) => (r.rank = i > 0 && ranked[i - 1].sessions === r.sessions ? ranked[i - 1].rank : i + 1));
+      return rows;
+    };
+    if (path === '/rest/v1/attendance_records') {
+      const memberId = eqParam('member_id');
+      const trainingId = eqParam('training_id');
+      return json(
+        route,
+        db.attendance.filter((a) => (caller?.role === 'coach' || a.member_id === caller?.id) && (!memberId || a.member_id === memberId) && (!trainingId || a.training_id === trainingId)),
+      );
+    }
+    if (path === '/rest/v1/rpc/save_attendance') {
+      if (caller?.role !== 'coach') return dbError(route, '42501', 'permission denied');
+      const b = body();
+      const t = db.trainings.find((x) => x.id === b.p_training_id);
+      if (!t) return dbError(route, 'P0001', 'Antrenman bulunamadı');
+      if (t.status === 'cancelled') return dbError(route, 'P0001', 'İptal edilen antrenmanın yoklaması alınamaz');
+      if (serverNowMs() < Date.parse(t.starts_at)) return dbError(route, 'P0001', 'Yoklama antrenman başladıktan sonra alınabilir');
+      if ((b.p_complete || t.status === 'completed') && b.p_rows.length === 0) return dbError(route, 'P0001', 'Yoklamayı tamamlamak için en az bir kayıt girin');
+      db.attendance = db.attendance.filter((a) => a.training_id !== t.id);
+      for (const r of b.p_rows) db.attendance.push({ training_id: t.id, slot_index: r.slot_index, member_id: r.member_id, status: r.status, note: r.note ?? null, recorded_by: caller.id, recorded_at: iso(Date.now()) });
+      db.attendanceSaves.push({ trainingId: t.id, complete: Boolean(b.p_complete), rows: b.p_rows });
+      if (b.p_complete && t.status === 'scheduled') t.status = 'completed';
+      return route.fulfill({ status: 204, headers: cors });
+    }
+    if (path === '/rest/v1/rpc/monthly_leaderboard') return json(route, monthRows(monthKeyParam()).filter((r) => r.sessions > 0).sort((a, b) => a.rank - b.rank));
+    if (path === '/rest/v1/rpc/my_month_stats') {
+      const rows = monthRows(monthKeyParam());
+      const me = rows.find((r) => r.member_id === caller?.id);
+      return json(route, [{ sessions: me?.sessions ?? 0, training_days: me?.training_days ?? 0, rank: me?.rank ?? null, participants: rows.filter((r) => r.sessions > 0).length }]);
+    }
+    if (path === '/rest/v1/rpc/coach_month_table') {
+      if (caller?.role !== 'coach') return dbError(route, 'P0001', 'Yetkisiz');
+      return json(route, monthRows(monthKeyParam()).sort((a, b) => b.sessions - a.sessions || a.full_name.localeCompare(b.full_name, 'tr')));
+    }
+    if (path === '/rest/v1/rpc/attendance_export') {
+      if (caller?.role !== 'coach') return dbError(route, 'P0001', 'Yetkisiz');
+      const monthKey = monthKeyParam();
+      const out = db.attendance
+        .map((a) => ({ a, t: db.trainings.find((x) => x.id === a.training_id), p: roster.find((x) => x.id === a.member_id) }))
+        .filter(({ t }) => t && t.status === 'completed' && monthOfTraining(t) === monthKey)
+        .map(({ a, t, p }) => ({ training_id: t.id, starts_at: t.starts_at, slot_index: a.slot_index, member_id: a.member_id, full_name: p.full_name, status: a.status, note: a.note }))
+        .sort((x, y) => x.starts_at.localeCompare(y.starts_at) || x.slot_index - y.slot_index || x.full_name.localeCompare(y.full_name, 'tr'));
+      return json(route, out);
+    }
+    if (path === '/rest/v1/rpc/training_attendance_counts') {
+      if (caller?.role !== 'coach') return dbError(route, 'P0001', 'Yetkisiz');
+      const counts = body().p_training_ids.map((id) => {
+        const present = db.attendance.filter((a) => a.training_id === id && a.status === 'present');
+        return present.length ? { training_id: id, sessions: present.length, members: new Set(present.map((a) => a.member_id)).size } : null;
+      });
+      return json(route, counts.filter(Boolean));
     }
 
     if (path === '/rest/v1/boats') {
@@ -822,6 +900,196 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}${name}.png` });
 
   check('program: no unexpected errors (coach)', problems.length === 0, problems.join(' | '));
   await ctx.close();
+}
+
+// ---------- 8. attendance (per session), history, monthly statistics ----------
+{
+  const now = Date.now();
+  const currentMonth = istanbulDate(now).slice(0, 7);
+  const shiftKey = (key, d) => {
+    const [y, m] = key.split('-').map(Number);
+    const i = y * 12 + (m - 1) + d;
+    return `${Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}`;
+  };
+  const labelOf = (key) => new Intl.DateTimeFormat('tr-TR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5)) - 1, 1)));
+  const prevMonth = shiftKey(currentMonth, -1);
+  const byName = (n) => roster.find((p) => p.full_name === n);
+  const [ali, alex, ashley, john, jamie] = ['Ali Kaya', 'Alex', 'Ashley', 'John', 'Jamie'].map(byName);
+
+  db.trainings = [];
+  db.responses = [];
+  db.programs = {};
+  db.attendance = [];
+  db.attendanceSaves = [];
+
+  // A: started 3 hours ago (2 sessions). Program: hour 1 Mavi = Alex + Ashley, hour 2 Mavi = John.
+  const tA = makeTraining({ title: 'Yoklama antrenmanı', starts_at: iso(now - 3 * HOUR), slot_count: 2, rsvp_deadline: iso(now - 27 * HOUR) });
+  db.trainings.push(tA);
+  const crewRow = (assignment, slot, member, seat) => ({ assignment_id: assignment, training_id: tA.id, slot_index: slot, member_id: member.id, seat });
+  db.programs[tA.id] = {
+    program: { training_id: tA.id, status: 'published', version: 1, weather_note: null, training_notes: null, published_at: iso(now - 48 * HOUR), published_by: people.coach.id, created_at: '', updated_at: '' },
+    assignments: [
+      { id: 'as-x1', training_id: tA.id, slot_index: 0, boat_id: 'boat-1', notes: null },
+      { id: 'as-x2', training_id: tA.id, slot_index: 1, boat_id: 'boat-1', notes: null },
+    ],
+    crew: [crewRow('as-x1', 0, alex, 1), crewRow('as-x1', 0, ashley, 2), crewRow('as-x2', 1, john, 1)],
+  };
+  // B: last month, already completed, Ali rowed once.
+  const tB = makeTraining({ title: 'Geçen ayın antrenmanı', starts_at: iso(Date.parse(`${prevMonth}-15T08:00:00+03:00`)), slot_count: 1, rsvp_deadline: iso(Date.parse(`${prevMonth}-14T08:00:00+03:00`)), status: 'completed' });
+  db.trainings.push(tB);
+  db.attendance.push({ training_id: tB.id, slot_index: 0, member_id: ali.id, status: 'present', note: null, recorded_by: people.coach.id, recorded_at: iso(now) });
+  // C: 200 days ago — outside the default 90-day window
+  const tOld = makeTraining({ title: 'Eski antrenman', starts_at: iso(now - 200 * 24 * HOUR), slot_count: 1, rsvp_deadline: iso(now - 201 * 24 * HOUR), status: 'completed' });
+  db.trainings.push(tOld);
+  db.attendance.push({ training_id: tOld.id, slot_index: 0, member_id: ali.id, status: 'present', note: null, recorded_by: people.coach.id, recorded_at: iso(now) });
+
+  const login = async (page, user, password) => {
+    await page.goto(BASE + '/giris');
+    await page.getByLabel('Kullanıcı adı').fill(user);
+    await page.getByLabel('Şifre').fill(password);
+    await page.getByRole('button', { name: 'Giriş yap' }).click();
+    await page.waitForURL(user === 'ayse' ? '**/antrenor' : '**/uye');
+  };
+  const memberStatsPage = async (scheme = 'light') => {
+    const m = await newPage(scheme);
+    await login(m.page, 'ali', 'Kurek2026x');
+    return m;
+  };
+
+  const { page, ctx, problems } = await newPage();
+  // Desktop Edge has a native share sheet for files; force the plain-download path so the test can catch the file.
+  await ctx.addInitScript(() => Object.defineProperty(navigator, 'canShare', { value: undefined, configurable: true }));
+  await login(page, 'ayse', 'Coach1234');
+
+  // the coach's to-do list points at the training whose attendance is due
+  await page.getByRole('heading', { name: 'Yoklaması bekleyenler' }).waitFor();
+  await page.getByRole('link', { name: /Yoklama al/ }).click();
+  await page.getByRole('tab', { name: 'Yoklama', selected: true }).waitFor();
+  check('dashboard lists trainings waiting for attendance and opens the Yoklama tab directly', true);
+
+  const section = (n) => page.getByRole('region', { name: new RegExp(`^${n}\\. seans`) });
+  const mark = (s, name, label) => s.getByRole('radiogroup', { name: `${name} için durum` }).getByRole('radio', { name: label });
+  await section(1).getByText('Alex').waitFor();
+  check('the sheet starts from the program: hour 1 Alex + Ashley (Mavi), hour 2 John', (await section(1).getByText('Ashley').isVisible()) && (await section(1).getByText('Mavi').first().isVisible()) && (await section(2).getByText('John').isVisible()) && !(await section(2).getByText('Alex').isVisible()));
+  check('everyone planned starts as "Geldi"', (await mark(section(1), 'Alex', 'Geldi').getAttribute('aria-checked')) === 'true' && (await page.getByText('3 kişi · 3 seans geldi').isVisible()));
+  await shot(page, '28-attendance-sheet');
+
+  await mark(section(1), 'Ashley', 'Gelmedi').click();
+  check('marking someone "Gelmedi" updates the summary', await page.getByText(/2 kişi · 2 seans geldi/).isVisible());
+
+  // walk-ins: Ali rowed both hours although he was in no boat; Jamie is added and removed again
+  const addPerson = async (n, search, name) => {
+    await section(n).getByRole('button', { name: 'Kişi ekle' }).click();
+    const d = page.getByRole('dialog');
+    await d.getByRole('searchbox').fill(search);
+    await d.getByRole('button', { name }).click();
+    await d.getByRole('button', { name: 'Tamam' }).click();
+  };
+  await addPerson(1, 'ali', 'Ali Kaya');
+  await addPerson(2, 'ali', 'Ali Kaya');
+  check('walk-ins are added as present and marked "Ek kişi"', (await section(2).getByText('Ek kişi').isVisible()) && (await mark(section(2), 'Ali Kaya', 'Geldi').getAttribute('aria-checked')) === 'true');
+  await addPerson(1, 'jamie', 'Jamie');
+  await page.getByRole('button', { name: 'Jamie listeden çıkar' }).click();
+  check('a walk-in can be removed again (planned people can only be marked absent)', (await section(1).getByText('Jamie').count()) === 0 && (await page.getByRole('button', { name: 'Ashley listeden çıkar' }).count()) === 0);
+  check('summary counts present hours: Ali rowed 2 hours = 2 sessions', await page.getByText(/3 kişi · 4 seans geldi/).isVisible());
+  await shot(page, '29-attendance-walkins');
+
+  await page.getByRole('button', { name: 'Kaydet', exact: true }).click();
+  await page.getByText('Yoklama kaydedildi.').waitFor();
+  check('progress saved (5 records incl. the absence) and the training is not completed yet', db.attendance.filter((a) => a.training_id === tA.id).length === 5 && tA.status === 'scheduled' && db.attendance.some((a) => a.member_id === ashley.id && a.status === 'absent'));
+  check('the sheet says it is not in the statistics yet', await page.getByText('Henüz istatistiklere işlenmedi').isVisible());
+
+  // in-progress attendance never counts
+  {
+    const { page: mp, ctx: mc } = await memberStatsPage();
+    await mp.goto(BASE + '/uye/istatistik');
+    await mp.getByText('Bu ay için henüz kayıt yok').waitFor();
+    check('statistics ignore attendance that is not completed', true);
+    await mc.close();
+  }
+
+  await page.getByRole('button', { name: 'Yoklamayı tamamla' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Evet, tamamla' }).click();
+  await page.getByText('Yoklama tamamlandı.').waitFor();
+  await page.getByText('Tamamlandı — istatistiklere işlendi').waitFor();
+  check('completing marks the training completed', tA.status === 'completed');
+
+  await mark(section(1), 'Ashley', 'Geldi').click();
+  await page.getByRole('button', { name: 'Güncelle' }).click();
+  await page.getByText('Yoklama güncellendi.').waitFor();
+  check('a completed attendance can still be corrected', db.attendance.find((a) => a.member_id === ashley.id && a.training_id === tA.id).status === 'present' && tA.status === 'completed');
+
+  // coach history list
+  await page.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Antrenmanlar', exact: true }).click();
+  await page.getByRole('tab', { name: 'Geçmiş' }).click();
+  await page.getByText('4 kişi · 5 seans').waitFor();
+  check('past trainings show who came: "4 kişi · 5 seans"', (await page.getByText('1 kişi · 1 seans').isVisible()));
+
+  // coach statistics for the month
+  await page.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'İstatistik', exact: true }).click();
+  await page.getByText(labelOf(currentMonth)).waitFor();
+  await page.getByText('4 üye · toplam 5 seans').waitFor();
+  const rowsText = await page.locator('main ul li').allInnerTexts();
+  check('every active member is listed, most sessions first (Ali 2, then the 1-session tie)', rowsText[0].includes('Ali Kaya') && rowsText[0].startsWith('1') && rowsText.slice(1, 4).every((t) => t.startsWith('2')) && rowsText.slice(4).every((t) => t.startsWith('–')), rowsText.map((t) => t.replace(/\s+/g, ' ')).join(' | '));
+  await shot(page, '30-coach-stats');
+
+  await page.getByRole('link', { name: /Ali Kaya/ }).click();
+  await page.getByRole('heading', { name: 'Ali Kaya' }).waitFor();
+  await page.getByText('Katıldığı antrenmanlar').waitFor();
+  check('member history: 2 sessions this month', (await page.locator('main .text-4xl').innerText()) === '2');
+  check('member history lists the training with both of Ali\'s hours', (await page.locator('main section li ul li').count()) === 2);
+  await shot(page, '31-coach-member-history');
+  await page.getByRole('button', { name: 'Önceki ay' }).click();
+  await page.getByText(labelOf(prevMonth)).waitFor();
+  check('last month is one click away and shows its own history', (await page.locator('main section li ul li').count()) === 1);
+  await page.getByRole('link', { name: 'İstatistik' }).first().click();
+
+  // CSV exports (Excel-friendly)
+  const [summaryDownload] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Özet (CSV)' }).click()]);
+  const summary = readFileSync(await summaryDownload.path(), 'utf8');
+  check('summary CSV: BOM, ";" separators, Turkish header, one line per member', summaryDownload.suggestedFilename() === `yoklama-ozet-${currentMonth}.csv` && summary.startsWith(String.fromCharCode(0xfeff)) && summary.includes('Sıra;Ad Soyad;Seans;Antrenman günü') && summary.includes('1;Ali Kaya;2;1'), JSON.stringify(summary.slice(0, 120)));
+  const [detailDownload] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Ayrıntılı (CSV)' }).click()]);
+  const detail = readFileSync(await detailDownload.path(), 'utf8');
+  check('detail CSV: one line per person per hour, absences included', detail.includes('Tarih;Seans saati;Ad Soyad;Durum;Not') && detail.split('\r\n').filter((l) => l.includes(';Geldi;')).length === 5, `${detail.split('\r\n').length} lines`);
+
+  check('attendance: no unexpected errors (coach)', problems.length === 0, problems.join(' | '));
+  await ctx.close();
+
+  // the member's side
+  {
+    const { page: mp, ctx: mc, problems: mprob } = await memberStatsPage('dark');
+    await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'İstatistik', exact: true }).click();
+    await mp.getByText('1. sıra · 4 kişi arasında').waitFor();
+    const myCard = await mp.locator('main section').first().innerText();
+    const flat = myCard.split(/\s+/).join(' ');
+    check('my month: 2 sessions, 1 training day, rank 1 of 4', flat.includes('2 seans') && flat.includes('1 antrenman günü'), flat);
+    const board = mp.locator('main ol li');
+    check('leaderboard: I am first (marked "Siz"); the others share second place', (await board.first().innerText()).includes('Ali Kaya') && (await board.first().getByText('Siz').isVisible()) && (await board.count()) === 4 && (await mp.getByText('eşit').count()) >= 3);
+    check('the leaderboard shows names and counts only, no phone numbers or usernames', !(await mp.locator('main ol').innerText()).match(/@|\d{3} \d{3}/));
+    await shot(mp, '32-member-stats-dark');
+    check('I cannot go past the current month', await mp.getByRole('button', { name: 'Sonraki ay' }).isDisabled());
+    await mp.getByRole('button', { name: 'Önceki ay' }).click();
+    await mp.getByText(labelOf(prevMonth)).waitFor();
+    await mp.getByText('1. sıra · 1 kişi arasında').waitFor();
+    check('past months stay browsable and each month stands alone (the board "resets")', await mp.getByRole('button', { name: 'Sonraki ay' }).isEnabled());
+
+    await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Antrenmanlar', exact: true }).click();
+    await mp.getByRole('tab', { name: 'Geçmiş' }).click();
+    await mp.getByText('2 seans katıldınız').waitFor();
+    check('history: each finished training shows how many hours I rowed', await mp.getByText('1 seans katıldınız').first().isVisible());
+    const matched = await mp.getByText('Eski antrenman', { exact: true }).evaluateAll((els) => els.map((e) => e.outerHTML.slice(0, 160)));
+    check('history: only the last 90 days at first', matched.length === 0, matched.join(' | '));
+    await mp.getByRole('button', { name: 'Daha eski antrenmanları göster' }).click();
+    await mp.getByText('Eski antrenman', { exact: true }).waitFor();
+    check('"Daha eski" loads older history, with my attendance there too', (await mp.getByText('1 seans katıldınız').count()) === 2);
+    await mp.getByRole('link', { name: /Yoklama antrenmanı/ }).click();
+    const mine = mp.getByRole('region', { name: 'Yoklamanız' });
+    await mine.waitFor();
+    check('detail: my attendance per hour', (await mine.getByText('Katıldınız').count()) === 2);
+    await shot(mp, '33-member-attendance-dark');
+    check('member attendance: no unexpected errors', mprob.length === 0, mprob.join(' | '));
+    await mc.close();
+  }
 }
 
 // ---------- 4. PWA basics (service worker allowed) ----------

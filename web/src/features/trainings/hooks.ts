@@ -7,6 +7,7 @@ import {
   coachSetRsvp,
   createTraining,
   fetchMyResponses,
+  fetchOlderTrainings,
   fetchResponsesFor,
   fetchServerTime,
   fetchTraining,
@@ -21,6 +22,11 @@ import type { TrainingPayload } from './form';
 
 export function useTrainings() {
   return useQuery({ queryKey: trainingKeys.list, queryFn: () => fetchTrainings(serverNow()) });
+}
+
+/** Trainings older than the default window; only fetched once the user asks for them. */
+export function useOlderTrainings(enabled: boolean) {
+  return useQuery({ queryKey: trainingKeys.older, queryFn: () => fetchOlderTrainings(serverNow()), enabled });
 }
 
 /** One training; starts from the already-loaded list when possible so detail pages open instantly. */

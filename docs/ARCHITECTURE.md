@@ -60,6 +60,29 @@ later phases, risks) was agreed with the club before implementation started.
   while the coach looks at other tabs.
 - Notifications on publish/update are Phase 5; `version` is what will tell "new program" from "program updated".
 
+## Attendance and statistics (Phase 4)
+
+- **Attendance is what actually happened**, separate from the RSVP and from the program: `attendance_records` has one
+  row per (training, **session**, member) with `present | absent`. Written only through `save_attendance()`
+  (coach-only, replaces the training's records atomically). Members read only their own rows (RLS).
+- The coach can only record once the training has **started** (server clock) and never for cancelled trainings.
+  `p_complete=false` saves progress; `p_complete=true` marks the training **completed**. A completed training can still
+  be corrected. Completing needs at least one record.
+- The editor starts from the **plan**: the program's crew per session, or — with no program — everyone who said
+  "attending". The coach only fixes exceptions (mark "Gelmedi", add walk-ins). Logic: `features/attendance/model.ts`.
+- **Statistics count PRESENT sessions (hours)**: rowing 2 hours counts 2; "training days" (distinct trainings) is a
+  secondary figure. Only **completed** trainings count, only **active** members appear, and a training belongs to the
+  calendar month of its start in **Europe/Istanbul** (a 23:00 session on the 31st is that month; 00:00 local on the 1st
+  is the next). The leaderboard "resets" because it is month-bucketed — there is no reset job — and past months stay
+  browsable.
+- Ranking is standard competition ranking (1, 1, 3, …): equal sessions share a place; no sessions = no rank.
+- Members see others' numbers only as aggregates through `monthly_leaderboard()` (names + counts, members with at least
+  one session) and `my_month_stats()`. `coach_month_table()` (everyone incl. zeros), `attendance_export()` and
+  `training_attendance_counts()` are coach-only. The internal helper is not callable by clients.
+- CSV exports use `;` separators and a UTF-8 BOM (Turkish Excel), and defuse spreadsheet formulas (`lib/csv.ts`).
+  On phones the file goes through the share sheet when the browser can share files, otherwise it downloads.
+- Lists show the last 90 days; "Daha eski antrenmanları göster" loads up to two years back on request.
+
 ## Security model
 
 - **Row Level Security on every table**, default-deny, explicit grants (never Supabase's default privileges).

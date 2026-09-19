@@ -16,8 +16,12 @@ programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini gör�
 - **Phase 3 (boat program)** — coaches build the program hour by hour (Mavi / Turuncu / C4X; boats on the water together,
   different crews per hour), with weather and training notes; save as a draft or publish. Members see only published
   programs, with **their own boat, hour and crew mates first** on Home and on the training page.
-- Next: Phase 4 (attendance per session, history, monthly leaderboard), Phase 5 (weather + notifications).
-  See `docs/ARCHITECTURE.md`.
+- **Phase 4 (attendance, history, statistics)** — after (or during) a training the coach records who actually rowed
+  **each hour**, starting from the boat crews and adding walk-ins; finishing marks the training completed. Members see
+  their own history (hours rowed per training, older trainings on request), a monthly **sessions** count and the
+  monthly leaderboard (everyone sees it; it starts fresh each calendar month; ties share a place). Coaches get the
+  month table for every member, a per-member history and Excel-friendly CSV exports.
+- Next: Phase 5 (weather + notifications), then hardening, pilot and release. See `docs/ARCHITECTURE.md`.
 
 ## Layout
 

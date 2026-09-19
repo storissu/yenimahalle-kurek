@@ -6,10 +6,12 @@ import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { BoatsPage } from '@/features/boats/BoatsPage';
 import { MembersPage } from '@/features/members/MembersPage';
+import { CoachMemberStatsPage } from '@/features/stats/CoachMemberStatsPage';
+import { CoachStatsPage } from '@/features/stats/CoachStatsPage';
+import { MemberStatsPage } from '@/features/stats/MemberStatsPage';
 import {
   CoachDashboardPage,
   CoachMorePage,
-  CoachStatsPage,
   CoachTrainingDetailPage,
   CoachTrainingFormPage,
   CoachTrainingsPage,
@@ -17,7 +19,6 @@ import {
 import {
   MemberHomePage,
   MemberProfilePage,
-  MemberStatsPage,
   MemberTrainingDetailPage,
   MemberTrainingsPage,
 } from '@/pages/member/MemberPages';
@@ -71,6 +72,7 @@ export const router = createBrowserRouter([
           { path: 'antrenmanlar/:id/duzenle', element: <CoachTrainingFormPage mode="edit" /> },
           { path: 'uyeler', element: <MembersPage /> },
           { path: 'istatistik', element: <CoachStatsPage /> },
+          { path: 'istatistik/:memberId', element: <CoachMemberStatsPage /> },
           { path: 'diger', element: <CoachMorePage /> },
           { path: 'diger/tekneler', element: <BoatsPage /> },
         ],

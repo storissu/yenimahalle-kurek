@@ -1,6 +1,6 @@
-import { CalendarX, ChevronRight, ClipboardCheck, Pencil, Plus, Settings, Ship, Users, XCircle } from 'lucide-react';
+import { CalendarX, ChevronRight, Pencil, Plus, Settings, Ship, Users, XCircle } from 'lucide-react';
 import { useId, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { BackLink } from '@/components/layout/BackLink';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
@@ -11,6 +11,8 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { TabPanel, Tabs } from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
+import { AttendancePanel } from '@/features/attendance/AttendancePanel';
+import { useTrainingCounts } from '@/features/attendance/hooks';
 import { useProfile } from '@/features/auth/AuthProvider';
 import { InstallBanner } from '@/features/install/InstallBanner';
 import { ProgramEditor } from '@/features/program/ProgramEditor';
@@ -19,7 +21,7 @@ import { CancelTrainingDialog } from '@/features/trainings/CancelTrainingDialog'
 import { defaultValues, fromTraining } from '@/features/trainings/form';
 import { useSaveTraining, useTraining, useTrainings } from '@/features/trainings/hooks';
 import { ResponsesPanel } from '@/features/trainings/ResponsesPanel';
-import { partitionTrainings } from '@/features/trainings/schedule';
+import { endsAt, partitionTrainings, startsAt } from '@/features/trainings/schedule';
 import { TrainingCard } from '@/features/trainings/TrainingCard';
 import { TrainingForm } from '@/features/trainings/TrainingForm';
 import { TrainingList } from '@/features/trainings/TrainingList';
@@ -28,7 +30,6 @@ import { useResponseCounts } from '@/features/trainings/useResponseCounts';
 import { serverNow, useNow } from '@/lib/clock';
 import { tr } from '@/strings/tr';
 import type { ResponseCounts } from '@/features/trainings/counts';
-import { ComingSoon } from '../shared/ComingSoon';
 import { ProfilePanel } from '../shared/ProfilePanel';
 
 function CountsLine({ counts }: { counts: ResponseCounts | undefined }) {
@@ -59,7 +60,10 @@ export function CoachDashboardPage() {
   const firstName = profile.full_name.split(' ')[0] ?? profile.full_name;
   const trainings = useTrainings();
   const now = useNow();
-  const scheduled = partitionTrainings(trainings.data ?? [], now).upcoming.filter((t) => t.status === 'scheduled');
+  const allScheduled = (trainings.data ?? []).filter((t) => t.status === 'scheduled');
+  // Started (or over) but attendance not finished: the coach's to-do list.
+  const needsAttendance = allScheduled.filter((t) => startsAt(t) <= now).sort((a, b) => b.starts_at.localeCompare(a.starts_at));
+  const scheduled = partitionTrainings(allScheduled, now).upcoming.filter((t) => startsAt(t) > now);
   const shown = scheduled.slice(0, 3);
   const counts = useResponseCounts(shown.map((t) => t.id));
 
@@ -77,6 +81,25 @@ export function CoachDashboardPage() {
             <ChevronRight aria-hidden="true" size={20} className="text-muted" />
           </Card>
         </Link>
+
+        {needsAttendance.length > 0 && (
+          <section aria-labelledby="coach-needs-attendance-heading" className="flex flex-col gap-3">
+            <h2 id="coach-needs-attendance-heading" className="text-sm font-bold text-warning">
+              {tr.attendance.needsHeading}
+            </h2>
+            <ul className="flex flex-col gap-3">
+              {needsAttendance.map((t) => (
+                <li key={t.id}>
+                  <TrainingCard
+                    training={t}
+                    to={`/antrenor/antrenmanlar/${t.id}?sekme=yoklama`}
+                    footer={<span className="text-sm font-semibold text-primary">{tr.attendance.needsAction} →</span>}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section aria-labelledby="coach-upcoming-heading" className="flex flex-col gap-3">
           <h2 id="coach-upcoming-heading" className="text-sm font-bold text-muted">
@@ -110,8 +133,9 @@ export function CoachDashboardPage() {
 export function CoachTrainingsPage() {
   const trainings = useTrainings();
   const now = useNow();
-  const upcomingIds = partitionTrainings(trainings.data ?? [], now).upcoming.map((t) => t.id);
-  const counts = useResponseCounts(upcomingIds);
+  const { upcoming, past } = partitionTrainings(trainings.data ?? [], now);
+  const counts = useResponseCounts(upcoming.map((t) => t.id));
+  const attendanceCounts = useTrainingCounts(past.filter((t) => t.status === 'completed').map((t) => t.id));
 
   return (
     <>
@@ -119,7 +143,15 @@ export function CoachTrainingsPage() {
       <TrainingList
         basePath="/antrenor/antrenmanlar"
         emptyUpcomingBody={tr.trainings.emptyUpcomingCoach}
-        footer={(t) => (t.status === 'scheduled' ? <CountsLine counts={counts?.(t.id)} /> : null)}
+        footer={(t) => {
+          if (t.status === 'scheduled' && endsAt(t) > now) return <CountsLine counts={counts?.(t.id)} />;
+          if (t.status === 'scheduled') return <Badge tone="warning">{tr.attendance.badgeMissing}</Badge>;
+          if (t.status === 'completed') {
+            const row = attendanceCounts.data?.find((r) => r.training_id === t.id);
+            return row ? <p className="text-sm font-semibold">{tr.attendance.badgeCounts(row.members, row.sessions)}</p> : null;
+          }
+          return null;
+        }}
       />
     </>
   );
@@ -130,9 +162,12 @@ type DetailTab = 'responses' | 'program' | 'attendance';
 export function CoachTrainingDetailPage() {
   const { id } = useParams();
   const training = useTraining(id);
-  const [tab, setTab] = useState<DetailTab>('responses');
-  // The program editor holds unsaved work: once opened it stays mounted (hidden) while other tabs are shown.
+  const [search] = useSearchParams();
+  const initialTab: DetailTab = search.get('sekme') === 'yoklama' ? 'attendance' : 'responses';
+  const [tab, setTab] = useState<DetailTab>(initialTab);
+  // The program and attendance editors hold unsaved work: once opened they stay mounted (hidden) while other tabs are shown.
   const [programOpened, setProgramOpened] = useState(false);
+  const [attendanceOpened, setAttendanceOpened] = useState(initialTab === 'attendance');
   const [cancelling, setCancelling] = useState(false);
   const idPrefix = useId();
 
@@ -184,6 +219,7 @@ export function CoachTrainingDetailPage() {
               onChange={(next) => {
                 setTab(next);
                 if (next === 'program') setProgramOpened(true);
+                if (next === 'attendance') setAttendanceOpened(true);
               }}
               tabs={[
                 { id: 'responses', label: tr.trainings.tabResponses },
@@ -198,7 +234,7 @@ export function CoachTrainingDetailPage() {
               {programOpened && <ProgramEditor training={training.data} />}
             </TabPanel>
             <TabPanel idPrefix={idPrefix} id="attendance" hidden={tab !== 'attendance'}>
-              <EmptyState icon={ClipboardCheck} title={tr.common.soonTitle} body={tr.trainings.attendancePlaceholderCoach} />
+              {attendanceOpened && <AttendancePanel training={training.data} />}
             </TabPanel>
           </div>
 
@@ -263,8 +299,6 @@ export function CoachTrainingFormPage({ mode }: { mode: 'create' | 'edit' }) {
     </>
   );
 }
-
-export const CoachStatsPage = () => <ComingSoon title={tr.nav.stats} />;
 
 function SoonRow({ icon: Icon, label }: { icon: typeof Ship; label: string }) {
   return (

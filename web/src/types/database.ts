@@ -7,8 +7,38 @@ export type UserRole = 'coach' | 'member';
 export type TrainingStatus = 'scheduled' | 'cancelled' | 'completed';
 export type RsvpResponse = 'attending' | 'not_attending';
 export type ProgramStatus = 'draft' | 'published';
+export type AttendanceStatus = 'present' | 'absent';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
+
+/** One member's numbers for a calendar month (club time). rank is null without sessions. */
+export interface MonthRow {
+  member_id: string;
+  full_name: string;
+  sessions: number;
+  training_days: number;
+  rank: number | null;
+}
+export interface MyMonthStatsRow {
+  sessions: number;
+  training_days: number;
+  rank: number | null;
+  participants: number;
+}
+export interface ExportRow {
+  training_id: string;
+  starts_at: string;
+  slot_index: number;
+  member_id: string;
+  full_name: string;
+  status: AttendanceStatus;
+  note: string | null;
+}
+export interface TrainingCountRow {
+  training_id: string;
+  sessions: number;
+  members: number;
+}
 
 export type Database = {
   public: {
@@ -131,6 +161,21 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      attendance_records: {
+        Row: {
+          training_id: string;
+          slot_index: number;
+          member_id: string;
+          status: AttendanceStatus;
+          note: string | null;
+          recorded_by: string;
+          recorded_at: string;
+        };
+        // Read-only for clients: written only through save_attendance().
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       push_subscriptions: {
         Row: {
           id: string;
@@ -163,6 +208,12 @@ export type Database = {
       };
       server_now: { Args: never; Returns: string };
       save_program: { Args: { p_training_id: string; p_payload: Json; p_publish: boolean }; Returns: undefined };
+      save_attendance: { Args: { p_training_id: string; p_rows: Json; p_complete?: boolean }; Returns: undefined };
+      monthly_leaderboard: { Args: { p_month: string }; Returns: MonthRow[] };
+      my_month_stats: { Args: { p_month: string }; Returns: MyMonthStatsRow[] };
+      coach_month_table: { Args: { p_month: string }; Returns: MonthRow[] };
+      attendance_export: { Args: { p_month: string }; Returns: ExportRow[] };
+      training_attendance_counts: { Args: { p_training_ids: string[] }; Returns: TrainingCountRow[] };
       register_push_subscription: {
         Args: { p_endpoint: string; p_p256dh: string; p_auth: string; p_user_agent?: string };
         Returns: undefined;
@@ -180,3 +231,4 @@ export type Boat = Database['public']['Tables']['boats']['Row'];
 export type TrainingProgram = Database['public']['Tables']['training_programs']['Row'];
 export type ProgramAssignment = Database['public']['Tables']['program_assignments']['Row'];
 export type ProgramCrew = Database['public']['Tables']['program_crew']['Row'];
+export type AttendanceRecord = Database['public']['Tables']['attendance_records']['Row'];

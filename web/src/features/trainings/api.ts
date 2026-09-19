@@ -8,6 +8,7 @@ export const trainingKeys = {
   all: ['trainings'] as const,
   list: ['trainings', 'list'] as const,
   detail: (id: string) => ['trainings', 'detail', id] as const,
+  older: ['trainings', 'older'] as const,
 };
 
 export const responseKeys = {
@@ -17,8 +18,9 @@ export const responseKeys = {
   summary: (trainingIds: string[]) => ['responses', 'summary', ...trainingIds] as const,
 };
 
-/** How far back the lists reach. Older history is paginated in Phase 4. */
+/** How far back the lists reach by default. Older trainings load on request (up to OLDER_DAYS). */
 const HISTORY_DAYS = 90;
+const OLDER_DAYS = 730;
 const LIST_LIMIT = 300;
 
 export async function fetchTrainings(now: Date = new Date()): Promise<Training[]> {
@@ -28,6 +30,21 @@ export async function fetchTrainings(now: Date = new Date()): Promise<Training[]
     .select('*')
     .gte('starts_at', since)
     .order('starts_at', { ascending: true })
+    .limit(LIST_LIMIT);
+  if (error) throw error;
+  return data;
+}
+
+/** Trainings between OLDER_DAYS and HISTORY_DAYS ago, newest first (loaded when the user asks for older history). */
+export async function fetchOlderTrainings(now: Date = new Date()): Promise<Training[]> {
+  const before = new Date(now.getTime() - HISTORY_DAYS * 24 * HOUR_MS).toISOString();
+  const since = new Date(now.getTime() - OLDER_DAYS * 24 * HOUR_MS).toISOString();
+  const { data, error } = await supabase
+    .from('trainings')
+    .select('*')
+    .lt('starts_at', before)
+    .gte('starts_at', since)
+    .order('starts_at', { ascending: false })
     .limit(LIST_LIMIT);
   if (error) throw error;
   return data;
@@ -103,5 +120,13 @@ export async function fetchServerTime(): Promise<string> {
   const receivedAt = Date.now();
   if (error) throw error;
   syncServerTime(data, requestedAt, receivedAt);
+  return data;
+}
+
+/** Trainings by id, regardless of how long ago they were (used by history views). */
+export async function fetchTrainingsByIds(ids: string[]): Promise<Training[]> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase.from('trainings').select('*').in('id', ids);
+  if (error) throw error;
   return data;
 }
