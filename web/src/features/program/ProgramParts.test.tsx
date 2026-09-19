@@ -228,6 +228,18 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(screen.getByRole('link', { name: tr.contact.openProfileLabel('Alex') })).toHaveAttribute('href', '/uye/uyeler/alex');
   });
 
+  it('leaves out the profile link when the viewer is a coach (profiles are a member page), but keeps the phone', () => {
+    render(
+      <MemoryRouter>
+        <ProgramByBoat data={data} training={training} boats={boats} nameOf={nameOf} contactOf={contactOf} profileLinks={false} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: tr.program.contactAbout('Alex') }));
+    expect(screen.getByRole('link', { name: new RegExp(`^${tr.contact.call}: Alex`) })).toHaveAttribute('href', 'tel:05551112233');
+    expect(screen.queryByText(tr.contact.openProfile)).not.toBeInTheDocument();
+    expect(screen.queryByText(tr.program.yourBoat)).not.toBeInTheDocument(); // neutral view: nobody is "me"
+  });
+
   it('says so when a member has no phone number saved', () => {
     show();
     fireEvent.click(screen.getByRole('button', { name: tr.program.contactAbout('Ashley') }));

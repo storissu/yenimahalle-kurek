@@ -169,6 +169,8 @@ small hull with one dot per seat (single / double / quad / crew) from the boat's
 the reader's sessions from the session's own `weather_snapshots` row (its start hour), not the weather now.
 `features/weather/SessionWeather.tsx` holds these compact forecast pieces and imports no Supabase code (unit-testable).
 
+Coaches get the same compact view: `CoachProgramView` renders `ProgramByBoat` (neutral — nobody highlighted, no "Profili aç", which is a member page) above the tabs of the coach's training page once a program is **published**; nothing for a draft or a cancelled training.
+
 ## Change history (Phase 6)
 
 - `audit_log` is written **only by the database**: triggers on `trainings`, `training_programs`, `training_responses`

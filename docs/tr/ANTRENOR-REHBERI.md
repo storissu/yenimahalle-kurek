@@ -35,6 +35,8 @@ Antrenman sayfasında **Yanıtlar** sekmesi: Katılıyor / Katılmıyor / Yanıt
 7. **Yayınla**: üyeler programı görür; ekipteki herkese **kişisel** bildirim ("Mavi · 09:00–10:00 · Ayşe ile"), diğer katılanlara genel bildirim gider. **Yayınlandığı anda üyelerin yanıtları kilitlenir.**
    Yayınlamadan önce "X hiçbir seansa atanmadı" gibi uyarılar çıkabilir; bilinçli ise "Yine de yayınla".
 
+**Yayınlanan programı üyeler gibi görmek:** program yayınlanınca antrenman sayfasında sekmelerin üstünde **"Yayınlanan program"** bölümü çıkar: notlar ve tüm seanslar tekne tekne, üyelerin telefonunda göründüğü sade düzenle. İsme dokunursanız telefon numarası açılır. Taslakta bu bölüm görünmez.
+
 **Yayınladıktan sonra:** düzenleyip **Güncelle** — yalnızca ekibi değişenlere (ve o teknedeki arkadaşlarına) bildirim gider. Küçük bir düzeltme için **Üyelere bildirim gönder** işaretini kaldırın. **Yayından kaldır** programı taslağa alır; yanıtlar (süre dolmadıysa) yeniden açılır.
 
 ## 4. Hava durumu

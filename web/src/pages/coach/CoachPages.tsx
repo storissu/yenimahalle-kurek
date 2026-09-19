@@ -17,6 +17,7 @@ import { WeatherStrip } from '@/features/weather/WeatherStrip';
 import { useTrainingCounts } from '@/features/attendance/hooks';
 import { useProfile } from '@/features/auth/AuthProvider';
 import { InstallBanner } from '@/features/install/InstallBanner';
+import { CoachProgramView } from '@/features/program/CoachProgramView';
 import { ProgramEditor } from '@/features/program/ProgramEditor';
 import { useClubSettings } from '@/features/settings/api';
 import { CancelTrainingDialog } from '@/features/trainings/CancelTrainingDialog';
@@ -222,6 +223,8 @@ export function CoachTrainingDetailPage() {
               </Button>
             </div>
           )}
+
+          <CoachProgramView training={training.data} />
 
           <div>
             <Tabs

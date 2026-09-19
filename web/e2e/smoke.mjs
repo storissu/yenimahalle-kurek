@@ -966,10 +966,24 @@ const shot = async (page, name, fullPage = false) => {
     await mc.close();
   }
 
+  // a draft is the editor's business: no "published" copy above the tabs yet
+  check('coach: no published-program view while the program is a draft', (await page.getByRole('region', { name: 'Yayınlanan program' }).count()) === 0);
+
   // publish (nobody forgotten now → no warning)
   await page.getByRole('button', { name: 'Yayınla' }).click();
   await page.getByText('Program yayınlandı.').waitFor();
   await page.getByText('Yayında (sürüm 1)').waitFor();
+  {
+    const published = page.getByRole('region', { name: 'Yayınlanan program' });
+    await published.waitFor();
+    const boatsShown = await published.getByRole('heading', { level: 3 }).allInnerTexts();
+    check('coach: once published, the whole program shows above the tabs, boat by boat like on a member\'s phone', boatsShown.some((n) => n.includes('Mavi')) && boatsShown.some((n) => n.includes('Turuncu')) && (await published.getByText('Alex').first().isVisible()) && (await published.getByText('Jamie').first().isVisible()) && (await published.getByText('08:00–09:00').first().isVisible()));
+    check('coach: nobody is highlighted as "me" and there is no member-only tag', (await published.locator('[data-mine="true"]').count()) === 0 && (await published.getByText('Sizin tekneniz').count()) === 0);
+    await published.getByRole('button', { name: /Alex/ }).first().click();
+    check('coach: a name opens the phone card, without the member-only profile link', (await page.getByRole('dialog').getByRole('link', { name: /^Ara: Alex/ }).count()) === 1 && (await page.getByRole('dialog').getByText('Profili aç').count()) === 0);
+    await page.getByRole('dialog').getByRole('button', { name: 'Kapat' }).click();
+    await shot(page, '25-coach-published-program-view', true);
+  }
   check('published: version 1, published by the coach', db.programs[t.id].program.status === 'published' && db.programs[t.id].program.version === 1);
 
   // unsaved changes are protected
@@ -1359,7 +1373,8 @@ const shot = async (page, name, fullPage = false) => {
     await bell.click();
     await mp.getByRole('heading', { name: 'Bildirimler' }).waitFor();
     check('inbox: newest first, unread ones marked', (await mp.locator('main ul li').allInnerTexts()).map((s) => s.split('\n')[0]).join('|').startsWith('Programınız yayınlandı') && (await mp.getByText('(Okunmadı)').count()) === 2);
-    check('inbox: relative times in Turkish', (await mp.getByText('5 dk önce').isVisible()) && (await mp.getByText('1 sa önce').isVisible()));
+    check('inbox: relative times in Turkish', (await mp.getByText('5 dk önce').isVisible()) && ((await mp.getByText('1 sa önce').count()) === 1 || (await mp.getByText(/^Dün \d\d:\d\d$/).count()) === 1), // 90 minutes ago is "yesterday" in the first 90 minutes after midnight
+      (await mp.locator('main ul li').allInnerTexts()).join(' | ').replace(/\s+/g, ' '));
     await shot(mp, '37-member-inbox-dark');
 
     await mp.getByRole('button', { name: /Programınız yayınlandı/ }).click();

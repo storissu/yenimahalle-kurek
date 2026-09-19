@@ -362,6 +362,8 @@ export const tr = {
     fullProgramHint: 'Tekne tekne tüm seanslar ve ekipler. Sizin seanslarınız vurgulanır.',
     yourSession: 'Sizin seansınız',
     yourBoat: 'Sizin tekneniz',
+    coachPublished: 'Yayınlanan program',
+    coachPublishedHint: 'Üyelerin gördüğü hâliyle tekne tekne tüm seanslar ve ekipler. Değiştirmek için Program sekmesini kullanın.',
     boatProgram: (boat: string) => `${boat} programı`,
     contactAbout: (name: string) => `${name} — telefon numarasını göster`,
     slotHeading: (n: number, range: string) => `${n}. seans · ${range}`,

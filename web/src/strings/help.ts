@@ -73,7 +73,7 @@ export const help = {
     },
     {
       q: `Programı nasıl hazırlar ve yayınlarım?`,
-      a: `Antrenmanı açıp Program sekmesine gidin. Her seans için bir sekme vardır; tekneye "Ekip seç" ile üyeleri ekleyin, aynı tekneye sonraki seansta başka ekip yazabilirsiniz. "Önceki seansı kopyala" işi hızlandırır. "Taslağı kaydet" üyelere görünmez; "Yayınla" herkese gösterir ve bildirim gönderir. C4X tam 4 kişi olmadan yayınlanamaz.`,
+      a: `Antrenmanı açıp Program sekmesine gidin. Her seans için bir sekme vardır; tekneye "Ekip seç" ile üyeleri ekleyin, aynı tekneye sonraki seansta başka ekip yazabilirsiniz. "Önceki seansı kopyala" işi hızlandırır. "Taslağı kaydet" üyelere görünmez; "Yayınla" herkese gösterir ve bildirim gönderir. Yayınlanınca sekmelerin üstünde "Yayınlanan program" bölümü üyelerin gördüğü sade tekne listesini gösterir. C4X tam 4 kişi olmadan yayınlanamaz.`,
     },
     {
       q: `Yayınladıktan sonra değişiklik yapabilir miyim?`,

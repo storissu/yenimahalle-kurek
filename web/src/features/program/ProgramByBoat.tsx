@@ -34,6 +34,8 @@ interface ProgramByBoatProps {
   contactOf?: (memberId: string) => DirectoryEntry | null;
   /** The forecast of a session (by index); shown compactly inside the reader's own rows. */
   weatherOf?: (slotIndex: number) => WeatherSnapshot | undefined;
+  /** Add "Profili aç" to the contact card (the profile page is a member page). Coaches turn it off. Default: on. */
+  profileLinks?: boolean;
 }
 
 /** "Siz" pill for the reader's own row: white on the solid blue block. */
@@ -58,7 +60,7 @@ function MePill() {
  * are a solid, larger block (with the forecast for that hour) so "where am I?" is answered at a glance, and the boats
  * they row in are listed first. Everything else stays as readable as before.
  */
-export function ProgramByBoat({ data, training, boats, meId, nameOf, contactOf, weatherOf }: ProgramByBoatProps) {
+export function ProgramByBoat({ data, training, boats, meId, nameOf, contactOf, weatherOf, profileLinks = true }: ProgramByBoatProps) {
   const headingPrefix = useId();
   const [contact, setContact] = useState<Contact | null>(null);
 
@@ -117,7 +119,7 @@ export function ProgramByBoat({ data, training, boats, meId, nameOf, contactOf, 
                                 ) : entry ? (
                                   <button
                                     type="button"
-                                    onClick={() => setContact({ id, name: entry.full_name, phone: entry.phone })}
+                                    onClick={() => setContact({ ...(profileLinks ? { id } : {}), name: entry.full_name, phone: entry.phone })}
                                     aria-label={tr.program.contactAbout(entry.full_name)}
                                     className={cn('inline min-h-6 rounded-sm text-left underline decoration-dotted underline-offset-4', mine && 'focus-visible:outline-primary-fg')}
                                   >
