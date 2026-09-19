@@ -6,6 +6,7 @@ import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { BoatsPage } from '@/features/boats/BoatsPage';
 import { AuditPage } from '@/features/audit/AuditPage';
+import { HelpPage } from '@/features/help/HelpPage';
 import { MemberDirectoryPage } from '@/features/members/MemberDirectoryPage';
 import { MembersPage } from '@/features/members/MembersPage';
 import { NotificationsPage } from '@/features/notifications/NotificationsPage';
@@ -64,6 +65,7 @@ export const router = createBrowserRouter([
           { path: 'istatistik', element: <MemberStatsPage /> },
           { path: 'profil', element: <MemberProfilePage /> },
           { path: 'uyeler', element: <MemberDirectoryPage /> },
+          { path: 'yardim', element: <HelpPage role="member" /> },
           { path: 'bildirimler', element: <NotificationsPage backTo="/uye" backLabel={tr.nav.home} /> },
         ],
       },
@@ -83,6 +85,7 @@ export const router = createBrowserRouter([
           { path: 'diger/tekneler', element: <BoatsPage /> },
           { path: 'diger/ayarlar', element: <SettingsPage /> },
           { path: 'diger/gecmis', element: <AuditPage /> },
+          { path: 'diger/yardim', element: <HelpPage role="coach" /> },
           { path: 'bildirimler', element: <NotificationsPage backTo="/antrenor" backLabel={tr.nav.dashboard} /> },
         ],
       },

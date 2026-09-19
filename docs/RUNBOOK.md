@@ -66,6 +66,7 @@ Do not change these later without telling members to re-enable notifications (al
    | `VITE_SUPABASE_ANON_KEY` | the anon / publishable key |
    | `VITE_VAPID_PUBLIC_KEY` | the VAPID **public** key |
    | `VITE_LOGIN_EMAIL_DOMAIN` | `kulup.invalid` |
+   | `VITE_FEEDBACK_URL` | *(optional)* a WhatsApp link `https://wa.me/905XXXXXXXXX` or a form address; adds a "Görüş bildir" button to the Yardım page |
 
 4. Save and deploy. ✅ You get an address like `https://yenimahalle-kurek.pages.dev` — this is the app's URL that members will use. Opening it shows the login page.
 
@@ -247,6 +248,30 @@ Second safety net: the coach can export monthly attendance as **CSV** (*İstatis
 **8.4 Change history** — *Diğer → Değişiklik geçmişi* (coaches only) lists who created/edited/cancelled trainings, published programs, saved attendance, answered for a member, created/deactivated accounts, reset passwords or changed boats/settings — with the day, time and coach, never passwords or phone numbers. Entries are kept one year.
 
 ---
+
+## 9. Go-live and pilot (Phase 7)
+
+**9.1 Check the deployed app from the outside — `preflight`**
+
+After every change to Cloudflare or Supabase settings, and before the pilot, run this from the project root
+(it uses only public values and changes nothing; the anon key is the same one that is in Cloudflare):
+
+```powershell
+node scripts/preflight.mjs --site https://<your-site>.pages.dev --supabase https://<ref>.supabase.co --anon-key <anon key>
+```
+
+✅ Every line says `PASS` (a `WARN` is advice). It checks: https; the login page and deep links open the app; the security
+headers really arrived (CSP, nosniff, no `unsafe-eval`); the CSP lets the app reach Supabase; the manifest and `sw.js` are not
+cached; the database answers `ping()` (migrations applied); **sign-up is closed**; anonymous visitors **cannot read** any club
+table or call internal functions; the Edge Functions answer **only your site** (CORS) and refuse callers who are not signed in.
+A `FAIL` line says what to fix (for example `ALLOWED_ORIGIN`, a missing `db push`, or sign-up left on).
+
+**9.2 The pilot** — follow `docs/PILOT.md`: the ready-checklist, who takes part, the two-week plan, how feedback is collected, the
+scorecard for the go / no-go decision, the rollout after a "go", and the monthly routine afterwards.
+
+**9.3 Material to hand out** (Turkish): `docs/tr/UYE-REHBERI.md`, `docs/tr/ANTRENOR-REHBERI.md`, `docs/tr/DAVET-MESAJI.md` (WhatsApp texts).
+The same answers are inside the app under *Profil → Yardım* (members) and *Diğer → Yardım* (coaches); set `VITE_FEEDBACK_URL`
+in Cloudflare (a WhatsApp link like `https://wa.me/905XXXXXXXXX`, or a form) to add a **Görüş bildir** button there.
 
 ## Local development
 

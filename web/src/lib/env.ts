@@ -6,6 +6,8 @@ const schema = z.object({
   // Optional at build time: without it the app works, but push notifications stay disabled.
   VITE_VAPID_PUBLIC_KEY: z.string().optional(),
   VITE_LOGIN_EMAIL_DOMAIN: z.string().min(3).default('kulup.invalid'),
+  // Optional: where members/coaches send feedback (a WhatsApp link such as https://wa.me/90…, or a form). https only.
+  VITE_FEEDBACK_URL: z.url().refine((value) => value.startsWith('https://'), { message: 'VITE_FEEDBACK_URL https:// ile başlamalı' }).optional(),
 });
 
 export type Env = z.infer<typeof schema>;

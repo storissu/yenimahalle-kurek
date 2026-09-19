@@ -1662,6 +1662,49 @@ const shot = async (page, name, fullPage = false) => {
   await member.ctx.close();
 }
 
+// ---------- 12. help pages (members and coaches) ----------
+{
+  const member = await newPage('dark');
+  const mp = member.page;
+  await mp.goto(BASE + '/giris');
+  await mp.getByLabel('Kullanıcı adı').fill('ali');
+  await mp.getByLabel('Şifre').fill('Kurek2026x');
+  await mp.getByRole('button', { name: 'Giriş yap' }).click();
+  await mp.waitForURL('**/uye');
+  await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Profil', exact: true }).click();
+  await mp.getByRole('link', { name: 'Yardım ve sık sorulan sorular' }).click();
+  await mp.getByRole('heading', { name: 'Yardım', level: 1 }).waitFor();
+  check('members find the help under Profil, with their own questions (not the coach ones)', (await mp.getByText('Şifremi unuttum.').isVisible()) && (await mp.getByText('Antrenmanı nasıl oluştururum?').count()) === 0);
+  check('without a feedback address the page says to tell the coach', await mp.getByText('Görüşlerinizi antrenörünüze iletin.').isVisible());
+  const question = mp.getByText('Yanıtımı neden değiştiremiyorum?');
+  await question.click();
+  await mp.getByText(/programı yayınlayınca kilitlenir/).waitFor();
+  check('a question opens to show its answer', true);
+  await mp.keyboard.press('Tab'); // keyboard users can move on; native <details> needs no scripting
+  await shot(mp, '45-member-help-dark');
+
+  const { page, ctx, problems } = await newPage();
+  await page.goto(BASE + '/giris');
+  await page.getByLabel('Kullanıcı adı').fill('ayse');
+  await page.getByLabel('Şifre').fill('Coach1234');
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await page.waitForURL('**/antrenor');
+  await page.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Diğer', exact: true }).click();
+  await page.getByRole('link', { name: 'Yardım ve sık sorulan sorular' }).click();
+  await page.getByRole('heading', { name: 'Yardım', level: 1 }).waitFor();
+  check('coaches get the coach questions (training, program, attendance …)', (await page.getByText('Antrenmanı nasıl oluştururum?').isVisible()) && (await page.getByText('Yoklamayı nasıl alırım?').isVisible()) && (await page.getByText('Şifremi unuttum.').count()) === 0);
+  await page.getByText('Programı nasıl hazırlar ve yayınlarım?').click();
+  await page.getByText(/C4X tam 4 kişi olmadan yayınlanamaz/).waitFor();
+  await shot(page, '46-coach-help');
+  await page.getByRole('link', { name: /^Diğer/ }).first().click();
+  await page.waitForURL('**/antrenor/diger');
+  check('the way back leads to Diğer', true);
+
+  check('help pages: no unexpected errors', problems.length === 0 && member.problems.length === 0, [...problems, ...member.problems].join(' | '));
+  await ctx.close();
+  await member.ctx.close();
+}
+
 // ---------- 4. PWA basics (service worker allowed) ----------
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });

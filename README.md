@@ -36,7 +36,10 @@ programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini gör�
   (skip link, page titles and focus on navigation, arrow-key radio groups, axe-core scans of ~45 screens in light and
   dark, offline saves that fail fast instead of hanging); a **security review** kept true by tests (a reviewed
   snapshot of every grant, RLS and definer function; secret scanner; dependency audit; fail-closed CORS). See `docs/SECURITY.md`.
-- Next: pilot and release (Phase 7). See `docs/ARCHITECTURE.md`.
+- **Phase 7 (pilot and rollout)** — in-app **Yardım** (FAQ for members and for coaches, optional *Görüş bildir* feedback link);
+  Turkish guides and WhatsApp texts (`docs/tr/`); `docs/PILOT.md` (ready-checklist, two-week plan, scorecard and go / no-go,
+  rollout, monthly routine); `scripts/preflight.mjs`, a check of the **deployed** site and Supabase project from the outside.
+- Next: run the pilot (`docs/PILOT.md`), then go live. See `docs/ARCHITECTURE.md`.
 
 ## Layout
 
@@ -44,7 +47,7 @@ programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini gör�
 web/        React + Vite + TypeScript PWA (the app)
 supabase/   Postgres migrations, Edge Functions, DB rule tests
 scripts/    one-off operator scripts (create the first coach, generate VAPID keys)
-docs/       ARCHITECTURE.md, RUNBOOK.md (setup + operations), SECURITY.md (threat model + review checklist), ACCESSIBILITY.md (what is
+docs/       ARCHITECTURE.md, RUNBOOK.md (setup + operations), PILOT.md (pilot + rollout plan), tr/ (Turkish guides), SECURITY.md (threat model + review checklist), ACCESSIBILITY.md (what is
             checked automatically + the manual screen-reader checklist)
 ```
 

@@ -8,6 +8,7 @@ import { useAuth, useProfile } from '@/features/auth/AuthProvider';
 import { InstallGuide } from '@/features/install/InstallGuide';
 import { PushSettings } from '@/features/notifications/PushSettings';
 import { errorMessage } from '@/lib/errors';
+import { help } from '@/strings/help';
 import { tr } from '@/strings/tr';
 
 function LinkRow({ to, label }: { to: string; label: string }) {
@@ -42,6 +43,7 @@ export function ProfilePanel() {
       <Card className="divide-y divide-border py-1">
         <LinkRow to={profile.role === 'coach' ? '/antrenor/bildirimler' : '/uye/bildirimler'} label={tr.notifications.inboxLink} />
         {profile.role === 'member' && <LinkRow to="/uye/uyeler" label={tr.profile.clubMembers} />}
+        <LinkRow to={profile.role === 'coach' ? '/antrenor/diger/yardim' : '/uye/yardim'} label={help.link} />
         <LinkRow to="/sifre-degistir" label={tr.profile.changePassword} />
         <LinkRow to="/gizlilik" label={tr.profile.privacy} />
       </Card>
