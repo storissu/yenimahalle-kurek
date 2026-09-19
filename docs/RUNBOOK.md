@@ -208,6 +208,14 @@ If a later run turns red, GitHub e-mails you: open the Supabase dashboard → **
 | `SUPABASE_DB_URL` | Supabase dashboard → **Connect** → **Session pooler** connection string, with `[YOUR-PASSWORD]` replaced by your database password. Use the *pooler* string: the "direct" address is IPv6-only and GitHub's runners are IPv4 |
 | `BACKUP_PASSPHRASE` | a long random passphrase you keep in your **password manager**. **Without it a backup cannot be opened — nobody can recover it for you.** Generate one: `-join ((48..57)+(65..90)+(97..122) \| Get-Random -Count 32 \| ForEach-Object {[char]$_})` |
 
+**How to build `SUPABASE_DB_URL` correctly** (a wrong string is the usual reason a first run fails with *"password authentication failed"*):
+1. Supabase dashboard → **Connect** → tab **Session pooler** (not "Direct connection", not "Transaction pooler"). Copy the string. It looks like
+   `postgresql://postgres.<project-ref>:[YOUR-PASSWORD]@aws-0-<region>.pooler.supabase.com:5432/postgres`.
+2. The user must be **`postgres.<project-ref>`** (with the project reference after the dot) — keep it exactly as copied.
+3. Replace `[YOUR-PASSWORD]` — **brackets included** — with the database password. If the password contains `@ # / ? : %` the URL breaks:
+   the simplest fix is a new password of **letters and digits only** (Supabase → Project Settings → Database → **Reset database password**; then update the password in your `supabase link` notes too).
+4. Paste the whole string into the secret. The workflow now checks the string's shape and tests the login first, and tells you in plain words what is wrong.
+
 Run it once: **Actions → Weekly encrypted backup → Run workflow**. ✅ Green run, and an artifact `club-backup-<date>` (a `.gpg` file) at the bottom of the run page. Backups are kept 90 days (GitHub's maximum) — download the newest one now and then and keep a copy somewhere else (a USB stick, your own cloud).
 What is inside: the whole `public` schema (all club data + security rules) and the login accounts (`auth.users`, `auth.identities`, so members keep their passwords). The unencrypted dump exists only inside the runner for a few seconds and is wiped.
 

@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: none
+  contents: read
 
 jobs:
   backup:
@@ -41,6 +41,15 @@ jobs:
             exit 1
           fi
 
+      - uses: actions/checkout@v4
+
+      # Explains a wrong connection string in plain words (never prints it): placeholder left in, "postgres" instead of
+      # postgres.<project-ref> on the pooler, special characters in the password, direct address, wrong port ...
+      - name: Check the shape of SUPABASE_DB_URL
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: node scripts/check-db-url.mjs
+
       # Supabase runs PostgreSQL 17; pg_dump must not be older than the server.
       - name: Install the PostgreSQL 17 client
         run: |
@@ -52,7 +61,22 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
-          pg_dump --version
+          # The runner image ships PostgreSQL 16 and its `pg_dump` wrapper would pick that one ("server version
+          # mismatch"). Put the version 17 programs first on the PATH for every following step.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
+
+      - name: Test the login
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -uo pipefail
+          if ! answer=$(psql "$SUPABASE_DB_URL" -X -A -t -c 'select 1' 2>&1); then
+            echo "$answer"
+            echo "::error::The database refused the login. If it says 'password authentication failed' the password inside SUPABASE_DB_URL is wrong or outdated: Supabase → Project Settings → Database → Reset database password (use letters and digits only), then rebuild the string from Connect → Session pooler and update the secret."
+            exit 1
+          fi
+          echo "Login works."
 
       - name: Dump and encrypt
         env:
@@ -61,6 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          pg_dump --version   # must say 17.x, like the server
           stamp=$(date -u +%Y%m%d-%H%M)
           echo "STAMP=${stamp}" >> "$GITHUB_ENV"
 
