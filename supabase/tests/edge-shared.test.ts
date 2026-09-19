@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { auditRpcArgs } from '../functions/_shared/audit.ts';
+import { resolveAllowedOrigin } from '../functions/_shared/origin.ts';
 import { classifyStatus, decideOutcome, MAX_ATTEMPTS, payloadFor, pushOptions } from '../functions/_shared/push.ts';
 import {
   forecastUrl,
@@ -197,5 +199,45 @@ describe('push payload', () => {
     expect(pushOptions('deadline_reminder').urgency).toBe('high');
     expect(pushOptions('program_published').urgency).toBe('normal');
     expect(pushOptions('training_new').TTL).toBe(21_600);
+  });
+});
+
+describe('CORS origin (fails closed)', () => {
+  it('accepts one plain http(s) origin, tidied', () => {
+    expect(resolveAllowedOrigin('https://yenimahalle-kurek.pages.dev')).toBe('https://yenimahalle-kurek.pages.dev');
+    expect(resolveAllowedOrigin(' https://yenimahalle-kurek.pages.dev/ ')).toBe('https://yenimahalle-kurek.pages.dev');
+    expect(resolveAllowedOrigin('http://localhost:5173')).toBe('http://localhost:5173');
+  });
+
+  it('refuses a wildcard, an empty or missing value, and anything that is not just an origin', () => {
+    for (const bad of [undefined, null, '', '  ', '*', 'yenimahalle.pages.dev', 'ftp://x.example', 'https://x.example/path', 'https://x.example/?q=1', 'https://user:pw@x.example', 'javascript:alert(1)', 'https://a.example,https://b.example']) {
+      expect(resolveAllowedOrigin(bad), String(bad)).toBeNull();
+    }
+  });
+});
+
+describe('audit entries written by the Edge Functions', () => {
+  it('map onto the database function log_audit() and carry the coach as actor', () => {
+    expect(
+      auditRpcArgs({ action: 'member.create', memberId: 'm1', actorId: 'c1', summary: 'Hesap oluşturuldu: Ali (@ali)', detail: { role: 'member' } }),
+    ).toEqual({
+      p_category: 'member',
+      p_action: 'member.create',
+      p_entity: 'profile',
+      p_entity_id: 'm1',
+      p_summary: 'Hesap oluşturuldu: Ali (@ali)',
+      p_detail: { role: 'member' },
+      p_actor: 'c1',
+    });
+    expect(auditRpcArgs({ action: 'member.deactivate', memberId: 'm1', actorId: 'c1', summary: 's' }).p_detail).toEqual({});
+  });
+
+  it('every admin function writes one, and none of them puts the password in it', () => {
+    for (const name of ['admin-create-member', 'admin-reset-password', 'admin-set-active']) {
+      const source = readFileSync(new URL(`../functions/${name}/index.ts`, import.meta.url), 'utf8');
+      expect(source, name).toContain('logAudit(admin');
+      const call = source.slice(source.indexOf('logAudit(admin'), source.indexOf('});', source.indexOf('logAudit(admin')));
+      expect(call, name).not.toMatch(/\$\{password\}|password\s*[,:}]/); // the value, not the action name 'member.reset_password'
+    }
   });
 });

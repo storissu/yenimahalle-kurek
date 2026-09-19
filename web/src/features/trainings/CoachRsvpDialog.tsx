@@ -5,6 +5,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { TextAreaField } from '@/components/ui/TextAreaField';
 import { useToast } from '@/components/ui/Toast';
 import { cn } from '@/lib/cn';
+import { radioGroupKeys, radioTabIndex } from '@/lib/radioGroup';
 import { errorMessage } from '@/lib/errors';
 import { tr } from '@/strings/tr';
 import type { Profile, RsvpResponse, Training, TrainingResponse } from '@/types/database';
@@ -48,8 +49,8 @@ function Form({ training, member, current, onClose }: Omit<CoachRsvpDialogProps,
       <p className="text-lg font-bold">{member.full_name}</p>
       <p className="-mt-2 text-sm text-muted">{tr.responses.overrideHelp}</p>
 
-      <div role="radiogroup" aria-label={tr.rsvp.groupLabel} className="grid grid-cols-2 gap-3">
-        {OPTIONS.map(({ value, label, icon: Icon }) => {
+      <div role="radiogroup" aria-label={tr.rsvp.groupLabel} onKeyDown={radioGroupKeys({ activate: true })} className="grid grid-cols-2 gap-3">
+        {OPTIONS.map(({ value, label, icon: Icon }, index) => {
           const selected = response === value;
           return (
             <button
@@ -57,6 +58,7 @@ function Form({ training, member, current, onClose }: Omit<CoachRsvpDialogProps,
               type="button"
               role="radio"
               aria-checked={selected}
+              tabIndex={radioTabIndex(selected, Boolean(response), index)}
               onClick={() => setResponse(value)}
               className={cn(
                 'flex min-h-16 flex-col items-center justify-center gap-1 rounded-2xl border-2 px-2 text-[15px] font-bold',

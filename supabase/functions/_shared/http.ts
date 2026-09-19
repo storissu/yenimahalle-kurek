@@ -7,10 +7,15 @@ export class HttpError extends Error {
   }
 }
 
-const allowedOrigin = Deno.env.get('ALLOWED_ORIGIN') ?? '*';
+import { resolveAllowedOrigin } from './origin.ts';
 
-export const corsHeaders = {
-  'Access-Control-Allow-Origin': allowedOrigin,
+const allowedOrigin = resolveAllowedOrigin(Deno.env.get('ALLOWED_ORIGIN'));
+if (!allowedOrigin) {
+  console.error('ALLOWED_ORIGIN is not set to a valid origin (e.g. https://your-site.pages.dev): browsers will be refused. See docs/RUNBOOK.md.');
+}
+
+export const corsHeaders: Record<string, string> = {
+  ...(allowedOrigin ? { 'Access-Control-Allow-Origin': allowedOrigin } : {}),
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   Vary: 'Origin',

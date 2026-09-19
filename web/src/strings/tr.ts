@@ -196,6 +196,7 @@ export const tr = {
     title: 'Diğer',
     boats: 'Tekneler',
     clubSettings: 'Kulüp ayarları',
+    audit: 'Değişiklik geçmişi',
   },
 
   privacy: {
@@ -213,6 +214,10 @@ export const tr = {
       {
         heading: 'Kimler görebilir?',
         body: 'Antrenörler tüm kayıtları görür. Üyeler kendi kayıtlarını, yayınlanmış programı ve diğer üyelerin ad soyadını ve telefon numarasını (antrenman arkadaşlarınıza ulaşabilmeniz için) görür. Kullanıcı adı, katılım yanıtları ve yoklama kayıtları diğer üyelere gösterilmez; aylık sıralamada yalnızca seans sayısı görünür.',
+      },
+      {
+        heading: 'Değişiklik kayıtları',
+        body: 'Antrenörlerin yaptığı değişiklikler (ör. antrenman düzenleme, program yayınlama, yoklama kaydetme, hesap işlemleri) kimin ne zaman yaptığıyla birlikte bir yıl saklanır ve yalnızca antrenörler görür. Şifreler ve telefon numaraları bu kayıtlara yazılmaz.',
       },
       {
         heading: 'Verileriniz üzerindeki haklarınız',
@@ -567,6 +572,42 @@ export const tr = {
     advisoryWave: (value: string, threshold: string) => `Dalga ${value} m (eşik ${threshold})`,
     advisoryHint: 'Karar antrenöre aittir; uygulama hiçbir antrenmanı kendiliğinden iptal etmez.',
     unknown: 'Bilinmiyor',
+  },
+
+  a11y: {
+    skipToContent: 'Ana içeriğe geç',
+  },
+
+  audit: {
+    title: 'Değişiklik geçmişi',
+    hint: 'Antrenörlerin yaptığı değişiklikler. Yalnızca antrenörler görebilir; kayıtlar bir yıl saklanır.',
+    back: 'Diğer',
+    filterLabel: 'Kayıt türü',
+    filters: { all: 'Tümü', training: 'Antrenman', program: 'Program', attendance: 'Yoklama', member: 'Üyeler', settings: 'Ayarlar' },
+    emptyTitle: 'Henüz kayıt yok',
+    emptyBody: 'Antrenörler bir şey değiştirdiğinde burada görünür.',
+    loadError: 'Değişiklik geçmişi yüklenemedi.',
+    more: 'Daha eski kayıtlar',
+    by: (name: string) => `${name} tarafından`,
+    system: 'Sistem',
+    changed: (fields: string) => `Değişen: ${fields}`,
+    records: (n: number) => `${n} kayıt`,
+    fields: {
+      title: 'başlık',
+      starts_at: 'başlangıç zamanı',
+      rsvp_deadline: 'son yanıt zamanı',
+      notes: 'notlar',
+      name: 'ad',
+      capacity: 'kapasite',
+      is_active: 'kullanım durumu',
+      requires_full_crew: 'tam kadro kuralı',
+      default_rsvp_lead_hours: 'varsayılan yanıt süresi',
+      reminder_lead_hours: 'hatırlatma zamanı',
+      wind_gust_warn_kmh: 'rüzgâr hamlesi eşiği',
+      wave_warn_m: 'dalga eşiği',
+      full_name: 'ad soyad',
+      phone: 'telefon',
+    },
   },
 
   notifications: {

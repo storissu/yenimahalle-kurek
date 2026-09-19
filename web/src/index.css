@@ -136,6 +136,12 @@
     outline-offset: 2px;
   }
 
+  /* Headings and <main> only take focus from code (after a page change, or the skip link), never by Tab. */
+  main[tabindex='-1']:focus,
+  h1[tabindex='-1']:focus {
+    outline: none;
+  }
+
   button,
   a,
   input,

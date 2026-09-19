@@ -2,6 +2,7 @@
 // Coach-only. Deactivating blocks login at the Auth level (ban) and by RLS (profiles.is_active).
 // History is kept: members are never deleted. The DB refuses to deactivate the last active coach.
 import { requireCoach } from '../_shared/auth.ts';
+import { logAudit } from '../_shared/audit.ts';
 import { handle, HttpError, json, readJson } from '../_shared/http.ts';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -19,7 +20,7 @@ Deno.serve(
 
     const { data: target, error: targetError } = await admin
       .from('profiles')
-      .select('id, is_active')
+      .select('id, full_name, username, is_active')
       .eq('id', userId)
       .maybeSingle();
     if (targetError) throw new HttpError(500, 'Kullanıcı okunamadı');
@@ -43,6 +44,13 @@ Deno.serve(
       console.error('ban update failed', banError.message);
       throw new HttpError(500, 'Giriş izni güncellenemedi');
     }
+
+    await logAudit(admin, {
+      action: isActive ? 'member.activate' : 'member.deactivate',
+      memberId: userId,
+      actorId: callerId,
+      summary: `${isActive ? 'Hesap yeniden etkinleştirildi' : 'Hesap devre dışı bırakıldı'}: ${target.full_name} (@${target.username})`,
+    });
 
     return json({ ok: true, is_active: isActive });
   }),

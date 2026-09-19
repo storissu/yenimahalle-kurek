@@ -1,4 +1,4 @@
-import { CalendarX, ChevronRight, Pencil, Plus, Settings, Ship, Users, XCircle } from 'lucide-react';
+import { CalendarX, ChevronRight, History, Pencil, Plus, Settings, Ship, Users, XCircle } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { BackLink } from '@/components/layout/BackLink';
@@ -326,6 +326,11 @@ export function CoachMorePage() {
           <Link to="/antrenor/diger/ayarlar" className="flex min-h-12 items-center gap-3 px-1 font-medium">
             <Settings aria-hidden="true" size={20} className="text-primary" />
             <span className="flex-1">{tr.more.clubSettings}</span>
+            <ChevronRight aria-hidden="true" size={20} className="text-muted" />
+          </Link>
+          <Link to="/antrenor/diger/gecmis" className="flex min-h-12 items-center gap-3 px-1 font-medium">
+            <History aria-hidden="true" size={20} className="text-primary" />
+            <span className="flex-1">{tr.more.audit}</span>
             <ChevronRight aria-hidden="true" size={20} className="text-muted" />
           </Link>
         </Card>

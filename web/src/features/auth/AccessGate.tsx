@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
+import { RouteAccessibility } from '@/components/layout/RouteAccessibility';
 import { Button } from '@/components/ui/Button';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Spinner } from '@/components/ui/Spinner';
@@ -47,6 +48,11 @@ export function AccessGate() {
     case 'redirect':
       return <Navigate to={access.to} replace />;
     case 'allow':
-      return <Outlet />;
+      return (
+        <>
+          <RouteAccessibility />
+          <Outlet />
+        </>
+      );
   }
 }

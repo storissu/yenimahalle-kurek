@@ -5,6 +5,7 @@ import { AccessGate } from '@/features/auth/AccessGate';
 import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { BoatsPage } from '@/features/boats/BoatsPage';
+import { AuditPage } from '@/features/audit/AuditPage';
 import { MemberDirectoryPage } from '@/features/members/MemberDirectoryPage';
 import { MembersPage } from '@/features/members/MembersPage';
 import { NotificationsPage } from '@/features/notifications/NotificationsPage';
@@ -81,6 +82,7 @@ export const router = createBrowserRouter([
           { path: 'diger', element: <CoachMorePage /> },
           { path: 'diger/tekneler', element: <BoatsPage /> },
           { path: 'diger/ayarlar', element: <SettingsPage /> },
+          { path: 'diger/gecmis', element: <AuditPage /> },
           { path: 'bildirimler', element: <NotificationsPage backTo="/antrenor" backLabel={tr.nav.dashboard} /> },
         ],
       },

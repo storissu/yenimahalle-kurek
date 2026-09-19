@@ -2,12 +2,13 @@
 // Coach-only. Creates the auth user + profile and returns a ONE-TIME password.
 // The password is never stored or logged; the coach hands it to the member, who must change it at first login.
 import { loginEmailDomain, requireCoach } from '../_shared/auth.ts';
+import { logAudit } from '../_shared/audit.ts';
 import { handle, HttpError, json, readJson } from '../_shared/http.ts';
 import { generatePassword, isValidUsername, normalizeUsername, toLoginEmail } from '../_shared/username.ts';
 
 Deno.serve(
   handle(async (req) => {
-    const { admin } = await requireCoach(req);
+    const { admin, callerId } = await requireCoach(req);
     const body = await readJson(req);
 
     const fullName = typeof body.full_name === 'string' ? body.full_name.trim() : '';
@@ -54,6 +55,14 @@ Deno.serve(
       console.error('profile insert failed', profileError.message);
       throw new HttpError(profileError.code === '23505' ? 409 : 500, 'Üye kaydedilemedi');
     }
+
+    await logAudit(admin, {
+      action: 'member.create',
+      memberId: created.user.id,
+      actorId: callerId,
+      summary: `Hesap oluşturuldu: ${fullName} (@${username}${role === 'coach' ? ', antrenör' : ''})`,
+      detail: { role },
+    });
 
     return json({ id: created.user.id, username, full_name: fullName, role, password }, 201);
   }),

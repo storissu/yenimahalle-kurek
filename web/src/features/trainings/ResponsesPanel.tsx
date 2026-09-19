@@ -65,10 +65,10 @@ function MemberRow({ member, response, onEdit }: { member: Member; response?: Tr
 function Group({ heading, count, tone, children }: { heading: string; count: number; tone: 'success' | 'neutral' | 'warning'; children: React.ReactNode }) {
   return (
     <section aria-label={`${heading} (${count})`}>
-      <h3 className="mb-2 flex items-center gap-2 text-sm font-bold">
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-bold">
         {heading}
         <Badge tone={tone}>{count}</Badge>
-      </h3>
+      </h2>
       {count === 0 ? <p className="px-1 pb-2 text-sm text-muted">{tr.responses.nobody}</p> : <Card className="divide-y divide-border px-3 py-1">{children}</Card>}
     </section>
   );

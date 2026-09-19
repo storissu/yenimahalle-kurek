@@ -19,6 +19,7 @@ export function LeaderboardList({ rows, meId }: { rows: MonthRow[]; meId?: strin
             className={cn('flex min-h-14 items-center gap-3 rounded-2xl border px-3 py-2', mine ? 'border-primary bg-primary-soft' : 'border-border bg-surface')}
           >
             <span
+              role="img"
               aria-label={`${row.rank}. sıra${tied ? `, ${tr.stats.tied}` : ''}`}
               className={cn(
                 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold',

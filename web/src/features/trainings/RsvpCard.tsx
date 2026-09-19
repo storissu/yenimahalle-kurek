@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { TextAreaField } from '@/components/ui/TextAreaField';
 import { cn } from '@/lib/cn';
+import { radioGroupKeys, radioTabIndex } from '@/lib/radioGroup';
 import { tr } from '@/strings/tr';
 import type { RsvpResponse, Training, TrainingResponse } from '@/types/database';
 import { deadlineLabel, formatCountdown, rsvpWindow } from './schedule';
@@ -101,8 +102,8 @@ export function RsvpCard({ training, answer, now, programPublished = false, onSu
         </p>
       </div>
 
-      <div role="radiogroup" aria-label={tr.rsvp.groupLabel} className="grid grid-cols-2 gap-3">
-        {OPTIONS.map(({ value, label, icon: Icon }) => {
+      <div role="radiogroup" aria-label={tr.rsvp.groupLabel} onKeyDown={radioGroupKeys({ activate: false })} className="grid grid-cols-2 gap-3">
+        {OPTIONS.map(({ value, label, icon: Icon }, index) => {
           const selected = answer?.response === value;
           return (
             <button
@@ -110,6 +111,7 @@ export function RsvpCard({ training, answer, now, programPublished = false, onSu
               type="button"
               role="radio"
               aria-checked={selected}
+              tabIndex={radioTabIndex(selected, Boolean(answer), index)}
               disabled={pending}
               onClick={() => void submit(value)}
               className={cn(

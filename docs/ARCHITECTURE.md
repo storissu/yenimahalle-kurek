@@ -147,6 +147,29 @@ a name in the program opens a contact card with a call link; *Profil → Kulüp 
 optional when a coach creates an account (the form says other members will see it) and the privacy notice states it.
 Coaches see phones in *Üyeler*.
 
+## Change history (Phase 6)
+
+- `audit_log` is written **only by the database**: triggers on `trainings`, `training_programs`, `training_responses`
+  (coach entries only), `attendance_records`, `boats`, `club_settings`, `profiles` (coach edits) and the Edge Functions
+  for account creation / password reset / (de)activation (through `log_audit(..., p_actor)`, never with the password).
+  Coaches read it (RLS `is_coach()`); nobody can insert, update or delete from the client. Repeated identical events in
+  one transaction (the rows of one attendance save) are merged into one entry with a count. Only *which fields*
+  changed is stored, not values. Entries older than a year are removed by a daily `pg_cron` job.
+- The UI is *Diğer → Değişiklik geçmişi* (`features/audit/`): grouped by club-time day, filter chips, "Daha eski kayıtlar".
+
+## Accessibility and offline behaviour (Phase 6)
+
+- Every screenshot in the browser test also runs **axe-core** (WCAG 2.0/2.1 A + AA + best practices) on exactly what
+  is on screen, in both colour schemes; serious/critical findings fail CI. Real screen-reader checks (VoiceOver,
+  TalkBack) remain a manual step (RUNBOOK checklist).
+- Skip link + `<main id="main">`; on every page change `RouteAccessibility` sets `document.title` from the page's
+  `<h1>` and moves focus to it (so screen readers announce the new page); radio-style groups follow the ARIA arrow-key
+  pattern (`lib/radioGroup.ts`) — for choices that save to the server (the RSVP) arrows only move focus, Space/Enter chooses.
+- **Offline**: reads show what is already loaded (TanStack's default keeps refetching paused while offline); **saves
+  are attempted immediately** (`networkMode: 'always'` for mutations) and fail with the Turkish connection message while
+  the form keeps what was typed — instead of the default of silently queuing the save until reconnect. A banner says
+  "Çevrimdışısınız". Nothing is written offline, so there is nothing to reconcile.
+
 ## Security model
 
 - **Row Level Security on every table**, default-deny, explicit grants (never Supabase's default privileges).
@@ -160,6 +183,8 @@ Coaches see phones in *Üyeler*.
 - Members see other members only through `member_directory` (id + name), never phone/username.
 - Usernames are ASCII-only (`[a-z0-9._-]{3,30}`) to avoid Turkish dotted/dotless-i case-folding bugs. Login uses a
   synthetic email `<username>@<LOGIN_EMAIL_DOMAIN>`; the domain is a config value, fixed once members exist.
+- The full review (threat model, checklist, evidence, limits) is in `docs/SECURITY.md`; `supabase/tests/security.test.ts`
+  compares every table/column/function grant to a reviewed snapshot so a change cannot slip in unnoticed.
 - Browser: strict CSP + security headers (`web/public/_headers`), no third-party scripts, the service worker never
   caches API responses, logout clears the query cache and removes this device's push subscription.
 

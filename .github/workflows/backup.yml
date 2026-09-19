@@ -1,0 +1,90 @@
+name: Weekly encrypted backup
+
+# The free Supabase plan has NO automatic backups. Every Sunday this dumps the club's data, encrypts it with a
+# passphrase only you know, and keeps it as a private workflow artifact for 90 days (GitHub's maximum is 90).
+#
+#   public schema  : every table + data + grants/policies (plain SQL, restorable with psql)
+#   auth.users / auth.identities : the login accounts (data only), so members keep their passwords after a restore
+#
+# The plain-text dump exists only inside the runner for a few seconds and is wiped; only the .gpg file is uploaded.
+# The passphrase and the database address are repository SECRETS — never commit them.
+#
+# One-time setup, restore drill and how to read the backup: docs/RUNBOOK.md, "Keep-alive and backups".
+# Test it once by hand: Actions → Weekly encrypted backup → Run workflow.
+
+on:
+  schedule:
+    - cron: '23 3 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: none
+
+jobs:
+  backup:
+    name: Dump, encrypt, upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check the secrets exist
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_URL:-}" ] || [ -z "${BACKUP_PASSPHRASE:-}" ]; then
+            echo "::error::Add the repository secrets SUPABASE_DB_URL and BACKUP_PASSPHRASE (see docs/RUNBOOK.md)."
+            exit 1
+          fi
+          if [ "${#BACKUP_PASSPHRASE}" -lt 16 ]; then
+            echo "::error::BACKUP_PASSPHRASE is too short (use at least 16 characters)."
+            exit 1
+          fi
+
+      # Supabase runs PostgreSQL 17; pg_dump must not be older than the server.
+      - name: Install the PostgreSQL 17 client
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates gnupg lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+          pg_dump --version
+
+      - name: Dump and encrypt
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          umask 077
+          stamp=$(date -u +%Y%m%d-%H%M)
+          echo "STAMP=${stamp}" >> "$GITHUB_ENV"
+
+          pg_dump "$SUPABASE_DB_URL" --no-owner --schema=public --file "public.sql"
+          pg_dump "$SUPABASE_DB_URL" --no-owner --data-only --table=auth.users --table=auth.identities --file "auth.sql"
+
+          # a dump that lost its tables or its people is worse than no dump: fail loudly
+          grep -q 'CREATE TABLE public.profiles' public.sql
+          grep -q 'COPY public.trainings\|INSERT INTO public.trainings\|CREATE TABLE public.trainings' public.sql
+          grep -q 'auth.users' auth.sql
+
+          tar -cf "club-${stamp}.tar" public.sql auth.sql
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+            --symmetric --cipher-algo AES256 --output "club-${stamp}.tar.gpg" "club-${stamp}.tar"
+
+          # prove the file can be read back before trusting it, then wipe every plain-text copy
+          printf '%s' "$BACKUP_PASSPHRASE" | gpg --batch --pinentry-mode loopback --passphrase-fd 0 --decrypt "club-${stamp}.tar.gpg" | tar -t
+          shred -u public.sql auth.sql "club-${stamp}.tar"
+          ls -l
+
+      - name: Keep the encrypted file for 90 days
+        uses: actions/upload-artifact@v4
+        with:
+          name: club-backup-${{ env.STAMP }}
+          path: club-*.tar.gpg
+          retention-days: 90
+          if-no-files-found: error

@@ -1,0 +1,45 @@
+name: Keep-alive
+
+# Free Supabase projects are PAUSED after about a week without activity. Every three days this calls the public,
+# data-free ping() function so the project never counts as idle. If the project is already paused (or the secrets
+# are missing) the run FAILS and GitHub e-mails the repository owner — that is the alarm.
+#
+# One-time setup (docs/RUNBOOK.md, "Keep-alive and backups"): repository secrets SUPABASE_URL and SUPABASE_ANON_KEY
+# (both are the public values that ship in the web app). Test it once: Actions → Keep-alive → Run workflow.
+# Note: GitHub switches scheduled workflows off after 60 days without ANY repository activity in PUBLIC repositories;
+# this repository is private, where that does not apply.
+
+on:
+  schedule:
+    - cron: '17 6 */3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: none
+
+jobs:
+  ping:
+    name: Call ping()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call the database
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL:-}" ] || [ -z "${SUPABASE_ANON_KEY:-}" ]; then
+            echo "::error::Add the repository secrets SUPABASE_URL and SUPABASE_ANON_KEY (see docs/RUNBOOK.md)."
+            exit 1
+          fi
+          answer=$(curl --fail-with-body --silent --show-error --max-time 30 \
+            -X POST "${SUPABASE_URL%/}/rest/v1/rpc/ping" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{}') || {
+              echo "::error::The project did not answer. It may be paused: Supabase dashboard → Restore project."
+              exit 1
+            }
+          echo "The project answered with its clock: ${answer}"

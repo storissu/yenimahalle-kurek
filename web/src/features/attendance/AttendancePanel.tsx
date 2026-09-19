@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/components/ui/Toast';
 import { useNow } from '@/lib/clock';
 import { cn } from '@/lib/cn';
+import { radioGroupKeys, radioTabIndex } from '@/lib/radioGroup';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/time';
 import { tr } from '@/strings/tr';
@@ -58,13 +59,14 @@ const MARKS: Array<{ value: Mark; label: string; icon: typeof CircleCheck; selec
 
 function MarkToggle({ name, value, onChange }: { name: string; value: Mark; onChange: (mark: Mark) => void }) {
   return (
-    <div role="radiogroup" aria-label={tr.attendance.markGroup(name)} className="grid grid-cols-2 gap-2">
-      {MARKS.map(({ value: mark, label, icon: Icon, selected }) => (
+    <div role="radiogroup" aria-label={tr.attendance.markGroup(name)} onKeyDown={radioGroupKeys({ activate: true })} className="grid grid-cols-2 gap-2">
+      {MARKS.map(({ value: mark, label, icon: Icon, selected }, index) => (
         <button
           key={mark}
           type="button"
           role="radio"
           aria-checked={value === mark}
+          tabIndex={radioTabIndex(value === mark, true, index)}
           onClick={() => onChange(mark)}
           className={cn(
             'flex min-h-11 items-center justify-center gap-1.5 rounded-xl border-2 px-2 text-sm font-bold',

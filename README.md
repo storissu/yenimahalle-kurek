@@ -31,7 +31,12 @@ programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini gör�
   published; the coach no longer enters a number of sessions — **sessions are added while preparing the program** and
   the training's length follows from it; new RSVP deadline option **"Bir önceki akşam 20:00"**; members can see each
   other's **phone numbers** (crew names open a contact card, *Profil → Kulüp üyeleri*).
-- Next: hardening (accessibility pass, audit log, keep-alive + backups), pilot and release. See `docs/ARCHITECTURE.md`.
+- **Phase 6 (hardening)** — coaches get a **Değişiklik geçmişi** (who changed what, kept a year); free-tier safety nets:
+  a **keep-alive** workflow and a **weekly encrypted backup** with a documented restore drill; an **accessibility pass**
+  (skip link, page titles and focus on navigation, arrow-key radio groups, axe-core scans of ~45 screens in light and
+  dark, offline saves that fail fast instead of hanging); a **security review** kept true by tests (a reviewed
+  snapshot of every grant, RLS and definer function; secret scanner; dependency audit; fail-closed CORS). See `docs/SECURITY.md`.
+- Next: pilot and release (Phase 7). See `docs/ARCHITECTURE.md`.
 
 ## Layout
 
@@ -39,7 +44,8 @@ programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini gör�
 web/        React + Vite + TypeScript PWA (the app)
 supabase/   Postgres migrations, Edge Functions, DB rule tests
 scripts/    one-off operator scripts (create the first coach, generate VAPID keys)
-docs/       ARCHITECTURE.md, RUNBOOK.md (setup + operations)
+docs/       ARCHITECTURE.md, RUNBOOK.md (setup + operations), SECURITY.md (threat model + review checklist), ACCESSIBILITY.md (what is
+            checked automatically + the manual screen-reader checklist)
 ```
 
 ## Quick start (development)
@@ -61,7 +67,7 @@ npm run dev
 | `npm run dev` | dev server (no service worker in dev) |
 | `npm run build` / `npm run preview` | production build (typecheck + Vite + service worker) / serve it locally |
 | `npm run typecheck`, `npm run lint`, `npm test` | quality gates (all run in CI) |
-| `npm run e2e` | browser smoke test against a preview build with a mocked backend |
+| `npm run e2e` | browser smoke test (incl. axe accessibility scans) against a preview build with a mocked backend |
 | `npm run icons` | regenerate PWA icons from `public/icon.svg` (replace it with the club logo) |
 
 To go live, follow **`docs/RUNBOOK.md`** (Supabase project → deploy functions → first coach → Cloudflare Pages).

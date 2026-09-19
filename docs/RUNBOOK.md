@@ -184,6 +184,60 @@ as fallback (no gusts/waves then). Values are for the site coordinates in `club_
 indicative near the coast. **Kulüp ayarları** (coach → Diğer) sets the gust / wave thresholds; when a forecast crosses
 one, only coaches see a warning. Nothing is ever cancelled automatically.
 
+## 8. Keep-alive and encrypted backups (Phase 6)
+
+Two GitHub workflows protect the free Supabase project. Both need **repository secrets**
+(GitHub → your repo → **Settings → Secrets and variables → Actions → New repository secret**). Secrets are encrypted by
+GitHub and never appear in the code.
+
+**8.1 Keep-alive** (`.github/workflows/keepalive.yml`, every 3 days) — stops the free project from being paused for inactivity.
+
+| Secret | Value |
+|---|---|
+| `SUPABASE_URL` | `https://<ref>.supabase.co` |
+| `SUPABASE_ANON_KEY` | the anon / publishable key (the same public value as in Cloudflare) |
+
+Run it once: **Actions → Keep-alive → Run workflow**. ✅ The log ends with "The project answered with its clock: …".
+If a later run turns red, GitHub e-mails you: open the Supabase dashboard → **Restore project** (it was paused).
+(Needs migration `20260921100000_audit_log` — it adds the tiny public `ping()` function the workflow calls.)
+
+**8.2 Weekly encrypted backup** (`.github/workflows/backup.yml`, Sundays 03:23 UTC) — the free plan has **no** automatic backups.
+
+| Secret | Value |
+|---|---|
+| `SUPABASE_DB_URL` | Supabase dashboard → **Connect** → **Session pooler** connection string, with `[YOUR-PASSWORD]` replaced by your database password. Use the *pooler* string: the "direct" address is IPv6-only and GitHub's runners are IPv4 |
+| `BACKUP_PASSPHRASE` | a long random passphrase you keep in your **password manager**. **Without it a backup cannot be opened — nobody can recover it for you.** Generate one: `-join ((48..57)+(65..90)+(97..122) \| Get-Random -Count 32 \| ForEach-Object {[char]$_})` |
+
+Run it once: **Actions → Weekly encrypted backup → Run workflow**. ✅ Green run, and an artifact `club-backup-<date>` (a `.gpg` file) at the bottom of the run page. Backups are kept 90 days (GitHub's maximum) — download the newest one now and then and keep a copy somewhere else (a USB stick, your own cloud).
+What is inside: the whole `public` schema (all club data + security rules) and the login accounts (`auth.users`, `auth.identities`, so members keep their passwords). The unencrypted dump exists only inside the runner for a few seconds and is wiped.
+
+**8.3 Restore drill — do this once before you rely on the backups**
+
+You need: the passphrase, [Gpg4win](https://www.gpg4win.org) (or `gpg`), and the PostgreSQL command-line tools (`psql`).
+
+1. 👤 Download the artifact from the Actions run page (a zip containing the `.gpg`), unzip it.
+2. ⌨️ Decrypt and unpack:
+   ```powershell
+   gpg --decrypt club-YYYYMMDD-HHMM.tar.gpg > club.tar     # asks for the passphrase
+   tar -xf club.tar                                          # gives public.sql and auth.sql
+   ```
+3. 👤 Create a **new, empty** Supabase project (a scratch one for the drill; the real one for a real disaster) and copy its **Session pooler** connection string.
+4. ⌨️ Load the data — **auth first** (profiles refer to the accounts):
+   ```powershell
+   psql "<new session pooler string>" -f auth.sql
+   psql "<new session pooler string>" -f public.sql
+   ```
+   (Errors about objects that "already exist" in `auth` can be ignored; anything about `public` tables should not appear.)
+5. Re-attach the rest, exactly as in steps 3–4 and 7 above: Cloudflare variables for the new URL/anon key, `supabase link` + `supabase secrets set …` + `supabase functions deploy`, then in the SQL Editor the Vault secrets and the two schedule files
+   (`supabase/migrations/20260919160100_schedule.sql`, `20260921100100_audit_schedule.sql`). Tell the CLI the schema is in place:
+   `npx supabase migration repair --status applied 20260919120000 20260919120100 20260919130000 20260919140000 20260919150000 20260919160000 20260919160100 20260920100000 20260921100000 20260921100100`.
+6. ✅ Log in with a coach's old username and password; check *Antrenmanlar*, *Üyeler* and last month's *İstatistik*. Members' phones must log in again (new project = new sessions) with the **same passwords**.
+7. Delete the scratch project and the decrypted files (`del club.tar public.sql auth.sql`).
+
+Second safety net: the coach can export monthly attendance as **CSV** (*İstatistik → Özet / Ayrıntılı*) — do it at the end of each month; it opens in Excel.
+
+**8.4 Change history** — *Diğer → Değişiklik geçmişi* (coaches only) lists who created/edited/cancelled trainings, published programs, saved attendance, answered for a member, created/deactivated accounts, reset passwords or changed boats/settings — with the day, time and coach, never passwords or phone numbers. Entries are kept one year.
+
 ---
 
 ## Local development
@@ -222,13 +276,15 @@ $env:BROWSER_CHANNEL="msedge" ; npm run e2e       # uses the Edge already instal
 | Members say they get no reminders / forecasts | Dashboard → Database → **Cron Jobs**: are the three `club-*` jobs listed and green? Then Edge Functions → Logs (`401` = `CRON_SECRET` differs from the Vault `cron_secret`). See step 7 |
 | Change the reminder time or weather warning limits | App → Diğer → **Kulüp ayarları** |
 | Change database | Add a **new** file in `supabase/migrations/` (never edit an applied one), run tests, then `npx supabase db push` |
-| Supabase project paused | Free projects pause after ~1 week of inactivity: dashboard → **Restore project**. A keep-alive workflow is planned (Phase 6) |
-| Backups | Not automatic on the free tier. Planned (Phase 6): weekly encrypted export + CSV export in the coach panel. Until then, export tables from the dashboard periodically |
+| Supabase project paused | Free projects pause after ~1 week of inactivity: dashboard → **Restore project**. The *Keep-alive* workflow (step 8.1) prevents it and e-mails you if it happens anyway |
+| Backups | Weekly encrypted backup workflow (step 8.2) + restore drill (8.3) + the coach's monthly CSV export. **Check once a month that the last backup run is green** |
+| Who changed something? | App → Diğer → **Değişiklik geçmişi** (step 8.4) |
 
 ## Troubleshooting
 
 - **App shows "Uygulama yapılandırılmamış"**: a `VITE_*` variable is missing/invalid. Fix in Cloudflare (or `.env.local`) and redeploy.
 - **Login says "Kullanıcı adı veya şifre hatalı" for a correct password**: usernames are lower-case ASCII; check `LOGIN_EMAIL_DOMAIN` is identical in Cloudflare, Supabase secrets and the script.
 - **Add member fails with a 401/403/500**: Supabase → Edge Functions → *Logs*; confirm the functions were deployed and the caller is an active coach.
+- **The app says "Bağlantı kurulamadı" only for actions that call Edge Functions (add member, reset password, refresh weather)**: `ALLOWED_ORIGIN` is missing or wrong. It must be exactly your site address (`https://<your-site>.pages.dev`, no path, no `*`); the functions refuse to answer browsers otherwise. `npx supabase secrets set ALLOWED_ORIGIN=https://<your-site>.pages.dev`.
 - **Browser console shows CSP errors**: edit `web/public/_headers` (`connect-src` must allow your Supabase URL).
 - **No notification on iPhone**: needs iOS ≥ 16.4, the app added to the Home Screen and opened from that icon, and permission granted (Ayarlar → Bildirimler → Kürek).

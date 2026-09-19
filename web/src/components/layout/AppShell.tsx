@@ -5,6 +5,7 @@ import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import { tr } from '@/strings/tr';
 import { useAppBadge } from '@/features/notifications/hooks';
 import { useServerClockSync } from '@/features/trainings/hooks';
+import { SkipLink } from './RouteAccessibility';
 import { UpdateBanner } from './UpdateBanner';
 
 export interface Tab {
@@ -22,13 +23,14 @@ export function AppShell({ tabs }: { tabs: Tab[] }) {
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-xl">
+      <SkipLink />
       {!online && (
         <div role="status" className="bg-warning-soft px-4 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] text-center text-sm font-medium text-warning">
           {tr.common.offline}
         </div>
       )}
 
-      <main className="px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
+      <main id="main" tabIndex={-1} className="px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))]">
         <Outlet />
       </main>
 

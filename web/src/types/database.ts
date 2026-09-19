@@ -8,6 +8,8 @@ export type TrainingStatus = 'scheduled' | 'cancelled' | 'completed';
 export type RsvpResponse = 'attending' | 'not_attending';
 export type ProgramStatus = 'draft' | 'published';
 export type AttendanceStatus = 'present' | 'absent';
+export type AuditCategory = 'training' | 'program' | 'attendance' | 'member' | 'settings';
+
 export type RsvpDeadlineRule = '12' | '24' | '48' | 'evening' | 'custom';
 
 export type NotificationType =
@@ -215,6 +217,25 @@ export type Database = {
         Update: { read_at?: string | null };
         Relationships: [];
       };
+      audit_log: {
+        Row: {
+          id: number;
+          at: string;
+          tx: number;
+          actor_id: string | null;
+          actor_name: string | null;
+          category: AuditCategory;
+          action: string;
+          entity: string;
+          entity_id: string | null;
+          summary: string;
+          detail: Json;
+        };
+        // Written only by the database (triggers) and the admin Edge Functions; coaches may read it.
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       weather_snapshots: {
         Row: {
           training_id: string;
@@ -297,4 +318,6 @@ export type ProgramAssignment = Database['public']['Tables']['program_assignment
 export type ProgramCrew = Database['public']['Tables']['program_crew']['Row'];
 export type AttendanceRecord = Database['public']['Tables']['attendance_records']['Row'];
 export type AppNotification = Database['public']['Tables']['notification_outbox']['Row'];
+export type AuditEntry = Omit<Database['public']['Tables']['audit_log']['Row'], 'detail'> & { detail: Record<string, unknown> };
+
 export type WeatherSnapshot = Database['public']['Tables']['weather_snapshots']['Row'];

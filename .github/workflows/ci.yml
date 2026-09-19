@@ -27,6 +27,11 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - name: Dependency audit (shipped code; fails on high/critical)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Full dependency report (informational)
+        run: npm audit --audit-level=high
+        continue-on-error: true
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -50,6 +55,10 @@ jobs:
           cache: npm
           cache-dependency-path: supabase/tests/package-lock.json
       - run: npm ci
+      - name: Dependency audit (fails on high/critical)
+        run: npm audit --omit=dev --audit-level=high
+      - name: No secrets in the repository
+        run: node ../../scripts/secret-scan.mjs
       - run: npm test
 
   e2e:

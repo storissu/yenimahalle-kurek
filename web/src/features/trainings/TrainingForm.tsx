@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { TextAreaField } from '@/components/ui/TextAreaField';
 import { TextField } from '@/components/ui/TextField';
 import { cn } from '@/lib/cn';
+import { radioGroupKeys, radioTabIndex } from '@/lib/radioGroup';
 import { errorMessage } from '@/lib/errors';
 import { formatDayMonth, formatTime, todayInClubZone, wallTimeToInstant } from '@/lib/time';
 import { tr } from '@/strings/tr';
@@ -81,8 +82,8 @@ export function TrainingForm({ mode, initial, onSubmit, submitError }: TrainingF
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-sm font-semibold">{tr.trainings.form.deadline}</legend>
-        <div role="radiogroup" aria-label={tr.trainings.form.deadline} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {presets.map((p) => {
+        <div role="radiogroup" aria-label={tr.trainings.form.deadline} onKeyDown={radioGroupKeys({ activate: true })} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {presets.map((p, index) => {
             const selected = values.deadlinePreset === p.id;
             return (
               <button
@@ -90,6 +91,7 @@ export function TrainingForm({ mode, initial, onSubmit, submitError }: TrainingF
                 type="button"
                 role="radio"
                 aria-checked={selected}
+                tabIndex={radioTabIndex(selected, true, index)}
                 onClick={() => setValue('deadlinePreset', p.id, { shouldValidate: true, shouldDirty: true })}
                 className={cn(
                   'min-h-11 rounded-xl border-2 px-2 text-sm font-semibold',

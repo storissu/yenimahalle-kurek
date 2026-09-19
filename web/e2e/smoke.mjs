@@ -4,6 +4,7 @@
 //
 //   npm run e2e            (expects the app built with dummy env and served on BASE_URL; see docs/RUNBOOK.md)
 //   BASE_URL=http://localhost:4173  BROWSER_CHANNEL=msedge|chrome|  (empty = Playwright's bundled Chromium)
+import AxeBuilder from '@axe-core/playwright';
 import { chromium } from 'playwright-core';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +28,7 @@ const roster = [
   { id: '33333333-3333-4333-8333-333333333333', full_name: 'Çağla Şahin', username: 'cagla', role: 'member', phone: null, is_active: true, must_change_password: false },
   { id: '44444444-4444-4444-8444-444444444444', full_name: 'Eski Üye', username: 'eski', role: 'member', phone: null, is_active: false, must_change_password: false },
 ];
-const state = { current: null, log: [] };
+const state = { current: null, log: [], offline: false };
 
 // --- mocked Phase-2 backend: trainings, answers, boats, server clock -------------------------------
 const HOUR = 3_600_000;
@@ -132,6 +133,7 @@ async function newPage(scheme = 'light') {
     const req = route.request();
     const url = new URL(req.url());
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    if (state.offline) return route.abort('internetdisconnected'); // a dropped connection: the request never gets an answer
     state.log.push(`${req.method()} ${url.pathname}${url.search}`);
 
     if (url.pathname === '/auth/v1/token') {
@@ -208,6 +210,12 @@ async function newPage(scheme = 'light') {
         return route.fulfill({ status: 204, headers: cors });
       }
       return json(route, [...mine].sort((a, b) => b.created_at.localeCompare(a.created_at)));
+    }
+    if (path === '/rest/v1/audit_log') {
+      if (callerOf(req)?.role !== 'coach') return json(route, []);
+      const category = url.searchParams.get('category');
+      const limit = Number(url.searchParams.get('limit') ?? 50);
+      return json(route, (db.audit ?? []).filter((e) => !category || category === `eq.${e.category}`).sort((x, y) => y.at.localeCompare(x.at) || y.id - x.id).slice(0, limit));
     }
     if (path === '/rest/v1/weather_snapshots') return json(route, db.weather[eqParam('training_id')] ?? []);
     if (path === '/functions/v1/refresh-weather') {
@@ -432,7 +440,25 @@ async function newPage(scheme = 'light') {
   return { page, ctx, problems };
 }
 
-const shot = (page, name, fullPage = false) => page.screenshot({ path: `${OUT}${name}.png`, fullPage });
+// Every screenshot is also an accessibility scan (axe-core, WCAG 2.0/2.1 A + AA + best practices) of exactly what is on
+// screen: serious and critical findings fail the run, lesser ones are only listed. Both colour schemes are covered because
+// the scenarios open pages in light and dark.
+const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
+const a11yNotes = [];
+async function a11y(page, name) {
+  const result = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
+  const blocking = result.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
+  for (const v of result.violations.filter((x) => !blocking.includes(x))) a11yNotes.push(`${name}: ${v.impact} ${v.id} (${v.nodes.length})`);
+  check(
+    `a11y (${name}): no serious or critical axe violations`,
+    blocking.length === 0,
+    blocking.map((v) => `${v.id} [${v.impact}] x${v.nodes.length}: ${v.nodes.slice(0, 2).map((n) => n.target.join(' ')).join(' ; ')}`).join(' | '),
+  );
+}
+const shot = async (page, name, fullPage = false) => {
+  await a11y(page, name);
+  await page.screenshot({ path: `${OUT}${name}.png`, fullPage });
+};
 
 // ---------- 1. signed out ----------
 {
@@ -1515,6 +1541,127 @@ const shot = (page, name, fullPage = false) => page.screenshot({ path: `${OUT}${
   await member.ctx.close();
 }
 
+// ---------- 11. audit log, keyboard / screen-reader support, going offline ----------
+{
+  const now = Date.now();
+  const at8 = (days) => Date.parse(`${istanbulDate(now + days * 24 * HOUR)}T08:00:00+03:00`);
+  db.trainings = [];
+  db.responses = [];
+  db.programs = {};
+  db.weather = {};
+  db.notifications = [];
+  db.settingsSaves = [];
+  db.settings.wind_gust_warn_kmh = null;
+  db.settings.wave_warn_m = null;
+  const coach = people.coach;
+  let auditId = 1;
+  const entry = (minutesAgo, category, action, summary, detail = {}, actor = 'Ayşe Yılmaz') => ({
+    id: auditId++, at: iso(now - minutesAgo * 60_000), tx: auditId, actor_id: actor ? coach.id : null, actor_name: actor, category, action, entity: 'training', entity_id: null, summary, detail,
+  });
+  db.audit = [
+    entry(5, 'program', 'program.publish', 'Program yayınlandı (sürüm 2): 23 Eylül Çarşamba 08:00', { version: 2 }),
+    entry(20, 'training', 'training.edit', 'Antrenman düzenlendi: 23 Eylül Çarşamba 08:00', { fields: ['title', 'notes'] }),
+    entry(30, 'attendance', 'attendance.save', 'Yoklama kaydedildi: 22 Eylül Salı 08:00', { count: 12 }),
+    entry(26 * 60, 'settings', 'settings.update', 'Kulüp ayarları güncellendi', { fields: ['wind_gust_warn_kmh'] }, null),
+    ...Array.from({ length: 55 }, (_, i) => entry(5000 + i, 'attendance', 'attendance.save', `Eski yoklama ${i + 1}`, { count: 3 })),
+  ];
+
+  const { page, ctx, problems } = await newPage();
+  await page.goto(BASE + '/giris');
+  await page.getByLabel('Kullanıcı adı').fill('ayse');
+  await page.getByLabel('Şifre').fill('Coach1234');
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await page.waitForURL('**/antrenor');
+
+  // ---- keyboard: the skip link is the first tab stop and jumps to the content ----
+  await page.getByRole('heading', { name: /Merhaba/ }).waitFor();
+  await page.keyboard.press('Tab');
+  check('the first Tab stop is "Ana içeriğe geç" and it becomes visible', (await page.evaluate(() => document.activeElement?.textContent)) === 'Ana içeriğe geç' && (await page.getByRole('link', { name: 'Ana içeriğe geç' }).isVisible()));
+  await page.keyboard.press('Enter');
+  check('activating it moves focus to the main content', (await page.evaluate(() => document.activeElement?.id)) === 'main');
+
+  // ---- screen readers: a page change moves focus to the new heading and updates the title ----
+  await page.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Diğer', exact: true }).click();
+  await page.getByRole('link', { name: 'Değişiklik geçmişi' }).click();
+  await page.getByRole('heading', { name: 'Değişiklik geçmişi', level: 1 }).waitFor();
+  await page.waitForFunction(() => document.activeElement?.tagName === 'H1');
+  check('after navigating, focus is on the new page heading (so it is announced)', (await page.evaluate(() => document.activeElement?.textContent)) === 'Değişiklik geçmişi');
+  check('and the tab title follows the page', (await page.title()) === 'Değişiklik geçmişi · Yeni Mahalle Kürek', await page.title());
+
+  // ---- the audit log itself ----
+  await page.getByText('Program yayınlandı (sürüm 2): 23 Eylül Çarşamba 08:00').waitFor();
+  check('entries are grouped by day, newest first, each with time, summary and who did it', (await page.locator('main h2').count()) >= 2 && (await page.locator('main li').first().innerText()).includes('Program yayınlandı (sürüm 2)') && (await page.getByText('Ayşe Yılmaz tarafından').first().isVisible()));
+  check('an edit lists WHICH fields changed (never the values)', await page.getByText('Değişen: başlık, notlar').isVisible());
+  check('merged entries show their count, and unknown actors are "Sistem"', (await page.getByText('12 kayıt').isVisible()) && (await page.getByText('Sistem tarafından').isVisible()));
+  await shot(page, '43-audit-log');
+  check('a full page offers older entries (50 shown)', (await page.locator('main li').count()) === 50 && (await page.getByRole('button', { name: 'Daha eski kayıtlar' }).isVisible()));
+  await page.getByRole('button', { name: 'Daha eski kayıtlar' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('main li').length === 59);
+  check('"Daha eski kayıtlar" loads the rest and the button goes away', (await page.getByRole('button', { name: 'Daha eski kayıtlar' }).count()) === 0);
+  await page.getByRole('button', { name: 'Program', exact: true }).click();
+  await page.getByText('Antrenman düzenlendi').waitFor({ state: 'detached' });
+  check('the filter chips narrow the list (aria-pressed marks the active one)', (await page.locator('main li').count()) === 1 && (await page.getByRole('button', { name: 'Program', exact: true }).getAttribute('aria-pressed')) === 'true');
+  await page.getByRole('button', { name: 'Üyeler', exact: true }).click();
+  await page.getByText('Henüz kayıt yok').waitFor();
+  check('a filter without entries shows the empty state', true);
+  await page.getByRole('button', { name: 'Tümü', exact: true }).click();
+
+  // ---- a member cannot open it ----
+  const member = await newPage('dark');
+  const mp = member.page;
+  await mp.goto(BASE + '/giris');
+  await mp.getByLabel('Kullanıcı adı').fill('ali');
+  await mp.getByLabel('Şifre').fill('Kurek2026x');
+  await mp.getByRole('button', { name: 'Giriş yap' }).click();
+  await mp.waitForURL('**/uye');
+  await mp.goto(BASE + '/antrenor/diger/gecmis');
+  await mp.waitForURL('**/uye');
+  check('members are sent away from the change history', true);
+
+  // ---- keyboard: the RSVP radios (arrow keys move focus, Space/Enter chooses; only one tab stop) ----
+  const open = makeTraining({ title: 'Klavye antrenmanı', starts_at: iso(at8(3)), slot_count: 1, rsvp_deadline: iso(at8(2)) });
+  db.trainings.push(open);
+  await mp.goto(BASE + '/uye');
+  const yes = mp.getByRole('radio', { name: 'Katılıyorum' });
+  const no = mp.getByRole('radio', { name: 'Katılmıyorum' });
+  await yes.waitFor();
+  check('the answer radios are ONE tab stop (roving tabindex)', (await mp.locator('[role="radiogroup"] [role="radio"][tabindex="0"]').count()) === 1);
+  await yes.focus();
+  await mp.keyboard.press('ArrowRight');
+  check('ArrowRight moves focus to "Katılmıyorum" without saving anything', (await mp.evaluate(() => document.activeElement?.textContent)) === 'Katılmıyorum' && db.responses.length === 0);
+  await mp.keyboard.press('Space');
+  await mp.getByText('Yanıtınız kaydedildi.').waitFor();
+  check('Space chooses it', db.responses[0]?.response === 'not_attending' && (await no.getAttribute('aria-checked')) === 'true');
+  await mp.getByRole('radio', { name: 'Katılıyorum' }).focus();
+  await mp.keyboard.press('ArrowLeft');
+  check('arrow keys wrap around', (await mp.evaluate(() => document.activeElement?.textContent)) === 'Katılmıyorum');
+
+  // ---- going offline in the middle of a form ----
+  await page.goto(BASE + '/antrenor/diger/ayarlar');
+  await page.getByLabel('Rüzgâr hamlesi uyarı eşiği (km/s)').fill('35');
+  await ctx.setOffline(true);
+  state.offline = true;
+  await page.getByText('Çevrimdışısınız. Görünen bilgiler güncel olmayabilir.').waitFor();
+  check('offline: a banner says so', true);
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  const offlineAlert = page.getByRole('alert').filter({ hasText: 'Bağlantı kurulamadı' });
+  await offlineAlert.waitFor();
+  check('offline: saving explains the connection problem in Turkish and keeps what was typed', (await page.getByLabel('Rüzgâr hamlesi uyarı eşiği (km/s)').inputValue()) === '35' && db.settingsSaves.length === 0);
+  await shot(page, '44-offline-save');
+  await ctx.setOffline(false);
+  state.offline = false;
+  await page.getByText('Çevrimdışısınız.').waitFor({ state: 'detached' });
+  await page.getByRole('button', { name: 'Kaydet' }).click();
+  await page.getByText('Ayarlar kaydedildi.').waitFor();
+  check('back online the same form saves', db.settingsSaves.at(-1)?.wind_gust_warn_kmh === 35);
+  db.settings.wind_gust_warn_kmh = null;
+
+  check('history/keyboard/offline: no unexpected errors (coach)', problems.filter((p) => !/Failed to fetch|net::ERR/.test(p)).length === 0, problems.join(' | '));
+  check('history/keyboard/offline: no unexpected errors (member)', member.problems.length === 0, member.problems.join(' | '));
+  await ctx.close();
+  await member.ctx.close();
+}
+
 // ---------- 4. PWA basics (service worker allowed) ----------
 {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -1537,6 +1684,7 @@ const shot = (page, name, fullPage = false) => page.screenshot({ path: `${OUT}${
 }
 
 await browser.close();
+if (a11yNotes.length) console.log('\naxe: minor/moderate findings (not failing):\n  ' + [...new Set(a11yNotes)].join('\n  '));
 const failed = results.filter((r) => !r).length;
 console.log(`\n${results.length - failed}/${results.length} checks passed`);
 process.exit(failed ? 1 : 0);
