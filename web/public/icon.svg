@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Yeni Mahalle Kürek">
+  <!-- PLACEHOLDER icon (no club logo yet). Replace this file with the club logo, then run `npm run icons`. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a97cf"/>
+      <stop offset="1" stop-color="#0b5f8e"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <circle cx="256" cy="180" r="60" fill="#ffd27a"/>
+  <path d="M0 300 Q 64 262 128 300 T 256 300 T 384 300 T 512 300 V 512 H 0 Z" fill="#7fc3e6" fill-opacity="0.55"/>
+  <path d="M0 348 Q 64 310 128 348 T 256 348 T 384 348 T 512 348 V 512 H 0 Z" fill="#3b9ccc"/>
+  <path d="M0 400 Q 64 362 128 400 T 256 400 T 384 400 T 512 400 V 512 H 0 Z" fill="#0b4d75"/>
+</svg>

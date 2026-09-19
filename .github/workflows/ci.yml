@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web (lint, typecheck, unit tests, build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: Build (dummy public env; real values are set in Cloudflare)
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://ci.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-anon-key-ci-anon-key-ci-anon-key
+
+  database:
+    name: Database rules (PGlite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: supabase/tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: supabase/tests/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  e2e:
+    name: Browser smoke test (mocked backend)
+    runs-on: ubuntu-latest
+    needs: web
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx playwright-core install --with-deps chromium
+      - name: Build with the mock backend's URL and serve
+        run: |
+          npx vite build --outDir dist-smoke
+          npx vite preview --outDir dist-smoke --port 4173 --strictPort &
+          npx --yes wait-on http://localhost:4173
+        env:
+          VITE_SUPABASE_URL: https://test.supabase.co
+          VITE_SUPABASE_ANON_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      - run: npm run e2e

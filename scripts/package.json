@@ -1,0 +1,15 @@
+{
+  "name": "yenimahalle-kurek-scripts",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "One-off operator scripts (run by a person, never in the app).",
+  "scripts": {
+    "bootstrap-coach": "node bootstrap-coach.mjs",
+    "vapid": "web-push generate-vapid-keys"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
+    "web-push": "^3.6.7"
+  }
+}

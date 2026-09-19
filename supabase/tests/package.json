@@ -1,0 +1,16 @@
+{
+  "name": "yenimahalle-kurek-db-tests",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Row-level-security and rule tests for the Supabase migrations, run on an in-process Postgres (PGlite) — no Docker required.",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@types/node": "^22.20.4",
+    "typescript": "~6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

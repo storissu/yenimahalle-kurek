@@ -1,0 +1,128 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Every colour used by the UI comes from here, so re-branding (club logo/colours)
+ * means editing this block only. Text/background pairs are contrast-checked (WCAG AA) by
+ * src/theme.contrast.test.ts — keep it green when changing values.
+ */
+:root {
+  color-scheme: light dark;
+
+  --bg: #f3f8fb;
+  --surface: #ffffff;
+  --surface-2: #e8f1f6;
+  --fg: #0f2a3a;
+  --muted: #4a6577;
+  --border: #cfe0ea;
+
+  --primary: #0b6a9c;
+  --primary-fg: #ffffff;
+  --primary-soft: #dcecf6;
+
+  --success: #0d6e42;
+  --success-soft: #dcf3e7;
+  --warning: #7a4f00;
+  --warning-soft: #fdf0d1;
+  --danger: #b3261e;
+  --danger-soft: #fbe4e2;
+
+  --focus: #0b6a9c;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a1a24;
+    --surface: #112634;
+    --surface-2: #173444;
+    --fg: #e6f1f7;
+    --muted: #9fb7c6;
+    --border: #27475a;
+
+    --primary: #5bb8e8;
+    --primary-fg: #06212f;
+    --primary-soft: #12384d;
+
+    --success: #6fdba6;
+    --success-soft: #0f3a28;
+    --warning: #f0c46a;
+    --warning-soft: #3d2f0a;
+    --danger: #ff9d94;
+    --danger-soft: #4a1a17;
+
+    --focus: #5bb8e8;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-primary-soft: var(--primary-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  /* System fonts: no external requests, full Turkish glyph support, CSP-friendly. */
+  --font-sans:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Inputs at >=16px stop iOS Safari from zooming the page on focus. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  dialog::backdrop {
+    background: rgb(0 0 0 / 0.5);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
