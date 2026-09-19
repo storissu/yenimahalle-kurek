@@ -37,3 +37,12 @@ export const resetPassword = (userId: string) => invokeFunction<Credentials>('ad
 
 export const setMemberActive = (userId: string, isActive: boolean) =>
   invokeFunction<{ ok: true; is_active: boolean }>('admin-set-active', { user_id: userId, is_active: isActive });
+
+export const memberNamesKey = ['member-directory'] as const;
+
+/** Names of active members only (no phone/username) — what any signed-in user may see. */
+export async function fetchMemberNames(): Promise<Array<{ id: string; full_name: string }>> {
+  const { data, error } = await supabase.from('member_directory').select('id, full_name');
+  if (error) throw error;
+  return data;
+}

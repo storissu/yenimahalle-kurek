@@ -38,6 +38,28 @@ later phases, risks) was agreed with the club before implementation started.
 - Members never see other members' answers; coaches see all. Error messages from our RPCs (SQLSTATE `P0001`) are
   written in Turkish and shown as-is; any other database error is replaced by a generic message.
 
+## Boat program (Phase 3)
+
+- Tables: `training_programs` (status draft/published, `version` = number of publishes, weather + training notes),
+  `program_assignments` (one row per boat per session), `program_crew` (members in that boat that session).
+- Database rules: a boat is used **once per session**, a member is in **one boat per session**, a boat never carries
+  more than its **capacity**, crew are **members**, and sessions must exist in the training. Unique constraints plus
+  triggers enforce these even if `save_program()` is bypassed; the RPC adds friendly Turkish messages.
+- **Drafts are coach-only** (RLS: members can read a program, its assignments and crew only when it is published).
+  Crew names reach members through `member_directory` (names only).
+- The program is changed **only** through `save_program(training, payload, publish)`: it replaces everything in one
+  transaction (any error rolls back), so members never see a half-edited crew. `publish=false` on a published program
+  takes it back to draft. Deactivated members / out-of-use boats that were already in a program may stay in it
+  (history) but cannot be newly assigned.
+- A training's session count cannot shrink below a session that still has a crew (trigger).
+- Editor logic lives in `web/src/features/program/model.ts` (pure functions, mirrors the database rules; unit-tested):
+  toggle a member into a boat (refuses "full" / "already in another boat that hour"), copy/clear an hour, compare
+  drafts, and pre-publish checks (attendees in no hour; people placed against their RSVP). `view.ts` builds the
+  hour-by-hour timeline and "my boat" lines for members.
+- Leaving the editor with unsaved changes is guarded (in-app navigation and browser unload); the editor stays mounted
+  while the coach looks at other tabs.
+- Notifications on publish/update are Phase 5; `version` is what will tell "new program" from "program updated".
+
 ## Security model
 
 - **Row Level Security on every table**, default-deny, explicit grants (never Supabase's default privileges).

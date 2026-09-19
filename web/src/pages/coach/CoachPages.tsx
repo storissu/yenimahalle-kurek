@@ -1,4 +1,4 @@
-import { CalendarX, ChevronRight, ClipboardList, ClipboardCheck, Pencil, Plus, Settings, Ship, Users, XCircle } from 'lucide-react';
+import { CalendarX, ChevronRight, ClipboardCheck, Pencil, Plus, Settings, Ship, Users, XCircle } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { BackLink } from '@/components/layout/BackLink';
@@ -13,6 +13,7 @@ import { TabPanel, Tabs } from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
 import { useProfile } from '@/features/auth/AuthProvider';
 import { InstallBanner } from '@/features/install/InstallBanner';
+import { ProgramEditor } from '@/features/program/ProgramEditor';
 import { useClubSettings } from '@/features/settings/api';
 import { CancelTrainingDialog } from '@/features/trainings/CancelTrainingDialog';
 import { defaultValues, fromTraining } from '@/features/trainings/form';
@@ -130,6 +131,8 @@ export function CoachTrainingDetailPage() {
   const { id } = useParams();
   const training = useTraining(id);
   const [tab, setTab] = useState<DetailTab>('responses');
+  // The program editor holds unsaved work: once opened it stays mounted (hidden) while other tabs are shown.
+  const [programOpened, setProgramOpened] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const idPrefix = useId();
 
@@ -178,17 +181,24 @@ export function CoachTrainingDetailPage() {
               label={tr.trainings.tabsLabel}
               idPrefix={idPrefix}
               value={tab}
-              onChange={setTab}
+              onChange={(next) => {
+                setTab(next);
+                if (next === 'program') setProgramOpened(true);
+              }}
               tabs={[
                 { id: 'responses', label: tr.trainings.tabResponses },
                 { id: 'program', label: tr.trainings.tabProgram },
                 { id: 'attendance', label: tr.trainings.tabAttendance },
               ]}
             />
-            <TabPanel idPrefix={idPrefix} id={tab}>
-              {tab === 'responses' && <ResponsesPanel training={training.data} />}
-              {tab === 'program' && <EmptyState icon={ClipboardList} title={tr.common.soonTitle} body={tr.trainings.programPlaceholderCoach} />}
-              {tab === 'attendance' && <EmptyState icon={ClipboardCheck} title={tr.common.soonTitle} body={tr.trainings.attendancePlaceholderCoach} />}
+            <TabPanel idPrefix={idPrefix} id="responses" hidden={tab !== 'responses'}>
+              <ResponsesPanel training={training.data} />
+            </TabPanel>
+            <TabPanel idPrefix={idPrefix} id="program" hidden={tab !== 'program'}>
+              {programOpened && <ProgramEditor training={training.data} />}
+            </TabPanel>
+            <TabPanel idPrefix={idPrefix} id="attendance" hidden={tab !== 'attendance'}>
+              <EmptyState icon={ClipboardCheck} title={tr.common.soonTitle} body={tr.trainings.attendancePlaceholderCoach} />
             </TabPanel>
           </div>
 

@@ -13,8 +13,11 @@ programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini gör�
 - **Phase 2 (trainings & RSVP)** — coaches create/edit/cancel trainings (1–6 one-hour sessions, RSVP deadline); members
   answer *Katılıyorum / Katılmıyorum* with an optional note until the deadline (enforced by the database on the
   **server** clock); coaches see who answered, can answer on a member's behalf, and manage the boats (Mavi, Turuncu, C4X).
-- Next: Phase 3 (boat program per hour-session), Phase 4 (attendance, history, monthly leaderboard), Phase 5 (weather +
-  notifications). See `docs/ARCHITECTURE.md`.
+- **Phase 3 (boat program)** — coaches build the program hour by hour (Mavi / Turuncu / C4X; boats on the water together,
+  different crews per hour), with weather and training notes; save as a draft or publish. Members see only published
+  programs, with **their own boat, hour and crew mates first** on Home and on the training page.
+- Next: Phase 4 (attendance per session, history, monthly leaderboard), Phase 5 (weather + notifications).
+  See `docs/ARCHITECTURE.md`.
 
 ## Layout
 

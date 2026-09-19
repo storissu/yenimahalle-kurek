@@ -58,6 +58,18 @@ const makeTraining = (over) => ({
   updated_at: iso(Date.now()),
   ...over,
 });
+// Who is calling? Read the user id out of the bearer token (two people can be signed in at once).
+const callerOf = (req) => {
+  try {
+    const token = (req.headers()['authorization'] ?? '').replace(/^Bearer /i, '');
+    const sub = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString()).sub;
+    return Object.values(people).find((p) => p.id === sub) ?? null;
+  } catch {
+    return null;
+  }
+};
+db.programs = {}; // trainingId -> { program, assignments, crew }
+db.saves = []; // payloads received by save_program
 const dbError = (route, code, message, status = 400) => json(route, { code, details: null, hint: null, message }, status);
 const istanbulDate = (ms) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Istanbul' }).format(new Date(ms));
 const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
@@ -189,9 +201,63 @@ async function newPage(scheme = 'light') {
       if (t.status !== 'scheduled') return dbError(route, 'P0001', 'Bu antrenman iptal edildi veya tamamlandı');
       if (!byCoach && db.rejectRsvp) return dbError(route, 'P0001', db.rejectRsvp);
       if (!byCoach && serverNowMs() >= Date.parse(t.rsvp_deadline)) return dbError(route, 'P0001', 'Yanıt süresi doldu. Değişiklik için antrenörünüzle görüşün.');
-      const member_id = byCoach ? b.p_member_id : state.current.id;
+      const member_id = byCoach ? b.p_member_id : callerOf(req)?.id;
       const row = { training_id: t.id, member_id, response: b.p_response, note: (b.p_note ?? '').trim() || null, responded_at: iso(serverNowMs()), set_by_coach: byCoach };
       db.responses = [...db.responses.filter((r) => !(r.training_id === t.id && r.member_id === member_id)), row];
+      return route.fulfill({ status: 204, headers: cors });
+    }
+
+    // ---- Phase 3: program (drafts are visible to coaches only, like the RLS policies) ----
+    const visibleProgram = (trainingId) => {
+      const entry = db.programs[trainingId];
+      if (!entry) return null;
+      return callerOf(req)?.role === 'coach' || entry.program.status === 'published' ? entry : null;
+    };
+    if (path === '/rest/v1/member_directory') {
+      return json(route, roster.filter((p) => p.role === 'member' && p.is_active).map((p) => ({ id: p.id, full_name: p.full_name })));
+    }
+    if (path === '/rest/v1/training_programs') return json(route, [visibleProgram(eqParam('training_id'))?.program].filter(Boolean));
+    if (path === '/rest/v1/program_assignments') return json(route, visibleProgram(eqParam('training_id'))?.assignments ?? []);
+    if (path === '/rest/v1/program_crew') return json(route, visibleProgram(eqParam('training_id'))?.crew ?? []);
+    if (path === '/rest/v1/rpc/save_program') {
+      if (callerOf(req)?.role !== 'coach') return dbError(route, '42501', 'permission denied for function save_program');
+      const b = body();
+      const t = db.trainings.find((x) => x.id === b.p_training_id);
+      if (!t) return dbError(route, 'P0001', 'Antrenman bulunamadı');
+      const assignments = [];
+      const crew = [];
+      const seen = new Set();
+      for (const a of b.p_payload.assignments) {
+        if (a.crew.length === 0) continue;
+        const boat = db.boats.find((x) => x.id === a.boat_id);
+        if (a.crew.length > boat.capacity) return dbError(route, 'P0001', `${boat.name} teknesine en fazla ${boat.capacity} kişi atanabilir`);
+        const id = `as-${db.seq++}`;
+        assignments.push({ id, training_id: t.id, slot_index: a.slot_index, boat_id: a.boat_id, notes: a.notes ?? null });
+        for (const [i, memberId] of a.crew.entries()) {
+          const key = `${a.slot_index}:${memberId}`;
+          if (seen.has(key)) return dbError(route, 'P0001', 'Aynı seansta iki teknede olamaz');
+          seen.add(key);
+          crew.push({ assignment_id: id, training_id: t.id, slot_index: a.slot_index, member_id: memberId, seat: i + 1 });
+        }
+      }
+      if (b.p_publish && assignments.length === 0) return dbError(route, 'P0001', 'Yayınlamak için en az bir tekneye ekip atayın');
+      const previous = db.programs[t.id]?.program;
+      db.saves.push(b.p_payload);
+      db.programs[t.id] = {
+        program: {
+          training_id: t.id,
+          status: b.p_publish ? 'published' : 'draft',
+          version: (previous?.version ?? 0) + (b.p_publish ? 1 : 0),
+          weather_note: b.p_payload.weather_note,
+          training_notes: b.p_payload.training_notes,
+          published_at: b.p_publish ? iso(Date.now()) : null,
+          published_by: b.p_publish ? people.coach.id : null,
+          created_at: '',
+          updated_at: '',
+        },
+        assignments,
+        crew,
+      };
       return route.fulfill({ status: 204, headers: cors });
     }
 
@@ -574,6 +640,188 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}${name}.png` });
   }
   db.serverSkewMs = 0;
   check('untouched training keeps no answer from the failed attempts', !db.responses.some((r) => r.training_id === open.id && r.response === 'attending'));
+}
+
+// ---------- 7. program: the coach builds it hour by hour, members see their own boat ----------
+{
+  const now = Date.now();
+  const at8 = (days) => Date.parse(`${istanbulDate(now + days * 24 * HOUR)}T08:00:00+03:00`);
+  db.trainings = [];
+  db.responses = [];
+  db.programs = {};
+  db.saves = [];
+  db.boats.find((b) => b.name === 'Turuncu').is_active = true;
+  const newcomers = [['alex', 'Alex'], ['ashley', 'Ashley'], ['john', 'John'], ['jamie', 'Jamie']].map(([username, full_name], i) => ({
+    id: `55555555-5555-4555-8555-55555555555${i}`, full_name, username, role: 'member', phone: null, is_active: true, must_change_password: false,
+  }));
+  roster.push(...newcomers);
+  const [alex, ashley, john, jamie] = newcomers;
+  const cagla = roster.find((p) => p.username === 'cagla');
+  const t = makeTraining({ title: 'Program antrenmanı', starts_at: iso(at8(3)), slot_count: 2, rsvp_deadline: iso(at8(2)) });
+  db.trainings.push(t);
+  const answer = (m, response, note = null) => db.responses.push({ training_id: t.id, member_id: m.id, response, note, responded_at: iso(now), set_by_coach: false });
+  answer(people.member, 'attending', "9'dan sonraya yazar mısınız?");
+  [alex, ashley, john, jamie].forEach((m) => answer(m, 'attending'));
+  answer(cagla, 'not_attending');
+
+  const { page, ctx, problems } = await newPage();
+  await page.goto(BASE + '/giris');
+  await page.getByLabel('Kullanıcı adı').fill('ayse');
+  await page.getByLabel('Şifre').fill('Coach1234');
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await page.waitForURL('**/antrenor');
+  await page.goto(BASE + `/antrenor/antrenmanlar/${t.id}`);
+  await page.getByRole('tab', { name: 'Program' }).click();
+  await page.getByText('Taslak — üyeler görmüyor').waitFor();
+
+  const slotTabs = page.getByRole('tablist', { name: 'Seanslar' }).getByRole('tab');
+  check('one tab per one-hour session (08:00, 09:00)', (await slotTabs.count()) === 2 && (await slotTabs.allTextContents()).join(',') === '08:00,09:00');
+  const boat = (name) => page.getByRole('group', { name, exact: true });
+  check('active boats are offered (Mavi, Turuncu, C4X, Yeşil)', (await boat('Mavi').isVisible()) && (await boat('Turuncu').isVisible()) && (await boat('C4X').isVisible()));
+  await shot(page, '22-program-editor-empty');
+
+  const openPicker = async (name) => {
+    await boat(name).getByRole('button', { name: /Ekip seç|Ekibi düzenle/ }).click();
+    return page.getByRole('dialog');
+  };
+
+  // hour 1 (08:00): Mavi = Alex + Ashley ; Turuncu = Ali + John
+  let d = await openPicker('Mavi');
+  check('picker is titled with boat and hour', await d.getByRole('heading', { name: 'Mavi · 08:00–09:00' }).isVisible());
+  check("a member's note is shown while choosing the crew", await d.getByText("9'dan sonraya yazar mısınız?").isVisible());
+  check('members who said "not attending" are tucked away, not offered first', !(await d.getByRole('checkbox', { name: /Çağla/ }).isVisible()));
+  await d.getByRole('checkbox', { name: /Alex/ }).click();
+  await d.getByRole('checkbox', { name: /Ashley/ }).click();
+  check('a full boat refuses a third person', (await d.getByRole('checkbox', { name: /John/ }).getAttribute('aria-disabled')) === 'true' && (await d.getByText('Tekne dolu').first().isVisible()));
+  await shot(page, '23-crew-picker');
+  await d.getByRole('button', { name: 'Tamam' }).click();
+  check('Mavi shows its crew and 2/2', (await boat('Mavi').getByText('Alex').isVisible()) && (await boat('Mavi').getByText('2/2').isVisible()));
+
+  d = await openPicker('Turuncu');
+  await d.getByRole('checkbox', { name: /Ali Kaya/ }).click();
+  await d.getByRole('checkbox', { name: /John/ }).click();
+  await d.getByRole('button', { name: 'Tamam' }).click();
+
+  d = await openPicker('C4X');
+  check('a member already in another boat that hour cannot be picked again', (await d.getByRole('checkbox', { name: /Ali Kaya/ }).getAttribute('aria-disabled')) === 'true' && (await d.getByText('Bu seansta Turuncu teknesinde').first().isVisible()));
+  await d.getByRole('button', { name: 'Tamam' }).click();
+
+  await boat('Mavi').getByLabel('Tekne notu (isteğe bağlı)').fill('teknik çalışma');
+
+  // hour 2 (09:00): copy, then clear (with confirmation), then a different crew on the same boat
+  await slotTabs.nth(1).click();
+  await page.getByRole('button', { name: 'Önceki seansı kopyala' }).click();
+  check('copying the previous hour brings boats, crews and notes along', (await boat('Mavi').getByText('Alex').isVisible()) && (await boat('Turuncu').getByText('John').isVisible()));
+  await page.getByRole('button', { name: 'Seansı temizle' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Evet, temizle' }).click();
+  check('clearing an hour asks first, then empties it', (await boat('Mavi').getByRole('button', { name: 'Ekip seç' }).isVisible()) && (await boat('Turuncu').getByRole('button', { name: 'Ekip seç' }).isVisible()));
+  d = await openPicker('Mavi');
+  await d.getByRole('checkbox', { name: /John/ }).click();
+  await d.getByRole('button', { name: 'Tamam' }).click();
+  d = await openPicker('Turuncu');
+  await d.getByRole('checkbox', { name: /Ali Kaya/ }).click();
+  await d.getByRole('button', { name: 'Tamam' }).click();
+  check('the same boat can carry a different crew in the next hour', (await boat('Mavi').getByText('John').isVisible()) && !(await boat('Mavi').getByText('Alex').isVisible()));
+
+  await page.getByLabel('Hava durumu notu').fill('Rüzgâr batıdan 15 km/s');
+  await page.getByLabel('Antrenman notu').fill('Isınma 10 dk');
+  await shot(page, '24-program-editor');
+
+  // publishing with someone forgotten warns first
+  await page.getByRole('button', { name: 'Yayınla' }).click();
+  const warn = page.getByRole('dialog');
+  await warn.getByText('Jamie hiçbir seansa atanmadı.').waitFor();
+  check('publishing warns about attendees who are in no hour, and sends nothing yet', (await warn.getByRole('heading', { name: 'Yayınlamadan önce' }).isVisible()) && !db.programs[t.id]);
+  await shot(page, '25-program-warning');
+  await warn.getByRole('button', { name: 'Düzenlemeye dön' }).click();
+  check('the summary shows who still has no hour', await page.getByText('Hiç seansta yok').isVisible());
+
+  d = await openPicker('Mavi');
+  await d.getByRole('checkbox', { name: /Jamie/ }).click();
+  await d.getByRole('button', { name: 'Tamam' }).click();
+
+  await page.getByRole('button', { name: 'Taslağı kaydet' }).click();
+  await page.getByText('Taslak kaydedildi.').waitFor();
+  const draftRow = db.programs[t.id];
+  check('draft saved atomically with all four boat assignments and the notes', draftRow?.program.status === 'draft' && draftRow.assignments.length === 4 && draftRow.crew.length === 7 && draftRow.program.weather_note === 'Rüzgâr batıdan 15 km/s' && draftRow.assignments.some((a) => a.notes === 'teknik çalışma'));
+
+  // a member cannot see a draft
+  {
+    const { page: mp, ctx: mc, problems: mprob } = await newPage();
+    await mp.goto(BASE + '/giris');
+    await mp.getByLabel('Kullanıcı adı').fill('ali');
+    await mp.getByLabel('Şifre').fill('Kurek2026x');
+    await mp.getByRole('button', { name: 'Giriş yap' }).click();
+    await mp.waitForURL('**/uye');
+    await mp.goto(BASE + `/uye/antrenmanlar/${t.id}`);
+    await mp.getByText('Program henüz yayınlanmadı').waitFor();
+    check('members see no program while it is a draft', (await mp.getByText('Sizin programınız').count()) === 0);
+    check('draft: no unexpected errors (member)', mprob.length === 0, mprob.join(' | '));
+    await mc.close();
+  }
+
+  // publish (nobody forgotten now → no warning)
+  await page.getByRole('button', { name: 'Yayınla' }).click();
+  await page.getByText('Program yayınlandı.').waitFor();
+  await page.getByText('Yayında (sürüm 1)').waitFor();
+  check('published: version 1, published by the coach', db.programs[t.id].program.status === 'published' && db.programs[t.id].program.version === 1);
+
+  // unsaved changes are protected
+  await page.getByLabel('Antrenman notu').fill('Isınma 10 dk, sonra uzun set');
+  check('editing marks the program as unsaved', await page.getByText('Kaydedilmemiş değişiklikler var').isVisible());
+  await page.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).click();
+  const leave = page.getByRole('dialog');
+  await leave.getByRole('heading', { name: 'Kaydedilmemiş değişiklikler' }).waitFor();
+  await leave.getByRole('button', { name: 'Kal' }).click();
+  check('leaving with unsaved changes asks first; "Kal" keeps the editor', page.url().includes(`/antrenor/antrenmanlar/${t.id}`) && (await page.getByLabel('Antrenman notu').inputValue()).includes('uzun set'));
+  await page.getByRole('button', { name: 'Güncelle' }).click();
+  await page.getByText('Program güncellendi.').waitFor();
+  await page.getByText('Yayında (sürüm 2)').waitFor();
+  check('updating a published program bumps the version', db.programs[t.id].program.version === 2 && db.programs[t.id].program.training_notes.includes('uzun set'));
+
+  // the member's view
+  {
+    const { page: mp, ctx: mc, problems: mprob } = await newPage('dark');
+    await mp.goto(BASE + '/giris');
+    await mp.getByLabel('Kullanıcı adı').fill('ali');
+    await mp.getByLabel('Şifre').fill('Kurek2026x');
+    await mp.getByRole('button', { name: 'Giriş yap' }).click();
+    await mp.waitForURL('**/uye');
+    const mine = mp.getByRole('region', { name: 'Sizin programınız' });
+    await mine.waitFor();
+    check('home: "my boat" card shows each hour, boat and crew mates', (await mine.getByText('08:00–09:00').isVisible()) && (await mine.getByText('Turuncu').first().isVisible()) && (await mine.getByText('John ile').isVisible()) && (await mine.getByText('09:00–10:00').isVisible()) && (await mine.getByText('tek başına').isVisible()));
+    const above = async (a, b) => (await a.boundingBox()).y < (await b.boundingBox()).y;
+    check('home: my boat comes BEFORE the RSVP card (the first thing a member sees)', await above(mine, mp.getByRole('heading', { name: 'Bu antrenmana katılacak mısınız?' })));
+    await shot(mp, '26-member-my-boat-dark');
+    await mp.getByRole('link', { name: 'Programı gör' }).click();
+    await mp.getByRole('heading', { name: 'Tüm program' }).waitFor();
+    check('detail: whole program by hour with everyone\'s crew, notes and weather', (await mp.getByText('1. seans · 08:00–09:00').isVisible()) && (await mp.getByText('Alex').first().isVisible()) && (await mp.getByText('teknik çalışma').isVisible()) && (await mp.getByText('Rüzgâr batıdan 15 km/s').isVisible()) && (await mp.getByText('Isınma 10 dk, sonra uzun set').isVisible()));
+    check('detail: the reader\'s own boat is marked', (await mp.getByText('Siz', { exact: true }).count()) >= 1);
+    await shot(mp, '27-member-full-program-dark');
+    check('published: no unexpected errors (member)', mprob.length === 0, mprob.join(' | '));
+    await mc.close();
+  }
+
+  // unpublish takes it away from members again
+  await page.getByRole('button', { name: 'Yayından kaldır' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Yayından kaldır' }).click();
+  await page.getByText('Program yayından kaldırıldı.').waitFor();
+  check('unpublished: back to draft, version kept', db.programs[t.id].program.status === 'draft' && db.programs[t.id].program.version === 2);
+  {
+    const { page: mp, ctx: mc } = await newPage();
+    await mp.goto(BASE + '/giris');
+    await mp.getByLabel('Kullanıcı adı').fill('ali');
+    await mp.getByLabel('Şifre').fill('Kurek2026x');
+    await mp.getByRole('button', { name: 'Giriş yap' }).click();
+    await mp.waitForURL('**/uye');
+    await mp.goto(BASE + `/uye/antrenmanlar/${t.id}`);
+    await mp.getByText('Program henüz yayınlanmadı').waitFor();
+    check('after unpublishing members no longer see the program', true);
+    await mc.close();
+  }
+
+  check('program: no unexpected errors (coach)', problems.length === 0, problems.join(' | '));
+  await ctx.close();
 }
 
 // ---------- 4. PWA basics (service worker allowed) ----------

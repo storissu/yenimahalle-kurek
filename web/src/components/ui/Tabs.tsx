@@ -72,9 +72,10 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix 
   );
 }
 
-export function TabPanel({ idPrefix, id, children }: { idPrefix: string; id: string; children: ReactNode }) {
+/** `hidden` keeps the panel mounted (so its state survives switching tabs) but invisible. */
+export function TabPanel({ idPrefix, id, hidden = false, children }: { idPrefix: string; id: string; hidden?: boolean; children: ReactNode }) {
   return (
-    <div role="tabpanel" id={panelId(idPrefix, id)} aria-labelledby={tabId(idPrefix, id)} tabIndex={0} className="mt-4 outline-offset-4">
+    <div role="tabpanel" id={panelId(idPrefix, id)} aria-labelledby={tabId(idPrefix, id)} tabIndex={hidden ? -1 : 0} hidden={hidden} className="mt-4 outline-offset-4">
       {children}
     </div>
   );

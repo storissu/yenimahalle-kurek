@@ -6,6 +6,9 @@
 export type UserRole = 'coach' | 'member';
 export type TrainingStatus = 'scheduled' | 'cancelled' | 'completed';
 export type RsvpResponse = 'attending' | 'not_attending';
+export type ProgramStatus = 'draft' | 'published';
+
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
   public: {
@@ -99,6 +102,35 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      training_programs: {
+        Row: {
+          training_id: string;
+          status: ProgramStatus;
+          version: number;
+          weather_note: string | null;
+          training_notes: string | null;
+          published_at: string | null;
+          published_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        // Read-only for clients: written only through save_program().
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      program_assignments: {
+        Row: { id: string; training_id: string; slot_index: number; boat_id: string; notes: string | null };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
+      program_crew: {
+        Row: { assignment_id: string; training_id: string; slot_index: number; member_id: string; seat: number | null };
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       push_subscriptions: {
         Row: {
           id: string;
@@ -130,12 +162,13 @@ export type Database = {
         Returns: undefined;
       };
       server_now: { Args: never; Returns: string };
+      save_program: { Args: { p_training_id: string; p_payload: Json; p_publish: boolean }; Returns: undefined };
       register_push_subscription: {
         Args: { p_endpoint: string; p_p256dh: string; p_auth: string; p_user_agent?: string };
         Returns: undefined;
       };
     };
-    Enums: { user_role: UserRole; training_status: TrainingStatus; rsvp_response: RsvpResponse };
+    Enums: { user_role: UserRole; training_status: TrainingStatus; rsvp_response: RsvpResponse; program_status: ProgramStatus };
     CompositeTypes: Record<string, never>;
   };
 };
@@ -144,3 +177,6 @@ export type Profile = Database['public']['Tables']['profiles']['Row'];
 export type Training = Database['public']['Tables']['trainings']['Row'];
 export type TrainingResponse = Database['public']['Tables']['training_responses']['Row'];
 export type Boat = Database['public']['Tables']['boats']['Row'];
+export type TrainingProgram = Database['public']['Tables']['training_programs']['Row'];
+export type ProgramAssignment = Database['public']['Tables']['program_assignments']['Row'];
+export type ProgramCrew = Database['public']['Tables']['program_crew']['Row'];

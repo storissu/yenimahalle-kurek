@@ -27,6 +27,12 @@ export function timeRangeLabel(t: Pick<TrainingLike, 'starts_at' | 'slot_count'>
 export const deadlineLabel = (t: Pick<TrainingLike, 'rsvp_deadline'>): string =>
   `${formatDayMonth(t.rsvp_deadline)} ${formatTime(t.rsvp_deadline)}`;
 
+/** "08:00–09:00" for one 1-hour session (0-based index) of the training. */
+export function sessionRangeLabel(t: Pick<TrainingLike, 'starts_at'>, index: number): string {
+  const start = new Date(new Date(t.starts_at).getTime() + index * HOUR_MS);
+  return `${formatTime(start)}–${formatTime(new Date(start.getTime() + HOUR_MS))}`;
+}
+
 /** "1 seans" / "2 seans" (a session is one hour). */
 export const sessionCountLabel = (n: number): string => `${n} seans`;
 

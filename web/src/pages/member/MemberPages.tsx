@@ -1,4 +1,4 @@
-import { CalendarX, ClipboardList, TriangleAlert } from 'lucide-react';
+import { CalendarX, TriangleAlert } from 'lucide-react';
 import { useParams } from 'react-router';
 import { BackLink } from '@/components/layout/BackLink';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -8,6 +8,7 @@ import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useProfile } from '@/features/auth/AuthProvider';
 import { InstallBanner } from '@/features/install/InstallBanner';
+import { MemberProgram } from '@/features/program/MemberProgram';
 import { useMyResponses, useTraining, useTrainings } from '@/features/trainings/hooks';
 import { MemberRsvp } from '@/features/trainings/MemberRsvp';
 import { MyAnswerBadge } from '@/features/trainings/MyAnswerBadge';
@@ -69,6 +70,7 @@ export function MemberHomePage() {
                 {tr.home.nextTraining}
               </h2>
               <TrainingSummary training={next} />
+              <MemberProgram training={next} variant="summary" detailPath={`/uye/antrenmanlar/${next.id}`} />
               <MemberRsvp training={next} />
             </section>
           ) : (
@@ -135,8 +137,9 @@ export function MemberTrainingDetailPage() {
       {training.data && (
         <div className="flex flex-col gap-4">
           <TrainingSummary training={training.data} />
+          {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="mine" />}
           <MemberRsvp training={training.data} />
-          <EmptyState icon={ClipboardList} title={tr.trainings.programHeading} body={tr.trainings.programPlaceholder} />
+          {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="rest" />}
         </div>
       )}
     </>
