@@ -15,6 +15,8 @@ interface RsvpCardProps {
   answer: TrainingResponse | undefined;
   /** Server-adjusted "now" (see lib/clock.ts). */
   now: Date;
+  /** The coach published the program: answers are locked from then on, deadline or not. */
+  programPublished?: boolean;
   /** Resolves when the server accepted the answer. Rejections are shown via `error`. */
   onSubmit: (response: RsvpResponse, note: string) => Promise<void>;
   pending: boolean;
@@ -32,8 +34,8 @@ const answerLabel = (r: RsvpResponse) => (r === 'attending' ? tr.rsvp.attending 
  * The member's answer for one training. Open until the deadline, then locked (the database enforces
  * the same rule, so a wrong phone clock can't bypass it — the countdown uses server-adjusted time).
  */
-export function RsvpCard({ training, answer, now, onSubmit, pending, error }: RsvpCardProps) {
-  const window = rsvpWindow(training, now);
+export function RsvpCard({ training, answer, now, programPublished = false, onSubmit, pending, error }: RsvpCardProps) {
+  const window = rsvpWindow(training, now, programPublished);
   // `draft` is what the member typed but has not saved yet; null = show the saved note.
   const [draft, setDraft] = useState<string | null>(null);
   const savedNote = answer?.note ?? '';
@@ -59,8 +61,10 @@ export function RsvpCard({ training, answer, now, onSubmit, pending, error }: Rs
         <div className="flex items-start gap-3">
           <Lock aria-hidden="true" className="mt-0.5 shrink-0 text-muted" size={20} />
           <div>
-            <h2 className="font-semibold">{window.kind === 'completed' ? tr.rsvp.completedTitle : tr.rsvp.lockedTitle}</h2>
-            {window.kind === 'locked' && <p className="text-sm text-muted">{tr.rsvp.lockedBody}</p>}
+            <h2 className="font-semibold">
+              {window.kind === 'completed' ? tr.rsvp.completedTitle : window.reason === 'program' ? tr.rsvp.lockedProgramTitle : tr.rsvp.lockedTitle}
+            </h2>
+            {window.kind === 'locked' && <p className="text-sm text-muted">{window.reason === 'program' ? tr.rsvp.lockedProgramBody : tr.rsvp.lockedBody}</p>}
           </div>
         </div>
         <p className="font-semibold">{answer ? tr.rsvp.yourAnswer(answerLabel(answer.response)) : tr.rsvp.lockedNoAnswer}</p>

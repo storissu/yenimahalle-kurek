@@ -1,6 +1,5 @@
 import { ClipboardList } from 'lucide-react';
 import { useMemo } from 'react';
-import { Link } from 'react-router';
 import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
@@ -10,33 +9,34 @@ import type { Training } from '@/types/database';
 import { useProfile } from '../auth/AuthProvider';
 import { useMyResponses } from '../trainings/hooks';
 import { useBoats, useMemberNames, useProgram } from './hooks';
+import { initialSessionCount } from './model';
+import { MyBoatCard, ProgramNotes } from './ProgramParts';
+import { ProgramByBoat } from './ProgramByBoat';
 import { buildTimeline, myAssignments } from './view';
-import { MyBoatCard, ProgramNotes, ProgramTimeline } from './ProgramTimeline';
 
 interface MemberProgramProps {
   training: Training;
   /**
-   * `summary` = the reader's own boats + a link (Home)
+   * `summary` = the reader's own boats, then the notes and the whole program by boat (Home)
    * `mine`    = only the reader's own boats (top of the training page, above the RSVP)
-   * `rest`    = notes + the whole timeline, or the "not published" message (below the RSVP)
+   * `rest`    = notes + the whole program by boat, or the "not published" message (below the RSVP)
    */
   variant: 'summary' | 'mine' | 'rest';
-  detailPath?: string;
 }
 
 /** A member's view of a training's PUBLISHED program. Drafts are invisible to members (RLS). */
-export function MemberProgram({ training, variant, detailPath }: MemberProgramProps) {
+export function MemberProgram({ training, variant }: MemberProgramProps) {
   const me = useProfile();
   const program = useProgram(training.id);
   const boats = useBoats();
-  const { query: namesQuery, nameOf } = useMemberNames();
+  const { query: namesQuery, nameOf, contactOf } = useMemberNames();
   const responses = useMyResponses();
 
   const boatById = useMemo(() => new Map((boats.data ?? []).map((b) => [b.id, b])), [boats.data]);
   const boatOrder = useMemo(() => new Map((boats.data ?? []).map((b) => [b.id, b.sort_order])), [boats.data]);
   const boatName = (id: string) => boatById.get(id)?.name ?? '?';
 
-  if (program.isPending || boats.isPending || namesQuery.isPending) return <Skeleton className={variant === 'rest' ? 'h-48' : 'h-32'} />;
+  if (program.isPending || boats.isPending || namesQuery.isPending) return <Skeleton className={variant === 'mine' ? 'h-32' : 'h-48'} />;
   if (program.isError || boats.isError || namesQuery.isError) {
     return (
       <ErrorState
@@ -57,7 +57,7 @@ export function MemberProgram({ training, variant, detailPath }: MemberProgramPr
     return <EmptyState icon={ClipboardList} title={tr.program.notPublishedTitle} body={tr.program.notPublishedBody} />;
   }
 
-  const timeline = buildTimeline(program.data, training.slot_count, boatOrder);
+  const timeline = buildTimeline(program.data, initialSessionCount(program.data, training.slot_count), boatOrder);
   const mine = myAssignments(timeline, me.id);
   const attending = responses.data?.find((r) => r.training_id === training.id)?.response === 'attending';
 
@@ -70,28 +70,29 @@ export function MemberProgram({ training, variant, detailPath }: MemberProgramPr
 
   if (variant === 'mine') return yours;
 
+  const everything = (
+    <>
+      <ProgramNotes weatherNote={program.data.program?.weather_note ?? null} trainingNotes={program.data.program?.training_notes ?? null} />
+      <section aria-labelledby="full-program-heading" className="flex flex-col gap-3">
+        <div>
+          <h2 id="full-program-heading" className="text-sm font-bold text-muted">
+            {tr.program.fullProgram}
+          </h2>
+          <p className="text-sm text-muted">{tr.program.fullProgramHint}</p>
+        </div>
+        <ProgramByBoat data={program.data} training={training} boats={boats.data} meId={me.id} nameOf={nameOf} contactOf={contactOf} />
+      </section>
+    </>
+  );
+
   if (variant === 'summary') {
     return (
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-4">
         {yours}
-        {detailPath && (
-          <Link to={detailPath} className="text-center text-sm font-semibold text-primary">
-            {tr.program.seeProgram}
-          </Link>
-        )}
+        {everything}
       </div>
     );
   }
 
-  return (
-    <div className="flex flex-col gap-4">
-      <ProgramNotes weatherNote={program.data.program?.weather_note ?? null} trainingNotes={program.data.program?.training_notes ?? null} />
-      <section aria-labelledby="full-program-heading" className="flex flex-col gap-3">
-        <h2 id="full-program-heading" className="text-sm font-bold text-muted">
-          {tr.program.fullProgram}
-        </h2>
-        <ProgramTimeline timeline={timeline} training={training} meId={me.id} nameOf={nameOf} boatName={boatName} />
-      </section>
-    </div>
-  );
+  return <div className="flex flex-col gap-4">{everything}</div>;
 }

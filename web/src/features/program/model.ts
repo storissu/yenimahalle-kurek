@@ -1,7 +1,8 @@
 // The coach's editable program, as plain data + pure functions (no React, no network).
 // Every rule the database enforces (capacity, one boat per member per hour, one use of a boat per
 // hour) is mirrored here so the editor can refuse a bad move immediately instead of after a save.
-import type { Json, ProgramAssignment, ProgramCrew, TrainingProgram } from '@/types/database';
+import type { Boat, Json, ProgramAssignment, ProgramCrew, TrainingProgram } from '@/types/database';
+import { MAX_SLOTS } from '../trainings/schedule';
 
 export interface BoatEntry {
   boatId: string;
@@ -61,8 +62,68 @@ export function normalize(draft: ProgramDraft): ProgramDraft {
   };
 }
 
+/** Sessions after the last one that has a crew are not part of the program (the training simply ends earlier). */
+export function trimTrailingEmpty(draft: ProgramDraft): ProgramDraft {
+  const slots = normalize(draft).slots;
+  let end = slots.length;
+  while (end > 0 && (slots[end - 1]?.length ?? 0) === 0) end--;
+  return { ...normalize(draft), slots: slots.slice(0, end) };
+}
+
+/** Two drafts are the same program when they only differ by empty sessions at the end. */
 export function isSameDraft(a: ProgramDraft, b: ProgramDraft): boolean {
-  return JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+  return JSON.stringify(trimTrailingEmpty(a)) === JSON.stringify(trimTrailingEmpty(b));
+}
+
+/**
+ * How many sessions the editor starts with: whatever the program already uses, whatever the training was planned
+ * with (older trainings had a fixed count), and at least one.
+ */
+export function initialSessionCount(data: Pick<ProgramData, 'assignments'>, trainingSlotCount: number): number {
+  const used = data.assignments.reduce((max, a) => Math.max(max, a.slot_index + 1), 0);
+  return Math.max(1, trainingSlotCount, used);
+}
+
+export const canAddSession = (draft: ProgramDraft): boolean => draft.slots.length < MAX_SLOTS;
+
+/** One more (empty) session at the end. Refuses beyond the maximum, like the database does. */
+export function addSession(draft: ProgramDraft): ProgramDraft {
+  return canAddSession(draft) ? { ...draft, slots: [...draft.slots, []] } : draft;
+}
+
+export const canRemoveSession = (draft: ProgramDraft): boolean => draft.slots.length > 1;
+
+/** Drops the last session together with its crews. There is always at least one session. */
+export function removeLastSession(draft: ProgramDraft): ProgramDraft {
+  return canRemoveSession(draft) ? { ...draft, slots: draft.slots.slice(0, -1) } : draft;
+}
+
+// --- boats that must be full (C4X) ---------------------------------------------------------------
+
+export interface FullCrewProblem {
+  slot: number;
+  boatId: string;
+  count: number;
+  capacity: number;
+}
+
+/**
+ * Boats with `requires_full_crew` (C4X = exactly 4) that have a crew of the wrong size. A boat with nobody in it is
+ * simply not used and is fine. Publishing (and updating a published program) must be blocked while this is non-empty;
+ * drafts may be incomplete. The database refuses the same thing.
+ */
+export function fullCrewProblems(draft: ProgramDraft, boats: ReadonlyArray<Pick<Boat, 'id' | 'capacity' | 'requires_full_crew'>>): FullCrewProblem[] {
+  const byId = new Map(boats.map((b) => [b.id, b]));
+  const problems: FullCrewProblem[] = [];
+  draft.slots.forEach((entries, slot) => {
+    for (const entry of entries) {
+      const boat = byId.get(entry.boatId);
+      if (boat?.requires_full_crew && entry.crew.length > 0 && entry.crew.length !== boat.capacity) {
+        problems.push({ slot, boatId: entry.boatId, count: entry.crew.length, capacity: boat.capacity });
+      }
+    }
+  });
+  return problems;
 }
 
 export interface SavePayload {

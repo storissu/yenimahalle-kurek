@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Copy, Eraser, Ship } from 'lucide-react';
+import { Copy, Eraser, Plus, Ship, Trash2, TriangleAlert } from 'lucide-react';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { Link, useBlocker } from 'react-router';
 import { Badge } from '@/components/ui/Badge';
@@ -13,22 +13,29 @@ import { TextAreaField } from '@/components/ui/TextAreaField';
 import { useToast } from '@/components/ui/Toast';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/time';
+import { SlotWeather } from '../weather/WeatherStrip';
 import { tr } from '@/strings/tr';
 import type { Boat, Profile, Training, TrainingResponse } from '@/types/database';
-import { fetchMembers, membersKey } from '../members/api';
+import { fetchMembers, membersKey, type DirectoryEntry } from '../members/api';
 import { useTrainingResponses } from '../trainings/hooks';
-import { sessionRangeLabel, sessionStarts } from '../trainings/schedule';
+import { MAX_SLOTS, sessionRangeLabel, sessionStarts } from '../trainings/schedule';
 import { CrewPickerDialog, type RosterMemberInfo } from './CrewPickerDialog';
 import { useBoats, useMemberNames, useProgram, useSaveProgram } from './hooks';
 import {
+  addSession,
   analyzeDraft,
+  canAddSession,
+  canRemoveSession,
   clearSlot,
   copySlot,
   crewOf,
   draftFromProgram,
   entryOf,
+  fullCrewProblems,
   hasAnyCrew,
+  initialSessionCount,
   isSameDraft,
+  removeLastSession,
   removeMember,
   setBoatNotes,
   setTrainingNotes,
@@ -40,9 +47,8 @@ import {
   type ProgramDraft,
 } from './model';
 import { ParticipantSummary } from './ParticipantSummary';
-import { ProgramTimeline } from './ProgramTimeline';
+import { ProgramByBoat } from './ProgramByBoat';
 import { SlotBoatCard } from './SlotBoatCard';
-import { buildTimeline } from './view';
 
 interface InnerProps {
   training: Training;
@@ -50,9 +56,10 @@ interface InnerProps {
   boats: Boat[];
   roster: RosterMemberInfo[];
   nameOf: (id: string) => string;
+  contactOf: (id: string) => DirectoryEntry | null;
 }
 
-type Confirm = null | 'copy' | 'clear' | 'unpublish' | 'warn';
+type Confirm = null | 'copy' | 'clear' | 'unpublish' | 'warn' | 'removeSession';
 
 function joinNames(ids: string[], nameOf: (id: string) => string): string {
   return ids.map(nameOf).join(', ');
@@ -63,12 +70,18 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   const save = useSaveProgram(training.id);
   const tabsPrefix = useId();
 
-  const saved = useMemo(() => draftFromProgram(programData, training.slot_count), [programData, training.slot_count]);
+  // The training's length is not fixed up front: the editor starts with the sessions the program already uses
+  // (at least one) and the coach adds more. The server derives the training's length from the saved program.
+  const startCount = initialSessionCount(programData, training.slot_count);
+  const saved = useMemo(() => draftFromProgram(programData, startCount), [programData, startCount]);
   const [draft, setDraft] = useState<ProgramDraft>(saved);
-  const [slot, setSlot] = useState(0);
+  const [selectedSlot, setSlot] = useState(0);
+  // The selected session can vanish ("Son seansı kaldır"), so it is always clamped to what exists.
+  const slot = Math.min(selectedSlot, draft.slots.length - 1);
   const [picker, setPicker] = useState<{ slot: number; boatId: string } | null>(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [notify, setNotify] = useState(true);
 
   const published = programData.program?.status === 'published';
   const version = programData.program?.version ?? 0;
@@ -77,6 +90,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   const boatById = useMemo(() => new Map(boats.map((b) => [b.id, b])), [boats]);
   const boatName = (id: string) => boatById.get(id)?.name ?? '?';
   const analysis = analyzeDraft(draft, roster);
+  const crewProblems = fullCrewProblems(draft, boats);
   const hasWarnings = analysis.unassignedAttending.length + analysis.assignedNotAttending.length + analysis.assignedNoAnswer.length > 0;
 
   const change = (next: ProgramDraft) => {
@@ -98,7 +112,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   const run = async (publish: boolean, message: string) => {
     setConfirm(null);
     try {
-      await save.mutateAsync({ payload: toPayload(draft), publish });
+      await save.mutateAsync({ payload: toPayload(draft), publish, notify });
       toast.show(message, 'success');
     } catch {
       /* shown inline */
@@ -109,12 +123,24 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
       setLocalError(tr.program.emptyPublish);
       return;
     }
+    if (crewProblems.length > 0) return; // the warning above the buttons says which boats are incomplete
     if (hasWarnings) setConfirm('warn');
     else void run(true, published ? tr.program.updatedToast : tr.program.publishedToast);
   };
 
   // --- hours ------------------------------------------------------------------------------------
-  const slotTabs = sessionStarts(training).map((start, i) => ({ id: String(i), label: formatTime(start) }));
+  const sessionCount = draft.slots.length;
+  const slotStarts = sessionStarts({ starts_at: training.starts_at, slot_count: sessionCount });
+  const slotTabs = slotStarts.map((start, i) => ({ id: String(i), label: formatTime(start) }));
+  const addOneSession = () => {
+    change(addSession(draft));
+    setSlot(sessionCount); // jump to the new session
+  };
+  const dropLastSession = () => {
+    change(removeLastSession(draft));
+    setConfirm(null);
+  };
+  const requestDropLastSession = () => (slotHasCrew(draft, sessionCount - 1) ? setConfirm('removeSession') : dropLastSession());
   const visibleBoats = boats.filter((b) => b.is_active || entryOf(draft, slot, b.id));
   const pickerBoat = picker ? boatById.get(picker.boatId) : undefined;
   const usable = (boatId: string) => boatById.get(boatId)?.is_active ?? false;
@@ -133,8 +159,24 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
 
       <div>
         <Tabs label={tr.program.slotsLabel} idPrefix={tabsPrefix} tabs={slotTabs} value={String(slot)} onChange={(id) => setSlot(Number(id))} />
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <Button variant="secondary" disabled={!canAddSession(draft)} onClick={addOneSession}>
+            <Plus aria-hidden="true" size={16} />
+            {tr.program.addSession}
+          </Button>
+          {canRemoveSession(draft) && (
+            <Button variant="ghost" onClick={requestDropLastSession}>
+              <Trash2 aria-hidden="true" size={16} />
+              {tr.program.removeSession}
+            </Button>
+          )}
+        </div>
+        <p className="mt-2 text-xs text-muted">
+          {tr.program.sessionsHint} {canAddSession(draft) ? tr.program.sessionTotal(sessionCount) : tr.program.maxSessions(MAX_SLOTS)}
+        </p>
         <TabPanel idPrefix={tabsPrefix} id={String(slot)}>
           <p className="mb-3 text-sm font-semibold text-muted">{tr.program.slotHeading(slot + 1, sessionRangeLabel(training, slot))}</p>
+          <SlotWeather trainingId={training.id} slot={slot} />
 
           <div className="mb-3 grid grid-cols-2 gap-2">
             <Button variant="secondary" disabled={slot === 0} onClick={requestCopy}>
@@ -183,7 +225,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
         />
       </div>
 
-      <ParticipantSummary draft={draft} roster={roster} analysis={analysis} boatName={boatName} slotTime={(i) => formatTime(sessionStarts(training)[i] ?? training.starts_at)} />
+      <ParticipantSummary draft={draft} roster={roster} analysis={analysis} boatName={boatName} slotTime={(i) => formatTime(slotStarts[i] ?? training.starts_at)} />
 
       {/* Actions stay in reach above the tab bar while scrolling a long program. */}
       <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 -mx-1 flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3 shadow-lg">
@@ -192,9 +234,30 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
             {errorText}
           </p>
         )}
+        {crewProblems.length > 0 && (
+          <div id="crew-problems" role="alert" className="max-h-40 overflow-y-auto rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">
+            <p className="flex items-center gap-2 font-bold">
+              <TriangleAlert aria-hidden="true" size={16} className="shrink-0" />
+              {tr.program.fullCrewBlockedTitle}
+            </p>
+            <p>{tr.program.fullCrewBlockedBody}</p>
+            <ul className="list-disc pl-5">
+              {crewProblems.map((p) => (
+                <li key={`${p.slot}:${p.boatId}`}>{tr.program.fullCrewProblem(boatName(p.boatId), p.slot + 1, p.count, p.capacity)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+        <label className="flex min-h-11 items-start gap-2.5 text-sm">
+          <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} className="mt-0.5 h-5 w-5 shrink-0 accent-[var(--primary)]" />
+          <span>
+            <span className="block font-semibold">{tr.program.notify}</span>
+            <span className="block text-xs text-muted">{tr.program.notifyHint}</span>
+          </span>
+        </label>
         {published ? (
           <div className="grid grid-cols-2 gap-2">
-            <Button disabled={!dirty} loading={save.isPending} onClick={requestPublish}>
+            <Button disabled={!dirty || crewProblems.length > 0} aria-describedby={crewProblems.length > 0 ? 'crew-problems' : undefined} loading={save.isPending} onClick={requestPublish}>
               {save.isPending ? tr.program.saving : tr.program.update}
             </Button>
             <Button variant="secondary" disabled={save.isPending} onClick={() => setConfirm('unpublish')}>
@@ -206,7 +269,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
             <Button variant="secondary" disabled={!dirty || save.isPending} onClick={() => void run(false, tr.program.draftSaved)}>
               {tr.program.saveDraft}
             </Button>
-            <Button loading={save.isPending} onClick={requestPublish}>
+            <Button disabled={crewProblems.length > 0} aria-describedby={crewProblems.length > 0 ? 'crew-problems' : undefined} loading={save.isPending} onClick={requestPublish}>
               {save.isPending ? tr.program.saving : tr.program.publish}
             </Button>
           </div>
@@ -248,6 +311,17 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
         }}
       >
         <p>{tr.program.clearConfirmBody}</p>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirm === 'removeSession'}
+        title={tr.program.removeSessionTitle}
+        confirmLabel={tr.program.removeSessionConfirm}
+        tone="danger"
+        onCancel={() => setConfirm(null)}
+        onConfirm={dropLastSession}
+      >
+        <p>{tr.program.removeSessionBody}</p>
       </ConfirmDialog>
 
       <ConfirmDialog
@@ -293,16 +367,14 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   );
 }
 
-function ReadOnlyProgram({ training, programData, boats, nameOf }: Omit<InnerProps, 'roster'>) {
-  const boatOrder = new Map(boats.map((b) => [b.id, b.sort_order]));
-  const boatName = (id: string) => boats.find((b) => b.id === id)?.name ?? '?';
+function ReadOnlyProgram({ training, programData, boats, nameOf, contactOf }: Omit<InnerProps, 'roster'>) {
   if (!programData.program || programData.assignments.length === 0) {
     return <p className="text-sm text-muted">{tr.program.noProgramYet}</p>;
   }
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-muted">{tr.program.readOnly}</p>
-      <ProgramTimeline timeline={buildTimeline(programData, training.slot_count, boatOrder)} training={training} nameOf={nameOf} boatName={boatName} />
+      <ProgramByBoat data={programData} training={training} boats={boats} nameOf={nameOf} contactOf={contactOf} />
     </div>
   );
 }
@@ -321,7 +393,7 @@ export function ProgramEditor({ training }: { training: Training }) {
   const boats = useBoats();
   const responses = useTrainingResponses(training.id);
   const roster = useQuery({ queryKey: membersKey, queryFn: fetchMembers });
-  const { nameOf } = useMemberNames();
+  const { nameOf, contactOf } = useMemberNames();
 
   if (program.isPending || boats.isPending || responses.isPending || roster.isPending) {
     return (
@@ -351,7 +423,7 @@ export function ProgramEditor({ training }: { training: Training }) {
   const displayName = (id: string) => profileNames.get(id) ?? nameOf(id);
 
   if (training.status !== 'scheduled') {
-    return <ReadOnlyProgram training={training} programData={program.data} boats={boats.data} nameOf={displayName} />;
+    return <ReadOnlyProgram training={training} programData={program.data} boats={boats.data} nameOf={displayName} contactOf={contactOf} />;
   }
   if (!boats.data.some((b) => b.is_active)) {
     return (
@@ -370,12 +442,13 @@ export function ProgramEditor({ training }: { training: Training }) {
 
   return (
     <ProgramEditorInner
-      key={`${training.id}:${training.slot_count}`}
+      key={training.id}
       training={training}
       programData={program.data}
       boats={boats.data}
       roster={rosterFrom(roster.data, responses.data)}
       nameOf={displayName}
+      contactOf={contactOf}
     />
   );
 }

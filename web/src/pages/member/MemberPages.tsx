@@ -12,7 +12,9 @@ import { useMyAttendance } from '@/features/attendance/hooks';
 import { InstallBanner } from '@/features/install/InstallBanner';
 import { MemberProgram } from '@/features/program/MemberProgram';
 import { useMyResponses, useTraining, useTrainings } from '@/features/trainings/hooks';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { MemberRsvp } from '@/features/trainings/MemberRsvp';
+import { WeatherStrip } from '@/features/weather/WeatherStrip';
 import { MyAnswerBadge } from '@/features/trainings/MyAnswerBadge';
 import { HOUR_MS, formatDayMonth } from '@/lib/time';
 import { endsAt, partitionTrainings, startsAt } from '@/features/trainings/schedule';
@@ -40,7 +42,7 @@ export function MemberHomePage() {
 
   return (
     <>
-      <PageHeader title={tr.home.greeting(firstName)} subtitle={tr.app.clubName} />
+      <PageHeader title={tr.home.greeting(firstName)} subtitle={tr.app.clubName} action={<NotificationBell to="/uye/bildirimler" />} />
       <InstallBanner to="/uye/profil" />
 
       {trainings.isPending && (
@@ -71,8 +73,9 @@ export function MemberHomePage() {
                 {tr.home.nextTraining}
               </h2>
               <TrainingSummary training={next} />
-              <MemberProgram training={next} variant="summary" detailPath={`/uye/antrenmanlar/${next.id}`} />
+              <MemberProgram training={next} variant="summary" />
               <MemberRsvp training={next} />
+              <WeatherStrip training={next} />
             </section>
           ) : (
             <EmptyState icon={CalendarX} title={tr.home.noUpcomingTitle} body={tr.home.noUpcomingBody} />
@@ -147,6 +150,7 @@ export function MemberTrainingDetailPage() {
           {training.data.status === 'completed' && attendance.isSuccess && <MyAttendanceCard training={training.data} records={attendance.data} />}
           {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="mine" />}
           <MemberRsvp training={training.data} />
+          <WeatherStrip training={training.data} />
           {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="rest" />}
         </div>
       )}

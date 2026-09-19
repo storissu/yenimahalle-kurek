@@ -56,7 +56,10 @@ export function BoatsPage() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{boat.name}</p>
-                  <p className="text-sm text-muted">{tr.boats.capacityOption(boat.capacity)}</p>
+                  <p className="text-sm text-muted">
+                    {tr.boats.capacityOption(boat.capacity)}
+                    {boat.requires_full_crew && ` · ${tr.boats.fullCrewBadge}`}
+                  </p>
                 </div>
                 <Badge tone={boat.is_active ? 'success' : 'neutral'}>{boat.is_active ? tr.boats.active : tr.boats.inactive}</Badge>
                 <ChevronRight aria-hidden="true" size={20} className="shrink-0 text-muted" />

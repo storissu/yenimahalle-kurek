@@ -75,5 +75,14 @@ export function instantToWallTime(instant: Date | string): { date: string; time:
   return { date: `${w.year}-${pad(w.month)}-${pad(w.day)}`, time: `${pad(w.hour)}:${pad(w.minute)}` };
 }
 
+/** The calendar day before a "YYYY-MM-DD" date ("2026-03-01" → "2026-02-28"); empty string for bad input. */
+export function previousCalendarDay(date: string): string {
+  if (Number.isNaN(wallTimeToInstant(date, '00:00').getTime())) return '';
+  const [year, month, day] = date.split('-').map(Number) as [number, number, number];
+  const prev = new Date(Date.UTC(year, month - 1, day - 1));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${prev.getUTCFullYear()}-${pad(prev.getUTCMonth() + 1)}-${pad(prev.getUTCDate())}`;
+}
+
 /** Today's date in the club zone as "YYYY-MM-DD" (for <input type="date" min>). */
 export const todayInClubZone = (now: Date = new Date()): string => instantToWallTime(now).date;

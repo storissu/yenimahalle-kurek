@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router';
 import { cn } from '@/lib/cn';
 import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import { tr } from '@/strings/tr';
+import { useAppBadge } from '@/features/notifications/hooks';
 import { useServerClockSync } from '@/features/trainings/hooks';
 import { UpdateBanner } from './UpdateBanner';
 
@@ -17,6 +18,7 @@ export interface Tab {
 export function AppShell({ tabs }: { tabs: Tab[] }) {
   const online = useOnlineStatus();
   useServerClockSync(); // aligns countdowns/locks with the server clock (see lib/clock.ts)
+  useAppBadge(); // unread count on the app icon
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-xl">

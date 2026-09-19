@@ -1,5 +1,6 @@
 // Pure helpers about a training's sessions and RSVP window. No React, no network — easy to test.
 import { formatDayMonth, formatTime, HOUR_MS } from '@/lib/time';
+import { tr } from '@/strings/tr';
 import type { TrainingStatus } from '@/types/database';
 
 export type { TrainingStatus };
@@ -11,16 +12,29 @@ export interface TrainingLike {
   status: TrainingStatus;
 }
 
-export const MAX_SLOTS = 6;
+/** The most sessions one training can have (the database enforces the same limit). */
+export const MAX_SLOTS = 12;
 
 export const startsAt = (t: Pick<TrainingLike, 'starts_at'>): Date => new Date(t.starts_at);
 
-export const endsAt = (t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): Date =>
-  new Date(new Date(t.starts_at).getTime() + t.slot_count * HOUR_MS);
+/**
+ * A training's sessions are decided by its program, not up front: `slot_count` is 0 until a program (or an
+ * attendance sheet) exists. Until then the training counts as one hour long, so lists and "is it over?"
+ * checks keep working.
+ */
+export const hasPlannedSessions = (t: Pick<TrainingLike, 'slot_count'>): boolean => t.slot_count > 0;
 
-/** "08:00–10:00" */
+export const endsAt = (t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): Date =>
+  new Date(new Date(t.starts_at).getTime() + Math.max(1, t.slot_count) * HOUR_MS);
+
+/** "08:00–10:00", or just "08:00" while the length is not known yet. */
 export function timeRangeLabel(t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): string {
-  return `${formatTime(startsAt(t))}–${formatTime(endsAt(t))}`;
+  return hasPlannedSessions(t) ? `${formatTime(startsAt(t))}–${formatTime(endsAt(t))}` : formatTime(startsAt(t));
+}
+
+/** "08:00–10:00 · 2 seans", or "08:00 · süre program hazırlanınca belli olur". */
+export function trainingTimeText(t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): string {
+  return hasPlannedSessions(t) ? `${timeRangeLabel(t)} · ${sessionCountLabel(t.slot_count)}` : `${timeRangeLabel(t)} · ${tr.trainings.durationUnknown}`;
 }
 
 /** "19 Eylül Cumartesi 20:00" — when the RSVP window closes. */
@@ -44,16 +58,21 @@ export function sessionStarts(t: Pick<TrainingLike, 'starts_at' | 'slot_count'>)
 
 export type RsvpWindow =
   | { kind: 'open'; msLeft: number }
-  | { kind: 'locked' } // deadline passed
+  /** No more changes: the deadline passed, or the coach published the program (whichever came first). */
+  | { kind: 'locked'; reason: 'deadline' | 'program' }
   | { kind: 'cancelled' }
   | { kind: 'completed' };
 
-/** Whether a member may still answer. `now` should be SERVER-adjusted time (see clock.ts). */
-export function rsvpWindow(t: Pick<TrainingLike, 'status' | 'rsvp_deadline'>, now: Date): RsvpWindow {
+/**
+ * Whether a member may still answer. `now` should be SERVER-adjusted time (see clock.ts).
+ * Publishing the program locks the answers even before the deadline (the database enforces it too).
+ */
+export function rsvpWindow(t: Pick<TrainingLike, 'status' | 'rsvp_deadline'>, now: Date, programPublished = false): RsvpWindow {
   if (t.status === 'cancelled') return { kind: 'cancelled' };
   if (t.status === 'completed') return { kind: 'completed' };
   const msLeft = new Date(t.rsvp_deadline).getTime() - now.getTime();
-  return msLeft > 0 ? { kind: 'open', msLeft } : { kind: 'locked' };
+  if (msLeft <= 0) return { kind: 'locked', reason: 'deadline' };
+  return programPublished ? { kind: 'locked', reason: 'program' } : { kind: 'open', msLeft };
 }
 
 /** "2 gün 3 sa kaldı" / "5 sa 20 dk kaldı" / "45 dk kaldı" / "Süre doldu". */

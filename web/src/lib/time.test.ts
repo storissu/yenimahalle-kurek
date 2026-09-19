@@ -5,6 +5,7 @@ import {
   formatDayMonth,
   formatTime,
   instantToWallTime,
+  previousCalendarDay,
   todayInClubZone,
   wallTimeToInstant,
 } from './time';
@@ -68,5 +69,15 @@ describe('wall time <-> instant (club zone)', () => {
   it("tells today's date in club time, not UTC", () => {
     expect(todayInClubZone(new Date('2026-09-19T21:30:00Z'))).toBe('2026-09-20');
     expect(todayInClubZone(new Date('2026-09-19T20:30:00Z'))).toBe('2026-09-19');
+  });
+
+  it('finds the previous calendar day across month, year and leap-day boundaries', () => {
+    expect(previousCalendarDay('2026-09-22')).toBe('2026-09-21');
+    expect(previousCalendarDay('2026-10-01')).toBe('2026-09-30');
+    expect(previousCalendarDay('2027-01-01')).toBe('2026-12-31');
+    expect(previousCalendarDay('2028-03-01')).toBe('2028-02-29');
+    expect(previousCalendarDay('2027-03-01')).toBe('2027-02-28');
+    expect(previousCalendarDay('')).toBe('');
+    expect(previousCalendarDay('2026-02-31')).toBe('');
   });
 });

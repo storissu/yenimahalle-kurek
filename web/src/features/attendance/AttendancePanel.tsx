@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { CircleCheck, CircleX, ClipboardCheck, UserPlus, X } from 'lucide-react';
+import { CircleCheck, CircleX, ClipboardCheck, Plus, Trash2, UserPlus, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useBlocker } from 'react-router';
 import { Badge } from '@/components/ui/Badge';
@@ -22,11 +22,14 @@ import { useTrainingResponses } from '../trainings/hooks';
 import { sessionRangeLabel } from '../trainings/schedule';
 import { useSaveAttendance, useTrainingAttendance } from './hooks';
 import {
+  addSession,
   addWalkIn,
+  canAddSession,
   hasAnyRow,
   initialDraft,
   isSameDraft,
   plannedFrom,
+  removeLastSession,
   removeWalkIn,
   setMark,
   summarize,
@@ -178,6 +181,22 @@ function AttendanceEditor({ training, planned, planSource, saved, activeMembers,
         );
       })}
 
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" disabled={!canAddSession(draft)} onClick={() => change(addSession(draft))}>
+            <Plus aria-hidden="true" size={16} />
+            {tr.attendance.addSession}
+          </Button>
+          {draft.slots.length > baseline.slots.length && (
+            <Button variant="ghost" onClick={() => change(removeLastSession(draft, baseline.slots.length))}>
+              <Trash2 aria-hidden="true" size={16} />
+              {tr.attendance.removeSession}
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted">{tr.attendance.sessionHint}</p>
+      </div>
+
       <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 -mx-1 flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3 shadow-lg">
         <p className="text-center text-sm font-semibold" aria-live="polite">
           {tr.attendance.summary(summary.peoplePresent, summary.sessionsPresent)}
@@ -307,17 +326,19 @@ function EditorLoader({
   const activeMembers = useMemo(() => profiles.filter((p) => p.role === 'member' && p.is_active), [profiles]);
 
   const { planned, planSource, boatBySlot } = useMemo(() => {
-    const crewBySlot: string[][] = Array.from({ length: training.slot_count }, () => []);
+    // a training whose length was never planned (0 sessions) is still shown as one session
+    const sessions = Math.max(1, training.slot_count);
+    const crewBySlot: string[][] = Array.from({ length: sessions }, () => []);
     const boatBySlot = new Map<string, string>();
     const assignmentById = new Map(programData.assignments.map((a) => [a.id, a]));
     for (const c of programData.crew) {
       const assignment = assignmentById.get(c.assignment_id);
-      if (!assignment || c.slot_index >= training.slot_count) continue;
+      if (!assignment || c.slot_index >= sessions) continue;
       crewBySlot[c.slot_index]?.push(c.member_id);
       boatBySlot.set(`${c.slot_index}:${c.member_id}`, boatName.get(assignment.boat_id) ?? '');
     }
     const attendingIds = responses.filter((r) => r.response === 'attending').map((r) => r.member_id);
-    const planned = plannedFrom(training.slot_count, crewBySlot, attendingIds.filter((id) => activeMembers.some((m) => m.id === id)));
+    const planned = plannedFrom(sessions, crewBySlot, attendingIds.filter((id) => activeMembers.some((m) => m.id === id)));
     const hasProgram = crewBySlot.some((crew) => crew.length > 0);
     return { planned, planSource: (hasProgram ? 'program' : 'rsvp') as 'program' | 'rsvp', boatBySlot };
   }, [training.slot_count, programData, responses, boatName, activeMembers]);

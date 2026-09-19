@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ProgramData } from './model';
-import { buildTimeline, matesLabel, myAssignments } from './view';
+import { buildByBoat, buildTimeline, isMineSession, matesLabel, myAssignments } from './view';
 
 // The club example from the requirements.
 const data: ProgramData = {
@@ -86,5 +86,57 @@ describe('matesLabel (Turkish)', () => {
     [['Jamie', 'Ali', 'Becca'], 'Jamie, Ali ve Becca ile'],
   ])('%j → %s', (names, label) => {
     expect(matesLabel(names)).toBe(label);
+  });
+});
+
+describe('buildByBoat', () => {
+  it('groups the club example by boat: each boat with its sessions in time order and crews in seat order', () => {
+    expect(buildByBoat(data, order)).toEqual([
+      {
+        boatId: 'mavi',
+        sessions: [
+          { slotIndex: 0, crew: ['alex', 'ashley'], notes: null },
+          { slotIndex: 1, crew: ['john', 'jamie'], notes: 'sprint' },
+        ],
+      },
+      { boatId: 'turuncu', sessions: [{ slotIndex: 0, crew: ['ali', 'becca'], notes: null }] },
+    ]);
+  });
+
+  it('follows the club boat order, not the order of the rows', () => {
+    const reversed = new Map([['mavi', 3], ['turuncu', 1]]);
+    expect(buildByBoat(data, reversed).map((b) => b.boatId)).toEqual(['turuncu', 'mavi']);
+  });
+
+  it('leaves out boats that are not used, and sessions without a crew', () => {
+    const withEmpty: ProgramData = { ...data, assignments: [...data.assignments, { id: 'a-c4x', training_id: 't', slot_index: 0, boat_id: 'c4x', notes: null }] };
+    expect(buildByBoat(withEmpty, order).map((b) => b.boatId)).toEqual(['mavi', 'turuncu']);
+  });
+
+  it('keeps sessions with gaps (a boat resting for an hour) and sorts them by time even if stored out of order', () => {
+    const gap: ProgramData = {
+      program: null,
+      assignments: [
+        { id: 'late', training_id: 't', slot_index: 3, boat_id: 'mavi', notes: null },
+        { id: 'early', training_id: 't', slot_index: 0, boat_id: 'mavi', notes: null },
+      ],
+      crew: [
+        { assignment_id: 'late', training_id: 't', slot_index: 3, member_id: 'john', seat: 1 },
+        { assignment_id: 'early', training_id: 't', slot_index: 0, member_id: 'alex', seat: 1 },
+      ],
+    };
+    expect(buildByBoat(gap, order)[0]?.sessions.map((s) => s.slotIndex)).toEqual([0, 3]);
+  });
+
+  it('is empty for a program with no crews', () => {
+    expect(buildByBoat({ program: null, assignments: [], crew: [] })).toEqual([]);
+  });
+});
+
+describe('isMineSession', () => {
+  it('is true only for a member who rows in that session', () => {
+    expect(isMineSession({ crew: ['alex', 'ashley'] }, 'alex')).toBe(true);
+    expect(isMineSession({ crew: ['alex', 'ashley'] }, 'john')).toBe(false);
+    expect(isMineSession({ crew: ['alex'] }, undefined)).toBe(false);
   });
 });

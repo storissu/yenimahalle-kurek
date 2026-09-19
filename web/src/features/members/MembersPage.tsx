@@ -105,6 +105,7 @@ export function MembersPage() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{m.full_name}</p>
                   <p className="truncate font-mono text-sm text-muted">@{m.username}</p>
+                  {m.phone && <p className="truncate text-sm tabular-nums text-muted">{m.phone}</p>}
                   <div className="mt-1.5 flex flex-wrap gap-1.5 empty:hidden">
                     {m.role === 'coach' && <Badge tone="primary">{tr.roles.coach}</Badge>}
                     {!m.is_active && <Badge tone="danger">{tr.members.inactive}</Badge>}

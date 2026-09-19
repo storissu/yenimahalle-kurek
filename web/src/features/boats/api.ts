@@ -13,6 +13,8 @@ export interface BoatInput {
   name: string;
   capacity: number;
   is_active: boolean;
+  /** Must always be rowed with exactly `capacity` people (C4X = 4); programs cannot be published otherwise. */
+  requires_full_crew: boolean;
 }
 
 export async function createBoat(input: BoatInput, sortOrder: number): Promise<void> {

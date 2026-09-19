@@ -8,6 +8,16 @@ export type TrainingStatus = 'scheduled' | 'cancelled' | 'completed';
 export type RsvpResponse = 'attending' | 'not_attending';
 export type ProgramStatus = 'draft' | 'published';
 export type AttendanceStatus = 'present' | 'absent';
+export type RsvpDeadlineRule = '12' | '24' | '48' | 'evening' | 'custom';
+
+export type NotificationType =
+  | 'training_new'
+  | 'training_changed'
+  | 'training_cancelled'
+  | 'deadline_reminder'
+  | 'deadline_summary'
+  | 'program_published'
+  | 'program_updated';
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -67,11 +77,13 @@ export type Database = {
           capacity: number;
           is_active: boolean;
           sort_order: number;
+          /** Must be rowed with exactly `capacity` people (C4X = 4); enforced when a program is published. */
+          requires_full_crew: boolean;
           created_at: string;
           updated_at: string;
         };
-        Insert: { name: string; capacity: number; is_active?: boolean; sort_order?: number };
-        Update: { name?: string; capacity?: number; is_active?: boolean; sort_order?: number };
+        Insert: { name: string; capacity: number; is_active?: boolean; sort_order?: number; requires_full_crew?: boolean };
+        Update: { name?: string; capacity?: number; is_active?: boolean; sort_order?: number; requires_full_crew?: boolean };
         Relationships: [];
       };
       club_settings: {
@@ -83,6 +95,7 @@ export type Database = {
           site_lat: number;
           site_lng: number;
           default_rsvp_lead_hours: number;
+          reminder_lead_hours: number;
           wind_gust_warn_kmh: number | null;
           wave_warn_m: number | null;
           updated_at: string;
@@ -93,6 +106,7 @@ export type Database = {
           site_lat?: number;
           site_lng?: number;
           default_rsvp_lead_hours?: number;
+          reminder_lead_hours?: number;
           wind_gust_warn_kmh?: number | null;
           wave_warn_m?: number | null;
         };
@@ -103,19 +117,23 @@ export type Database = {
           id: string;
           title: string | null;
           starts_at: string;
+          /** One-hour sessions. 0 = not planned yet; the program (or the attendance sheet) sets it, clients cannot. */
           slot_count: number;
           rsvp_deadline: string;
+          /** How the coach chose the deadline: hours before ('12' | '24' | '48'), 'evening' (20:00 the evening before) or 'custom'. */
+          rsvp_deadline_rule: RsvpDeadlineRule | null;
           status: TrainingStatus;
           cancel_reason: string | null;
           notes: string | null;
           deadline_reminder_sent_at: string | null;
+          deadline_summary_sent_at: string | null;
           created_by: string;
           created_at: string;
           updated_at: string;
         };
         // status / cancel_reason / created_by are not client-writable (column grants); use cancel_training().
-        Insert: { title?: string | null; starts_at: string; slot_count?: number; rsvp_deadline: string; notes?: string | null };
-        Update: { title?: string | null; starts_at?: string; slot_count?: number; rsvp_deadline?: string; notes?: string | null };
+        Insert: { title?: string | null; starts_at: string; rsvp_deadline: string; rsvp_deadline_rule?: RsvpDeadlineRule | null; notes?: string | null };
+        Update: { title?: string | null; starts_at?: string; rsvp_deadline?: string; rsvp_deadline_rule?: RsvpDeadlineRule | null; notes?: string | null };
         Relationships: [];
       };
       training_responses: {
@@ -176,6 +194,52 @@ export type Database = {
         Update: never;
         Relationships: [];
       };
+      notification_outbox: {
+        Row: {
+          id: string;
+          user_id: string;
+          type: NotificationType;
+          training_id: string | null;
+          title: string;
+          body: string;
+          url: string;
+          dedupe_key: string;
+          created_at: string;
+          read_at: string | null;
+          push_done_at: string | null;
+          push_attempts: number;
+          push_error: string | null;
+        };
+        // A user may only mark their own messages read (column grant); everything else is server-side.
+        Insert: never;
+        Update: { read_at?: string | null };
+        Relationships: [];
+      };
+      weather_snapshots: {
+        Row: {
+          training_id: string;
+          slot_index: number;
+          fetched_at: string;
+          source: string;
+          forecast_for: string;
+          temperature_c: number | null;
+          apparent_c: number | null;
+          wind_kmh: number | null;
+          gust_kmh: number | null;
+          wind_dir_deg: number | null;
+          precip_prob: number | null;
+          precip_mm: number | null;
+          weather_code: number | null;
+          cloud_pct: number | null;
+          wave_height_m: number | null;
+          wave_period_s: number | null;
+          wave_dir_deg: number | null;
+        };
+        // Written only by the refresh-weather Edge Function.
+        Insert: never;
+        Update: never;
+        Relationships: [];
+      };
       push_subscriptions: {
         Row: {
           id: string;
@@ -194,7 +258,7 @@ export type Database = {
     };
     Views: {
       member_directory: {
-        Row: { id: string; full_name: string };
+        Row: { id: string; full_name: string; phone: string | null };
         Relationships: [];
       };
     };
@@ -207,7 +271,7 @@ export type Database = {
         Returns: undefined;
       };
       server_now: { Args: never; Returns: string };
-      save_program: { Args: { p_training_id: string; p_payload: Json; p_publish: boolean }; Returns: undefined };
+      save_program: { Args: { p_training_id: string; p_payload: Json; p_publish: boolean; p_notify?: boolean }; Returns: undefined };
       save_attendance: { Args: { p_training_id: string; p_rows: Json; p_complete?: boolean }; Returns: undefined };
       monthly_leaderboard: { Args: { p_month: string }; Returns: MonthRow[] };
       my_month_stats: { Args: { p_month: string }; Returns: MyMonthStatsRow[] };
@@ -232,3 +296,5 @@ export type TrainingProgram = Database['public']['Tables']['training_programs'][
 export type ProgramAssignment = Database['public']['Tables']['program_assignments']['Row'];
 export type ProgramCrew = Database['public']['Tables']['program_crew']['Row'];
 export type AttendanceRecord = Database['public']['Tables']['attendance_records']['Row'];
+export type AppNotification = Database['public']['Tables']['notification_outbox']['Row'];
+export type WeatherSnapshot = Database['public']['Tables']['weather_snapshots']['Row'];

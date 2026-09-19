@@ -15,6 +15,7 @@ const schema = z.object({
   name: z.string().trim().min(1, tr.boats.nameRequired).max(40, tr.boats.nameRequired),
   capacity: z.number({ message: tr.boats.nameRequired }).int().min(1).max(8),
   is_active: z.boolean(),
+  requires_full_crew: z.boolean(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -38,7 +39,12 @@ function BoatForm({ target, nextSortOrder, onClose }: { target: Boat | 'new'; ne
     formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: editing?.name ?? '', capacity: editing?.capacity ?? 2, is_active: editing?.is_active ?? true },
+    defaultValues: {
+      name: editing?.name ?? '',
+      capacity: editing?.capacity ?? 2,
+      is_active: editing?.is_active ?? true,
+      requires_full_crew: editing?.requires_full_crew ?? false,
+    },
   });
 
   const save = useMutation({
@@ -68,6 +74,14 @@ function BoatForm({ target, nextSortOrder, onClose }: { target: Boat | 'new'; ne
           ))}
         </select>
       </div>
+
+      <label className="flex min-h-12 items-start gap-3 rounded-xl border border-border bg-surface p-3">
+        <input type="checkbox" className="mt-1 h-5 w-5 accent-[var(--primary)]" {...register('requires_full_crew')} />
+        <span>
+          <span className="block font-semibold">{tr.boats.fullCrewLabel}</span>
+          <span className="block text-sm text-muted">{tr.boats.fullCrewHint}</span>
+        </span>
+      </label>
 
       <label className="flex min-h-12 items-start gap-3 rounded-xl border border-border bg-surface p-3">
         <input type="checkbox" className="mt-1 h-5 w-5 accent-[var(--primary)]" {...register('is_active')} />

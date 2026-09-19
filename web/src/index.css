@@ -26,6 +26,21 @@
   --danger: #b3261e;
   --danger-soft: #fbe4e2;
 
+  /* One accent per boat (by the club's boat order) so boats are told apart at a glance; the boat name is always
+     written out, so colour is never the only cue. Each accent is checked on white and on its own tint. */
+  --boat-1: #0b6a9c;
+  --boat-1-soft: #dcecf6;
+  --boat-2: #9a4300;
+  --boat-2-soft: #fde8d4;
+  --boat-3: #5b32a3;
+  --boat-3-soft: #ece5f9;
+  --boat-4: #0b6b5e;
+  --boat-4-soft: #d9f2ee;
+  --boat-5: #a3195b;
+  --boat-5-soft: #fbe1ee;
+  --boat-6: #475569;
+  --boat-6-soft: #e2e8f0;
+
   --focus: #0b6a9c;
 }
 
@@ -49,6 +64,19 @@
     --danger: #ff9d94;
     --danger-soft: #4a1a17;
 
+    --boat-1: #5bb8e8;
+    --boat-1-soft: #12384d;
+    --boat-2: #ffb37a;
+    --boat-2-soft: #3f2510;
+    --boat-3: #c9a8ff;
+    --boat-3-soft: #2b1a4d;
+    --boat-4: #5fd8c4;
+    --boat-4-soft: #0c3a33;
+    --boat-5: #ff9cc8;
+    --boat-5-soft: #4a1730;
+    --boat-6: #b8c4d6;
+    --boat-6-soft: #263244;
+
     --focus: #5bb8e8;
   }
 }
@@ -69,6 +97,18 @@
   --color-warning-soft: var(--warning-soft);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-boat-1: var(--boat-1);
+  --color-boat-1-soft: var(--boat-1-soft);
+  --color-boat-2: var(--boat-2);
+  --color-boat-2-soft: var(--boat-2-soft);
+  --color-boat-3: var(--boat-3);
+  --color-boat-3-soft: var(--boat-3-soft);
+  --color-boat-4: var(--boat-4);
+  --color-boat-4-soft: var(--boat-4-soft);
+  --color-boat-5: var(--boat-5);
+  --color-boat-5-soft: var(--boat-5-soft);
+  --color-boat-6: var(--boat-6);
+  --color-boat-6-soft: var(--boat-6-soft);
 
   /* System fonts: no external requests, full Turkish glyph support, CSP-friendly. */
   --font-sans:

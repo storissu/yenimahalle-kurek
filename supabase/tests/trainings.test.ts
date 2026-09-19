@@ -55,7 +55,7 @@ describe('trainings: access', () => {
   it('cannot be created or edited by members', async () => {
     await expect(
       as(db, ids.member1, () =>
-        db.query(`insert into public.trainings (starts_at, slot_count, rsvp_deadline) values (now() + interval '1 day', 1, now())`),
+        db.query(`insert into public.trainings (starts_at, rsvp_deadline) values (now() + interval '1 day', now())`),
       ),
     ).rejects.toThrow(/row-level security/);
     const upd = await as(db, ids.member1, () => db.query(`update public.trainings set title = 'x' where id = $1`, [t.open]));
@@ -71,11 +71,46 @@ describe('trainings: coach management', () => {
   it('creates a training and stamps created_by from the session', async () => {
     const res = await as(db, ids.coach2, () =>
       db.query<{ created_by: string; status: string; slot_count: number }>(
-        `insert into public.trainings (title, starts_at, slot_count, rsvp_deadline, notes)
-         values ('Sabah antrenmanı', now() + interval '2 days', 2, now() + interval '1 day', 'Kısa not') returning created_by, status, slot_count`,
+        `insert into public.trainings (title, starts_at, rsvp_deadline, notes)
+         values ('Sabah antrenmanı', now() + interval '2 days', now() + interval '1 day', 'Kısa not') returning created_by, status, slot_count`,
       ),
     );
-    expect(res.rows[0]).toEqual({ created_by: ids.coach2, status: 'scheduled', slot_count: 2 });
+    // the coach does not choose a length up front: 0 = "not planned yet"
+    expect(res.rows[0]).toEqual({ created_by: ids.coach2, status: 'scheduled', slot_count: 0 });
+  });
+
+  it('does not let a client choose or change the number of sessions (the program decides)', async () => {
+    await expect(
+      as(db, ids.coach1, () =>
+        db.query(`insert into public.trainings (starts_at, slot_count, rsvp_deadline) values (now() + interval '1 day', 2, now())`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      as(db, ids.coach1, () => db.query(`update public.trainings set slot_count = 3 where id = $1`, [t.edit])),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('remembers how the coach chose the RSVP deadline, and only accepts the known choices', async () => {
+    const res = await as(db, ids.coach1, () =>
+      db.query<{ rsvp_deadline_rule: string }>(
+        `insert into public.trainings (starts_at, rsvp_deadline, rsvp_deadline_rule) values (now() + interval '2 days', now() + interval '1 day', 'evening') returning rsvp_deadline_rule`,
+      ),
+    );
+    expect(res.rows[0]?.rsvp_deadline_rule).toBe('evening');
+    const upd = await as(db, ids.coach1, () => db.query(`update public.trainings set rsvp_deadline_rule = '24' where id = $1`, [t.edit]));
+    expect(upd.affectedRows).toBe(1);
+    await expect(as(db, ids.coach1, () => db.query(`update public.trainings set rsvp_deadline_rule = 'whenever' where id = $1`, [t.edit]))).rejects.toThrow(/trainings_rsvp_deadline_rule_values/);
+    const none = await db.query<{ rsvp_deadline_rule: string | null }>(`select rsvp_deadline_rule from public.trainings where id = $1`, [t.open]);
+    expect(none.rows[0]?.rsvp_deadline_rule).toBeNull(); // older trainings simply have no memory
+  });
+
+  it('keeps the session count between 0 and 12', async () => {
+    await expect(
+      db.query(`insert into public.trainings (starts_at, slot_count, rsvp_deadline, created_by) values (now() + interval '1 day', 13, now(), $1)`, [ids.coach1]),
+    ).rejects.toThrow(/trainings_slot_count_range/);
+    await expect(
+      db.query(`insert into public.trainings (starts_at, slot_count, rsvp_deadline, created_by) values (now() + interval '1 day', -1, now(), $1)`, [ids.coach1]),
+    ).rejects.toThrow(/trainings_slot_count_range/);
   });
 
   it('does not let a client choose created_by, status or cancel_reason', async () => {
@@ -92,12 +127,10 @@ describe('trainings: coach management', () => {
   });
 
   it.each([
-    ['deadline after the start', `now() + interval '1 day', 1, now() + interval '2 days'`, /trainings_deadline_before_start/],
-    ['zero sessions', `now() + interval '1 day', 0, now()`, /trainings_slot_count_range/],
-    ['seven sessions', `now() + interval '1 day', 7, now()`, /trainings_slot_count_range/],
+    ['deadline after the start', `now() + interval '1 day', now() + interval '2 days'`, /trainings_deadline_before_start/],
   ])('rejects invalid data: %s', async (_label, values, error) => {
     await expect(
-      as(db, ids.coach1, () => db.query(`insert into public.trainings (starts_at, slot_count, rsvp_deadline) values (${values})`)),
+      as(db, ids.coach1, () => db.query(`insert into public.trainings (starts_at, rsvp_deadline) values (${values})`)),
     ).rejects.toThrow(error);
   });
 
@@ -116,7 +149,7 @@ describe('trainings: coach management', () => {
 
   it('lets a coach edit a scheduled training but not a cancelled one', async () => {
     const ok = await as(db, ids.coach1, () =>
-      db.query(`update public.trainings set title = 'Güncel başlık', slot_count = 3 where id = $1`, [t.edit]),
+      db.query(`update public.trainings set title = 'Güncel başlık' where id = $1`, [t.edit]),
     );
     expect(ok.affectedRows).toBe(1);
     const cancelled = await as(db, ids.coach1, () =>
@@ -196,6 +229,46 @@ describe('set_rsvp (member answers)', () => {
 
   it('refuses answers for cancelled trainings', async () => {
     await expect(as(db, ids.member1, () => rsvp(t.cancelled, 'attending'))).rejects.toThrow(/iptal edildi/);
+  });
+
+  describe('once the program is published', () => {
+    const mavi = async () => (await db.query<{ id: string }>(`select id from public.boats where name = 'Mavi'`)).rows[0]!.id;
+    const saveProgram = async (training: string, publish: boolean) =>
+      as(db, ids.coach1, async () =>
+        db.query(`select public.save_program($1, $2::jsonb, $3)`, [
+          training,
+          JSON.stringify({ assignments: [{ slot_index: 0, boat_id: await mavi(), crew: [ids.member1] }] }),
+          publish,
+        ]),
+      );
+
+    it('locks the answer although the deadline is still far away, first answers and changes alike', async () => {
+      const id = await insertTraining('2 days', '1 day');
+      await as(db, ids.member1, () => rsvp(id, 'attending', 'ilk not'));
+      await saveProgram(id, false); // a draft does not lock anything
+      await as(db, ids.member1, () => rsvp(id, 'not_attending'));
+      await saveProgram(id, true);
+      await expect(as(db, ids.member1, () => rsvp(id, 'attending'))).rejects.toThrow(/Program yayınlandığı için yanıtlar kilitlendi/);
+      await expect(as(db, ids.member2, () => rsvp(id, 'attending'))).rejects.toThrow(/kilitlendi/);
+      expect(await answerOf(id, ids.member1)).toMatchObject({ response: 'not_attending' });
+      expect(await answerOf(id, ids.member2)).toBeUndefined();
+    });
+
+    it('still lets a coach record an answer for a member', async () => {
+      const id = await insertTraining('2 days', '1 day');
+      await saveProgram(id, true);
+      await as(db, ids.coach1, () => db.query(`select public.coach_set_rsvp($1, $2, 'attending', 'Telefonla söyledi')`, [id, ids.member2]));
+      expect(await answerOf(id, ids.member2)).toMatchObject({ response: 'attending', set_by_coach: true });
+    });
+
+    it('opens again when the program is taken back to a draft (deadline permitting)', async () => {
+      const id = await insertTraining('2 days', '1 day');
+      await saveProgram(id, true);
+      await expect(as(db, ids.member1, () => rsvp(id, 'attending'))).rejects.toThrow(/kilitlendi/);
+      await saveProgram(id, false);
+      await as(db, ids.member1, () => rsvp(id, 'attending'));
+      expect((await answerOf(id, ids.member1))?.response).toBe('attending');
+    });
   });
 
   it('refuses unknown trainings and over-long notes', async () => {

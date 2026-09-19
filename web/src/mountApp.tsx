@@ -14,6 +14,7 @@ export function mountApp(container: HTMLElement): void {
   // A tapped push notification asks an already-open app window to navigate (see sw.ts).
   navigator.serviceWorker?.addEventListener('message', (event: MessageEvent<{ type?: string; url?: unknown }>) => {
     const { type, url } = event.data ?? {};
+    if (type === 'PUSH_RECEIVED') void queryClient.invalidateQueries();
     if (type === 'NAVIGATE' && typeof url === 'string' && url.startsWith('/') && !url.startsWith('//')) {
       void router.navigate(url);
     }

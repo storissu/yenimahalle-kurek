@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/Badge';
 import { formatDayMonth } from '@/lib/time';
 import { tr } from '@/strings/tr';
 import type { Training } from '@/types/database';
-import { deadlineLabel, sessionCountLabel, timeRangeLabel } from './schedule';
+import { deadlineLabel, trainingTimeText } from './schedule';
 
 export function TrainingStatusBadge({ status }: { status: Training['status'] }) {
   if (status === 'cancelled') return <Badge tone="danger">{tr.trainings.statusCancelled}</Badge>;
@@ -31,9 +31,7 @@ export function TrainingCard({ training, to, footer }: TrainingCardProps) {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className={cancelled ? 'font-bold text-muted line-through' : 'font-bold'}>{formatDayMonth(training.starts_at)}</p>
-          <p className="text-sm text-muted">
-            {timeRangeLabel(training)} · {sessionCountLabel(training.slot_count)}
-          </p>
+          <p className="text-sm text-muted">{trainingTimeText(training)}</p>
           {training.title && <p className="mt-1 truncate text-sm font-medium">{training.title}</p>}
         </div>
         <TrainingStatusBadge status={training.status} />

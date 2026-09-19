@@ -12,6 +12,8 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { TabPanel, Tabs } from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
 import { AttendancePanel } from '@/features/attendance/AttendancePanel';
+import { NotificationBell } from '@/features/notifications/NotificationBell';
+import { WeatherStrip } from '@/features/weather/WeatherStrip';
 import { useTrainingCounts } from '@/features/attendance/hooks';
 import { useProfile } from '@/features/auth/AuthProvider';
 import { InstallBanner } from '@/features/install/InstallBanner';
@@ -69,7 +71,16 @@ export function CoachDashboardPage() {
 
   return (
     <>
-      <PageHeader title={tr.home.greeting(firstName)} subtitle={tr.app.clubName} action={<AddTrainingButton />} />
+      <PageHeader
+        title={tr.home.greeting(firstName)}
+        subtitle={tr.app.clubName}
+        action={
+          <div className="flex items-center gap-2">
+            <NotificationBell to="/antrenor/bildirimler" />
+            <AddTrainingButton />
+          </div>
+        }
+      />
       <InstallBanner to="/antrenor/diger" />
       <div className="flex flex-col gap-5">
         <Link to="/antrenor/uyeler" className="block">
@@ -188,6 +199,7 @@ export function CoachTrainingDetailPage() {
       {training.data && (
         <div className="flex flex-col gap-4">
           <TrainingSummary training={training.data} />
+          <WeatherStrip training={training.data} coach />
 
           {training.data.status === 'cancelled' && training.data.cancel_reason && (
             <p role="status" className="rounded-xl bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
@@ -300,16 +312,6 @@ export function CoachTrainingFormPage({ mode }: { mode: 'create' | 'edit' }) {
   );
 }
 
-function SoonRow({ icon: Icon, label }: { icon: typeof Ship; label: string }) {
-  return (
-    <div className="flex min-h-12 items-center gap-3 px-1 text-muted">
-      <Icon aria-hidden="true" size={20} />
-      <span className="flex-1 font-medium">{label}</span>
-      <Badge>{tr.common.soonTitle}</Badge>
-    </div>
-  );
-}
-
 export function CoachMorePage() {
   return (
     <>
@@ -321,7 +323,11 @@ export function CoachMorePage() {
             <span className="flex-1">{tr.more.boats}</span>
             <ChevronRight aria-hidden="true" size={20} className="text-muted" />
           </Link>
-          <SoonRow icon={Settings} label={tr.more.clubSettings} />
+          <Link to="/antrenor/diger/ayarlar" className="flex min-h-12 items-center gap-3 px-1 font-medium">
+            <Settings aria-hidden="true" size={20} className="text-primary" />
+            <span className="flex-1">{tr.more.clubSettings}</span>
+            <ChevronRight aria-hidden="true" size={20} className="text-muted" />
+          </Link>
         </Card>
         <ProfilePanel />
       </div>

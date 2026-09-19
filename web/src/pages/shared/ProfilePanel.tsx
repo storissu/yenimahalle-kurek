@@ -40,6 +40,8 @@ export function ProfilePanel() {
       <InstallGuide />
 
       <Card className="divide-y divide-border py-1">
+        <LinkRow to={profile.role === 'coach' ? '/antrenor/bildirimler' : '/uye/bildirimler'} label={tr.notifications.inboxLink} />
+        {profile.role === 'member' && <LinkRow to="/uye/uyeler" label={tr.profile.clubMembers} />}
         <LinkRow to="/sifre-degistir" label={tr.profile.changePassword} />
         <LinkRow to="/gizlilik" label={tr.profile.privacy} />
       </Card>

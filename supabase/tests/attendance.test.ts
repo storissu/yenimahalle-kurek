@@ -149,10 +149,19 @@ describe('save_attendance: who and when', () => {
 });
 
 describe('save_attendance: validation (all-or-nothing)', () => {
-  it('rejects sessions the training does not have', async () => {
+  it('rejects negative sessions and more than 12 sessions', async () => {
     const t = await training('-1 hour', 2);
-    await expect(asCoach(t, [{ slot_index: 2, member_id: ids.member1, status: 'present' }])).rejects.toThrow(/Geçersiz seans/);
     await expect(asCoach(t, [{ slot_index: -1, member_id: ids.member1, status: 'present' }])).rejects.toThrow(/Geçersiz seans/);
+    await expect(asCoach(t, [{ slot_index: 12, member_id: ids.member1, status: 'present' }])).rejects.toThrow(/en fazla 12 seans/);
+  });
+
+  it('grows a training that was planned shorter (or not at all) to the sessions actually recorded', async () => {
+    const unplanned = await training('-1 hour', 0);
+    await asCoach(unplanned, [{ slot_index: 0, member_id: ids.member1, status: 'present' }, { slot_index: 2, member_id: ids.member1, status: 'present' }]);
+    expect((await db.query<{ slot_count: number }>('select slot_count from public.trainings where id = $1', [unplanned])).rows[0]?.slot_count).toBe(3);
+    const planned = await training('-1 hour', 2);
+    await asCoach(planned, [{ slot_index: 2, member_id: ids.member1, status: 'present' }]);
+    expect((await db.query<{ slot_count: number }>('select slot_count from public.trainings where id = $1', [planned])).rows[0]?.slot_count).toBe(3);
   });
 
   it('rejects duplicates, bad statuses, non-members and malformed data', async () => {
@@ -169,8 +178,10 @@ describe('save_attendance: validation (all-or-nothing)', () => {
   it('is atomic: a failed save keeps the previous record', async () => {
     const t = await training('-1 hour');
     await asCoach(t, [{ slot_index: 0, member_id: ids.member1, status: 'present' }]);
-    await expect(asCoach(t, [{ slot_index: 0, member_id: extra.alex, status: 'present' }, { slot_index: 5, member_id: ids.member1, status: 'present' }])).rejects.toThrow();
+    await expect(asCoach(t, [{ slot_index: 0, member_id: extra.alex, status: 'present' }, { slot_index: 5, member_id: ids.coach2, status: 'present' }])).rejects.toThrow();
     expect((await recorded(t)).map((r) => r.member_id)).toEqual([ids.member1]);
+    // ... and the extension to 6 sessions was rolled back with it
+    expect((await db.query<{ slot_count: number }>('select slot_count from public.trainings where id = $1', [t])).rows[0]?.slot_count).toBe(2);
   });
 
   it('does not add deactivated members, but keeps ones already recorded', async () => {

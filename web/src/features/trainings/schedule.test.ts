@@ -3,11 +3,13 @@ import {
   endsAt,
   formatCountdown,
   groupRoster,
+  hasPlannedSessions,
   partitionTrainings,
   rsvpWindow,
   sessionCountLabel,
   sessionStarts,
   timeRangeLabel,
+  trainingTimeText,
   type TrainingLike,
 } from './schedule';
 
@@ -27,6 +29,16 @@ describe('session schedule', () => {
     expect(sessionCountLabel(2)).toBe('2 seans');
   });
 
+  it('a training whose length is not planned yet (0 sessions) shows only its start and counts as one hour', () => {
+    const open = training({ slot_count: 0 });
+    expect(hasPlannedSessions(open)).toBe(false);
+    expect(hasPlannedSessions(training())).toBe(true);
+    expect(timeRangeLabel(open)).toBe('08:00');
+    expect(trainingTimeText(open)).toBe('08:00 · süre program hazırlanınca belli olur');
+    expect(trainingTimeText(training())).toBe('08:00–10:00 · 2 seans');
+    expect(endsAt(open).toISOString()).toBe('2026-09-19T06:00:00.000Z'); // "is it over?" still works
+  });
+
   it('lists each session start', () => {
     expect(sessionStarts(training({ slot_count: 3 })).map((d) => d.toISOString())).toEqual([
       '2026-09-19T05:00:00.000Z',
@@ -44,8 +56,19 @@ describe('rsvpWindow', () => {
 
   it('locks at the deadline (not one millisecond later)', () => {
     expect(rsvpWindow(t, new Date('2026-09-18T16:59:59.999Z')).kind).toBe('open');
-    expect(rsvpWindow(t, new Date('2026-09-18T17:00:00Z')).kind).toBe('locked');
+    expect(rsvpWindow(t, new Date('2026-09-18T17:00:00Z'))).toEqual({ kind: 'locked', reason: 'deadline' });
     expect(rsvpWindow(t, new Date('2026-09-19T00:00:00Z')).kind).toBe('locked');
+  });
+
+  it('locks as soon as the program is published, even long before the deadline', () => {
+    expect(rsvpWindow(t, new Date('2026-09-10T00:00:00Z'), true)).toEqual({ kind: 'locked', reason: 'program' });
+    expect(rsvpWindow(t, new Date('2026-09-10T00:00:00Z'), false).kind).toBe('open');
+  });
+
+  it('says "deadline" when both reasons apply, and never reports a lock for cancelled/completed trainings', () => {
+    expect(rsvpWindow(t, new Date('2026-09-19T00:00:00Z'), true)).toEqual({ kind: 'locked', reason: 'deadline' });
+    expect(rsvpWindow(training({ status: 'cancelled' }), new Date('2026-09-10T00:00:00Z'), true)).toEqual({ kind: 'cancelled' });
+    expect(rsvpWindow(training({ status: 'completed' }), new Date('2026-09-10T00:00:00Z'), true)).toEqual({ kind: 'completed' });
   });
 
   it('cancelled and completed trainings are never open, whatever the clock says', () => {

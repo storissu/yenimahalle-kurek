@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addSession,
   analyzeDraft,
   assignedInSlot,
   clearBoat,
@@ -8,15 +9,19 @@ import {
   crewOf,
   draftFromProgram,
   emptyDraft,
+  fullCrewProblems,
   hasAnyCrew,
+  initialSessionCount,
   isSameDraft,
   memberSlots,
   normalize,
+  removeLastSession,
   removeMember,
   setBoatNotes,
   setWeatherNote,
   toggleMember,
   toPayload,
+  trimTrailingEmpty,
   type ProgramDraft,
 } from './model';
 
@@ -267,5 +272,90 @@ describe('analyzeDraft (checks before publishing)', () => {
     expect(a.unassignedAttending).toEqual([]);
     expect(a.assignedNotAttending).toEqual([]);
     expect(a.emptySlots).toEqual([]);
+  });
+});
+
+describe('sessions are added while preparing the program', () => {
+  it('starts from what the program already uses, at least one session', () => {
+    expect(initialSessionCount({ assignments: [] }, 0)).toBe(1); // a new training: not planned yet
+    expect(initialSessionCount({ assignments: [] }, 3)).toBe(3); // older training planned with three sessions
+    const two = [{ slot_index: 1 }] as never;
+    expect(initialSessionCount({ assignments: two }, 0)).toBe(2);
+    expect(initialSessionCount({ assignments: two }, 4)).toBe(4);
+  });
+
+  it('addSession appends an empty session and never mutates the draft', () => {
+    const d = emptyDraft(1);
+    const next = addSession(d);
+    expect(next.slots).toHaveLength(2);
+    expect(d.slots).toHaveLength(1);
+    expect(next.slots[1]).toEqual([]);
+  });
+
+  it('stops at 12 sessions, like the database', () => {
+    let d = emptyDraft(1);
+    for (let i = 0; i < 20; i++) d = addSession(d);
+    expect(d.slots).toHaveLength(12);
+  });
+
+  it('removeLastSession drops the last session with its crews, but keeps at least one', () => {
+    let d = add(addSession(emptyDraft(1)), 1, MAVI, ALEX);
+    d = removeLastSession(d);
+    expect(d.slots).toHaveLength(1);
+    expect(removeLastSession(d).slots).toHaveLength(1);
+  });
+
+  it('empty sessions at the end are not a change (the training just ends earlier)', () => {
+    const saved = add(emptyDraft(1), 0, MAVI, ALEX);
+    const withSpare = addSession(addSession(saved));
+    expect(withSpare.slots).toHaveLength(3);
+    expect(isSameDraft(withSpare, saved)).toBe(true);
+    expect(trimTrailingEmpty(withSpare).slots).toHaveLength(1);
+  });
+
+  it('but an empty session in the middle is kept, and a crew in a new session is a change', () => {
+    const base = add(emptyDraft(1), 0, MAVI, ALEX);
+    const gap = add(addSession(addSession(base)), 2, MAVI, ASHLEY);
+    expect(trimTrailingEmpty(gap).slots).toHaveLength(3);
+    expect(isSameDraft(gap, base)).toBe(false);
+  });
+
+  it('the save payload never depends on trailing empty sessions', () => {
+    const saved = add(emptyDraft(1), 0, MAVI, ALEX);
+    expect(toPayload(addSession(saved))).toEqual(toPayload(saved));
+  });
+});
+
+describe('fullCrewProblems (C4X = exactly 4)', () => {
+  const boats = [
+    { id: MAVI, capacity: 2, requires_full_crew: false },
+    { id: C4X, capacity: 4, requires_full_crew: true },
+  ];
+  const fill = (d: ProgramDraft, slot: number, boat: string, people: string[], capacity: number) => people.reduce((acc, p) => add(acc, slot, boat, p, capacity), d);
+
+  it('is fine with exactly four in the C4X, and with any crew in boats that need not be full', () => {
+    let d = fill(emptyDraft(2), 0, C4X, [ALEX, ASHLEY, JOHN, JAMIE], 4);
+    d = fill(d, 1, MAVI, [ALI], 2);
+    expect(fullCrewProblems(d, boats)).toEqual([]);
+  });
+
+  it('reports a short C4X with its hour and head count', () => {
+    const d = fill(emptyDraft(2), 1, C4X, [ALEX, ASHLEY, JOHN], 4);
+    expect(fullCrewProblems(d, boats)).toEqual([{ slot: 1, boatId: C4X, count: 3, capacity: 4 }]);
+  });
+
+  it('reports every short session separately', () => {
+    let d = fill(emptyDraft(2), 0, C4X, [ALEX], 4);
+    d = fill(d, 1, C4X, [ASHLEY, JOHN], 4);
+    expect(fullCrewProblems(d, boats).map((p) => [p.slot, p.count])).toEqual([[0, 1], [1, 2]]);
+  });
+
+  it('ignores a boat nobody is in (it is simply not used)', () => {
+    expect(fullCrewProblems(emptyDraft(3), boats)).toEqual([]);
+  });
+
+  it('follows the boat setting, not its name', () => {
+    const d = fill(emptyDraft(1), 0, MAVI, [ALEX], 2);
+    expect(fullCrewProblems(d, [{ id: MAVI, capacity: 2, requires_full_crew: true }])).toEqual([{ slot: 0, boatId: MAVI, count: 1, capacity: 2 }]);
   });
 });

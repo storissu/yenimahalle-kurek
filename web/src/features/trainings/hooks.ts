@@ -18,6 +18,8 @@ import {
   trainingKeys,
   updateTraining,
 } from './api';
+import { programKeys } from '../program/api';
+import { refreshWeather, weatherKeys } from '../weather/api';
 import type { TrainingPayload } from './form';
 
 export function useTrainings() {
@@ -105,8 +107,9 @@ export function useSetRsvp(trainingId: string) {
     },
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: responseKeys.all });
-      // The deadline may have moved or the training been cancelled meanwhile.
+      // The deadline may have moved, the training been cancelled, or the program published meanwhile.
       void queryClient.invalidateQueries({ queryKey: trainingKeys.all });
+      void queryClient.invalidateQueries({ queryKey: programKeys.published });
     },
   });
 }
@@ -125,7 +128,13 @@ export function useSaveTraining(id?: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: TrainingPayload) => (id ? updateTraining(id, payload) : createTraining(payload)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: trainingKeys.all }),
+    onSuccess: (saved) => {
+      // Fetch the forecast for the new/changed time in the background; the cron job would only do it hours later.
+      void refreshWeather(saved.id)
+        .then(() => queryClient.invalidateQueries({ queryKey: weatherKeys.all }))
+        .catch(() => undefined);
+      return queryClient.invalidateQueries({ queryKey: trainingKeys.all });
+    },
   });
 }
 

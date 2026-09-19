@@ -40,9 +40,15 @@ export const setMemberActive = (userId: string, isActive: boolean) =>
 
 export const memberNamesKey = ['member-directory'] as const;
 
-/** Names of active members only (no phone/username) — what any signed-in user may see. */
-export async function fetchMemberNames(): Promise<Array<{ id: string; full_name: string }>> {
-  const { data, error } = await supabase.from('member_directory').select('id, full_name');
+/** What every signed-in user may see of an active member: name and phone number — no username, role or status. */
+export interface DirectoryEntry {
+  id: string;
+  full_name: string;
+  phone: string | null;
+}
+
+export async function fetchMemberNames(): Promise<DirectoryEntry[]> {
+  const { data, error } = await supabase.from('member_directory').select('id, full_name, phone');
   if (error) throw error;
   return data;
 }

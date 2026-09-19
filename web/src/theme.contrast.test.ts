@@ -45,6 +45,12 @@ const pairs: Array<[string, string]> = [
   ['danger', 'danger-soft'],
   ['danger', 'surface'],
   ['primary-fg', 'danger'],
+  // boat accents: text on white, text on their own tint, and normal text on the tint
+  ...[1, 2, 3, 4, 5, 6].flatMap((n): Array<[string, string]> => [
+    [`boat-${n}`, 'surface'],
+    [`boat-${n}`, `boat-${n}-soft`],
+    ['fg', `boat-${n}-soft`],
+  ]),
 ];
 
 describe.each([

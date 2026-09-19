@@ -3,6 +3,7 @@
 // It starts from the PLAN (who was in the boats, or who said "attending") so the coach only fixes
 // the exceptions, and it is completely separate from the RSVP and from the program.
 import type { AttendanceStatus } from '@/types/database';
+import { MAX_SLOTS } from '../trainings/schedule';
 
 export type Mark = AttendanceStatus;
 
@@ -95,6 +96,25 @@ export function removeWalkIn(draft: AttendanceDraft, slot: number, memberId: str
   return withSlot(draft, slot, rows.filter((r) => r.memberId !== memberId));
 }
 
+/** Another session may be added while the last one has people to carry over, up to the maximum. */
+export const canAddSession = (draft: AttendanceDraft): boolean =>
+  draft.slots.length < MAX_SLOTS && (draft.slots[draft.slots.length - 1]?.length ?? 0) > 0;
+
+/**
+ * The training ran longer than planned: a new last session that starts from the people in the previous one, all present.
+ * They are listed as walk-ins because no plan (program or answer) covers that hour; the coach can remove or mark them.
+ */
+export function addSession(draft: AttendanceDraft): AttendanceDraft {
+  if (!canAddSession(draft)) return draft;
+  const previous = draft.slots[draft.slots.length - 1] ?? [];
+  return { slots: [...draft.slots, previous.map((r) => ({ memberId: r.memberId, mark: 'present' as const, walkIn: true, note: '' }))] };
+}
+
+/** Takes back sessions added in this sitting (never below `keep`, the number that already exists). */
+export function removeLastSession(draft: AttendanceDraft, keep: number): AttendanceDraft {
+  return draft.slots.length > Math.max(keep, 1) ? { slots: draft.slots.slice(0, -1) } : draft;
+}
+
 /** Marks everybody listed in a session at once (e.g. nobody came: all "Gelmedi"). */
 export function setAllMarks(draft: AttendanceDraft, slot: number, mark: Mark): AttendanceDraft {
   const rows = draft.slots[slot];
@@ -114,13 +134,17 @@ export function toPayload(draft: AttendanceDraft): SavePayloadRow[] {
   );
 }
 
-const canonical = (draft: AttendanceDraft) =>
-  draft.slots.map((rows) =>
+const canonical = (draft: AttendanceDraft) => {
+  const sessions = draft.slots.map((rows) =>
     rows
       .map((r) => `${r.memberId}:${r.mark}:${r.note.trim()}`)
       .sort()
       .join('|'),
   );
+  // a session without anyone at the end is nothing to save (the training is only as long as what was recorded)
+  while (sessions.length > 0 && sessions[sessions.length - 1] === '') sessions.pop();
+  return sessions;
+};
 
 export const isSameDraft = (a: AttendanceDraft, b: AttendanceDraft): boolean => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
 

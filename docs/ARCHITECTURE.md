@@ -16,14 +16,17 @@ later phases, risks) was agreed with the club before implementation started.
 |---|---|
 | App | React + Vite + TypeScript, React Router 7, TanStack Query, react-hook-form + zod, Tailwind CSS 4 |
 | PWA | `vite-plugin-pwa` (injectManifest) + our own service worker (`web/src/sw.ts`): app-shell precache, Web Push, notification click routing |
-| Backend | Supabase Free: Postgres + Auth + RLS + Edge Functions (later also `pg_cron`) |
+| Backend | Supabase Free: Postgres + Auth + RLS + Edge Functions + `pg_cron` / `pg_net` / Vault |
 | Hosting | Cloudflare Pages (static) |
 | Push | Web Push (VAPID) sent from an Edge Function; subscriptions stored per device |
-| Weather (Phase 5) | Open-Meteo forecast + marine, fetched server-side and cached |
+| Weather | Open-Meteo forecast + marine (MET Norway fallback), fetched server-side and cached per session |
 
 ## Trainings and RSVP (Phase 2)
 
-- A **training** is one event of 1–6 consecutive **1-hour sessions** (`slot_count`). Sessions are indexed, not stored,
+- A **training** is one event of 1–12 consecutive **1-hour sessions** (`slot_count`). The coach does **not** choose the
+  number up front: a new training has `slot_count = 0` ("not planned yet", shown as just its start time) and the
+  count is derived — `save_program()` sets it to the last session that has a crew, `save_attendance()` extends it to
+  what was actually recorded. Clients cannot write the column. Sessions are indexed, not stored,
   so editing the start time shifts them consistently. Times are stored as UTC instants; forms use Istanbul wall-clock
   and convert with `web/src/lib/time.ts` (Intl only, no date library).
 - **RSVP is per training** (`training_responses`) with an optional note (≤ 200 chars). *Attending* means "I will be
@@ -31,6 +34,13 @@ later phases, risks) was agreed with the club before implementation started.
 - **Nobody writes `training_responses` directly.** Members use `set_rsvp()` (allowed while `now() < rsvp_deadline` and
   the training is scheduled); coaches use `coach_set_rsvp()` (works after the deadline, flagged `set_by_coach`).
   `now()` is the **database** clock, so a wrong phone clock cannot re-open a deadline.
+- **Publishing the program locks the answers** (before the deadline too): `set_rsvp()` refuses once a published
+  program exists; `coach_set_rsvp()` still works, and taking the program back to a draft re-opens the answers. The
+  reminder job skips trainings whose program is published. The UI reads the set of published trainings from one
+  cheap query (`usePublishedTrainingIds`) and the server has the last word.
+- The RSVP deadline remembers **how it was chosen** (`rsvp_deadline_rule`: 12 / 24 / 48 hours, `evening` = 20:00 on
+  the previous calendar day, or `custom`). For an 08:00 training "12 saat önce" and "Bir önceki akşam 20:00" are the
+  same instant; the remembered rule keeps the coach's meaning when the start time is edited.
 - The app measures the phone/server clock difference (`server_now()`, `web/src/lib/clock.ts`) so countdowns and the
   lock state match what the server will enforce; a new measurement updates every countdown immediately.
 - Trainings are never deleted: **cancelling** goes through `cancel_training()` (coach-only, reason required, final).
@@ -46,19 +56,29 @@ later phases, risks) was agreed with the club before implementation started.
   more than its **capacity**, crew are **members**, and sessions must exist in the training. Unique constraints plus
   triggers enforce these even if `save_program()` is bypassed; the RPC adds friendly Turkish messages.
 - **Drafts are coach-only** (RLS: members can read a program, its assignments and crew only when it is published).
-  Crew names reach members through `member_directory` (names only).
+  Crew names (and phone numbers, see below) reach members through `member_directory`.
 - The program is changed **only** through `save_program(training, payload, publish)`: it replaces everything in one
   transaction (any error rolls back), so members never see a half-edited crew. `publish=false` on a published program
   takes it back to draft. Deactivated members / out-of-use boats that were already in a program may stay in it
   (history) but cannot be newly assigned.
-- A training's session count cannot shrink below a session that still has a crew (trigger).
+- **Boats that must be full**: `boats.requires_full_crew` (C4X = exactly 4, editable per boat in *Tekneler*).
+  `save_program()` refuses to **publish** (or update a published program) when such a boat has fewer or more people
+  than its capacity in any session; drafts may be incomplete. The editor mirrors this: an incomplete C4X is flagged
+  on its card, the publish button is disabled and the warning names boat, session and head count.
+- **Sessions are added while preparing the program** ("Seans ekle" / "Son seansı kaldır", up to 12). Empty sessions at
+  the end are not part of the program (the training simply ends earlier); a training's count cannot shrink below a
+  session that still has a crew or an attendance record (trigger).
+- **Members see the whole published program grouped by boat** (`ProgramByBoat`, on Home and the training page):
+  one coloured block per boat — the boat name is always written out, colours come from `--boat-N` tokens that are
+  contrast-checked — with a row per session (time range + crew, joined by " – "). Rows the reader rows in are
+  highlighted (tint, bar, "Siz" badge, screen-reader text) and the "Sizin programınız" card stays on top.
 - Editor logic lives in `web/src/features/program/model.ts` (pure functions, mirrors the database rules; unit-tested):
   toggle a member into a boat (refuses "full" / "already in another boat that hour"), copy/clear an hour, compare
-  drafts, and pre-publish checks (attendees in no hour; people placed against their RSVP). `view.ts` builds the
-  hour-by-hour timeline and "my boat" lines for members.
+  drafts, add/remove sessions, and pre-publish checks (attendees in no hour; people placed against their RSVP; boats
+  that must be full). `view.ts` groups the program by boat and picks out "my boat" lines for members.
 - Leaving the editor with unsaved changes is guarded (in-app navigation and browser unload); the editor stays mounted
   while the coach looks at other tabs.
-- Notifications on publish/update are Phase 5; `version` is what will tell "new program" from "program updated".
+- `save_program(training, payload, publish, notify)`: `notify=false` gives the coach a silent correction (Phase 5).
 
 ## Attendance and statistics (Phase 4)
 
@@ -82,6 +102,50 @@ later phases, risks) was agreed with the club before implementation started.
 - CSV exports use `;` separators and a UTF-8 BOM (Turkish Excel), and defuse spreadsheet formulas (`lib/csv.ts`).
   On phones the file goes through the share sheet when the browser can share files, otherwise it downloads.
 - Lists show the last 90 days; "Daha eski antrenmanları göster" loads up to two years back on request.
+
+## Notifications (Phase 5)
+
+- **`notification_outbox` is both the in-app inbox and the push queue.** One row per person per event, with a unique
+  `dedupe_key` so a retried trigger or cron run never sends twice. A user reads only their own rows and can only set
+  `read_at` (column grant); everything else is written by the database itself. Rows older than 60 days are pruned.
+- **Who writes them** (all inside the transaction that caused the event, so an event and its notification cannot
+  disagree): triggers on `trainings` (new / time or deadline changed / cancelled → all active members),
+  `save_program()` (first publish → each crew member gets a personal message with boat, hour and crew mates and other
+  attendees a general one; later updates → everyone in a boat-hour that changed, including the crew mates of someone who
+  moved), and `run_scheduled_notifications()` (pg_cron every 5 min: reminder to members **without an answer**
+  `reminder_lead_hours` before the deadline, once; coach summary after the deadline, once).
+- **Delivery**: the Edge Function `send-notifications` takes pending rows, sends Web Push to each of the person's
+  devices, marks the row done, retries failures (max 5 attempts) and deletes subscriptions that answer 404/410.
+  Push is *best effort*; the inbox is the guarantee (bell badge, app-icon badge, refresh when a push arrives).
+- **Scheduling without a server**: three `pg_cron` jobs call the functions through `pg_net`, authenticating with a shared
+  secret (`x-cron-secret` = function secret `CRON_SECRET`, read from Supabase **Vault**, never from the repo). The
+  functions have `verify_jwt = false` and check the caller themselves (`_shared/cron.ts`); `refresh-weather` also
+  accepts a signed-in **coach** so the *Yenile* button works. The schedule migration is skipped by the PGlite tests
+  (no cron there); the SQL they call is tested directly.
+- The notification `url` must be an in-app path (`/…`, not `//…`) — checked in the database and again in the client
+  (`safeInternalPath`) before navigating.
+
+## Weather (Phase 5)
+
+- Server-side only (`refresh-weather`): **Open-Meteo** forecast + marine for the site coordinates, **MET Norway** as a
+  fallback (no gusts / waves). Parsers and merging are pure functions with fixtures of real responses
+  (`supabase/tests/fixtures`). The result is cached in `weather_snapshots`, one row per training session; members
+  and coaches read the cache, so a provider outage never breaks a page.
+- A session's value is its **start hour**; gust, wave and rain take the **maximum of that hour and the next**
+  (a session lasts an hour). Refreshed when a coach saves a training, every 3 hours by cron for upcoming trainings,
+  and on demand (*Yenile*). Forecasts beyond ~16 days do not exist yet ("henüz alınmadı").
+- **Advisories are coach-only and never automatic.** Thresholds (`wind_gust_warn_kmh`, `wave_warn_m`) are chosen by the
+  coaches in *Kulüp ayarları* and empty by default; crossing one shows a warning to coaches on the training page and
+  in the program editor under that hour. Nothing is cancelled or announced to members by the app.
+- Open-Meteo asks for attribution; it is shown under every forecast, with a note that waves are an offshore model.
+
+## Phone numbers
+
+Members can see each other's phone numbers (crew members, training partners). The `member_directory` view — active
+members only — exposes `id`, `full_name` and `phone` and nothing else (no username, role, status or answers). Tapping
+a name in the program opens a contact card with a call link; *Profil → Kulüp üyeleri* lists everyone. The phone is
+optional when a coach creates an account (the form says other members will see it) and the privacy notice states it.
+Coaches see phones in *Üyeler*.
 
 ## Security model
 
@@ -108,8 +172,10 @@ later phases, risks) was agreed with the club before implementation started.
 | Accessibility of the palette | Vitest contrast test over the CSS tokens (WCAG AA, light + dark) | `web/src/theme.contrast.test.ts` |
 | UI flows | Playwright (`playwright-core`) against a production build with a mocked Supabase | `web/e2e/smoke.mjs` |
 
-Not covered locally (needs a real project/devices): Edge Functions against real Supabase Auth, real Web Push
-delivery on iPhone/Android. Those are verified in the Phase 1 "push spike" (see RUNBOOK).
+Not covered locally (needs a real project/devices): Edge Functions against real Supabase Auth and the real weather
+APIs, `pg_cron`/`pg_net`/Vault scheduling, real Web Push delivery on iPhone/Android. Their pure logic (payloads,
+retry/prune decisions, provider parsing, snapshot selection) is unit-tested with real captured responses; the rest is
+verified with the RUNBOOK checks (step 6 push spike, step 7 cron/functions).
 
 > Deviation from the original plan: pgTAP was replaced by PGlite-based tests because Docker isn't installed on the
 > development machine. Once Docker is available, `supabase test db` (pgTAP) can be added on top.

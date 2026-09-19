@@ -17,7 +17,6 @@ import {
   type TrainingFormValues,
   type TrainingPayload,
 } from './form';
-import { MAX_SLOTS, sessionCountLabel } from './schedule';
 
 interface TrainingFormProps {
   mode: 'create' | 'edit';
@@ -26,8 +25,6 @@ interface TrainingFormProps {
   /** Error from the last save attempt (server side). */
   submitError: unknown;
 }
-
-const SLOT_OPTIONS = Array.from({ length: MAX_SLOTS }, (_, i) => i + 1);
 
 /** Create/edit form. Date and time are club (Istanbul) wall-clock; conversion to UTC is done in `toPayload`. */
 export function TrainingForm({ mode, initial, onSubmit, submitError }: TrainingFormProps) {
@@ -44,12 +41,10 @@ export function TrainingForm({ mode, initial, onSubmit, submitError }: TrainingF
   const start = wallTimeToInstant(values.date, values.time);
   const deadline = computeDeadline(values);
   const previewValid = !Number.isNaN(start.getTime()) && !Number.isNaN(deadline.getTime());
-  const endLabel = previewValid
-    ? `${formatTime(start)}–${formatTime(new Date(start.getTime() + (values.slotCount || 1) * 3_600_000))}`
-    : '';
 
   const presets: Array<{ id: DeadlinePreset; label: string }> = [
     ...DEADLINE_PRESET_HOURS.map((h) => ({ id: `${h}` as DeadlinePreset, label: tr.trainings.form.deadlinePreset(h) })),
+    { id: 'evening', label: tr.trainings.form.deadlineEvening },
     { id: 'custom', label: tr.trainings.form.deadlineCustom },
   ];
 
@@ -60,8 +55,6 @@ export function TrainingForm({ mode, initial, onSubmit, submitError }: TrainingF
       /* shown through submitError */
     }
   });
-
-  const selectSlotCount = register('slotCount', { valueAsNumber: true });
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-5">
@@ -84,35 +77,11 @@ export function TrainingForm({ mode, initial, onSubmit, submitError }: TrainingF
         <TextField label={tr.trainings.form.startTime} type="time" step={300} error={errors.time?.message} {...register('time')} />
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="training-sessions" className="text-sm font-semibold">
-          {tr.trainings.form.sessions}
-        </label>
-        <select
-          id="training-sessions"
-          className="min-h-12 rounded-xl border border-border bg-surface px-3.5 text-fg"
-          aria-describedby="training-sessions-hint"
-          {...selectSlotCount}
-        >
-          {SLOT_OPTIONS.map((n) => (
-            <option key={n} value={n}>
-              {tr.trainings.form.sessionOption(n)}
-            </option>
-          ))}
-        </select>
-        <p id="training-sessions-hint" className="text-sm text-muted">
-          {tr.trainings.form.sessionsHint}
-        </p>
-        {errors.slotCount && (
-          <p role="alert" className="text-sm font-medium text-danger">
-            {errors.slotCount.message}
-          </p>
-        )}
-      </div>
+      <p className="rounded-xl bg-surface-2 px-4 py-3 text-sm text-muted">{tr.trainings.form.sessionsInfo}</p>
 
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1 text-sm font-semibold">{tr.trainings.form.deadline}</legend>
-        <div role="radiogroup" aria-label={tr.trainings.form.deadline} className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div role="radiogroup" aria-label={tr.trainings.form.deadline} className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {presets.map((p) => {
             const selected = values.deadlinePreset === p.id;
             return (
@@ -149,7 +118,7 @@ export function TrainingForm({ mode, initial, onSubmit, submitError }: TrainingF
 
       {previewValid && (
         <p className="rounded-xl bg-primary-soft px-4 py-3 text-sm font-medium text-primary" aria-live="polite">
-          {formatDayMonth(start)} · {tr.trainings.form.preview(`${endLabel} (${sessionCountLabel(values.slotCount || 1)})`, `${formatDayMonth(deadline)} ${formatTime(deadline)}`)}
+          {formatDayMonth(start)} · {tr.trainings.form.preview(formatTime(start), `${formatDayMonth(deadline)} ${formatTime(deadline)}`)}
         </p>
       )}
 

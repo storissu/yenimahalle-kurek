@@ -12,6 +12,7 @@ import type { Profile, Training, TrainingResponse } from '@/types/database';
 import { fetchMembers, membersKey } from '../members/api';
 import { useQuery } from '@tanstack/react-query';
 import { CoachRsvpDialog } from './CoachRsvpDialog';
+import { usePublishedTrainingIds } from '../program/hooks';
 import { useTrainingResponses } from './hooks';
 import { formatCountdown, groupRoster, rsvpWindow } from './schedule';
 
@@ -22,6 +23,8 @@ interface PanelViewProps {
   members: Member[];
   responses: TrainingResponse[];
   now: Date;
+  /** The program is published: members can no longer change their answers (the coach still can). */
+  programPublished?: boolean;
   /** Omit to make the list read-only (cancelled / completed trainings). */
   onEdit?: (member: Member) => void;
 }
@@ -72,9 +75,9 @@ function Group({ heading, count, tone, children }: { heading: string; count: num
 }
 
 /** Presentational: the roster grouped by answer. */
-export function ResponsesPanelView({ training, members, responses, now, onEdit }: PanelViewProps) {
+export function ResponsesPanelView({ training, members, responses, now, programPublished = false, onEdit }: PanelViewProps) {
   const groups = groupRoster(members, responses);
-  const window = rsvpWindow(training, now);
+  const window = rsvpWindow(training, now, programPublished);
   const editable = training.status === 'scheduled' ? onEdit : undefined;
 
   return (
@@ -82,7 +85,9 @@ export function ResponsesPanelView({ training, members, responses, now, onEdit }
       {window.kind === 'open' && (
         <p className="text-sm text-muted">{tr.responses.deadlineOpen(formatCountdown(window.msLeft))}</p>
       )}
-      {window.kind === 'locked' && <p className="text-sm font-semibold text-warning">{tr.responses.deadlineClosed}</p>}
+      {window.kind === 'locked' && (
+        <p className="text-sm font-semibold text-warning">{window.reason === 'program' ? tr.responses.lockedByProgram : tr.responses.deadlineClosed}</p>
+      )}
 
       <Group heading={tr.responses.attendingHeading} count={groups.attending.length} tone="success">
         {groups.attending.map(({ member, response }) => (
@@ -108,6 +113,7 @@ export function ResponsesPanel({ training }: { training: Training }) {
   const now = useNow();
   const roster = useQuery({ queryKey: membersKey, queryFn: fetchMembers });
   const responses = useTrainingResponses(training.id);
+  const published = usePublishedTrainingIds();
   const [editing, setEditing] = useState<Member | null>(null);
 
   if (roster.isPending || responses.isPending) {
@@ -136,7 +142,7 @@ export function ResponsesPanel({ training }: { training: Training }) {
 
   return (
     <>
-      <ResponsesPanelView training={training} members={members} responses={responses.data} now={now} onEdit={setEditing} />
+      <ResponsesPanelView training={training} members={members} responses={responses.data} now={now} programPublished={published.data?.has(training.id) ?? false} onEdit={setEditing} />
       <CoachRsvpDialog
         training={training}
         member={editing}

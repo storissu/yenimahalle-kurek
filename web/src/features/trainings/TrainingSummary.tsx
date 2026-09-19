@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/Card';
 import { formatDate } from '@/lib/time';
 import { tr } from '@/strings/tr';
 import type { Training } from '@/types/database';
-import { deadlineLabel, sessionCountLabel, timeRangeLabel } from './schedule';
+import { deadlineLabel, trainingTimeText } from './schedule';
 import { TrainingStatusBadge } from './TrainingCard';
 
 /** Header card of a training detail page (member and coach). */
@@ -21,7 +21,7 @@ export function TrainingSummary({ training }: { training: Training }) {
 
       <p className="flex items-center gap-2 font-semibold">
         <Clock aria-hidden="true" size={18} className="text-primary" />
-        {timeRangeLabel(training)} · {sessionCountLabel(training.slot_count)}
+        {trainingTimeText(training)}
       </p>
 
       {training.status === 'scheduled' && (

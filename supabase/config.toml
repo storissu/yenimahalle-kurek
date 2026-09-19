@@ -435,3 +435,11 @@ verify_jwt = false
 
 [functions.push-test]
 verify_jwt = false
+
+# Called by pg_cron (shared secret header x-cron-secret) — never by browsers directly, except refresh-weather
+# which also accepts a signed-in coach.
+[functions.send-notifications]
+verify_jwt = false
+
+[functions.refresh-weather]
+verify_jwt = false

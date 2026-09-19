@@ -19,6 +19,8 @@ interface SlotBoatCardProps {
 /** One boat in the selected hour: who is in it, how full it is, and a shortcut to change the crew. */
 export function SlotBoatCard({ boat, crew, notes, nameOf, onEdit, onRemove, onNotes }: SlotBoatCardProps) {
   const full = crew.length >= boat.capacity;
+  // Boats such as the C4X must be rowed with exactly `capacity` people: flag an incomplete crew right here.
+  const incomplete = boat.requires_full_crew && crew.length > 0 && crew.length !== boat.capacity;
   return (
     <Card className="flex flex-col gap-3" role="group" aria-label={boat.name}>
       <div className="flex items-center justify-between gap-2">
@@ -26,11 +28,14 @@ export function SlotBoatCard({ boat, crew, notes, nameOf, onEdit, onRemove, onNo
           {boat.name}
           {!boat.is_active && <Badge tone="danger">{tr.program.boatInactive}</Badge>}
         </h3>
-        <Badge tone={full ? 'success' : 'neutral'}>
+        <Badge tone={incomplete ? 'warning' : full ? 'success' : 'neutral'}>
           <Users aria-hidden="true" size={13} />
           {tr.program.crewCount(crew.length, boat.capacity)}
         </Badge>
       </div>
+      {boat.requires_full_crew && (
+        <p className={incomplete ? 'text-sm font-semibold text-warning' : 'text-sm text-muted'}>{tr.program.fullCrewBadge(boat.capacity)}</p>
+      )}
 
       {crew.length > 0 && (
         <ul className="flex flex-col gap-1.5">

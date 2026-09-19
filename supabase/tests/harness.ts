@@ -40,7 +40,8 @@ export async function createDb(): Promise<PGlite> {
   const db = new PGlite();
   await db.exec(SUPABASE_STAND_IN);
   const files = readdirSync(migrationsDir)
-    .filter((f) => f.endsWith('.sql'))
+    // *_schedule.sql only wires pg_cron / pg_net / Vault, which exist on Supabase but not in PGlite.
+    .filter((f) => f.endsWith('.sql') && !f.endsWith('_schedule.sql'))
     .sort();
   for (const file of files) {
     await db.exec(readFileSync(join(migrationsDir, file), 'utf8'));

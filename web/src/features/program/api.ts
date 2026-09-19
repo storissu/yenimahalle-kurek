@@ -4,7 +4,18 @@ import { payloadAsJson, type ProgramData, type SavePayload } from './model';
 export const programKeys = {
   all: ['program'] as const,
   detail: (trainingId: string) => ['program', trainingId] as const,
+  published: ['program', 'published-ids'] as const,
 };
+
+/**
+ * Ids of the trainings whose program is published. Members can only see published programs (RLS), so for them
+ * this is simply "every program they can see". It tells the RSVP screens that answers are locked.
+ */
+export async function fetchPublishedTrainingIds(): Promise<Set<string>> {
+  const { data, error } = await supabase.from('training_programs').select('training_id').eq('status', 'published');
+  if (error) throw error;
+  return new Set(data.map((row) => row.training_id));
+}
 
 /**
  * A training's program. Coaches also get drafts; for members the database returns rows only once the
@@ -22,12 +33,16 @@ export async function fetchProgram(trainingId: string): Promise<ProgramData> {
   return { program: program.data, assignments: assignments.data, crew: crew.data };
 }
 
-/** Replaces the whole program atomically. `publish=false` saves a draft (and un-publishes a published program). */
-export async function saveProgram(trainingId: string, payload: SavePayload, publish: boolean): Promise<void> {
+/**
+ * Replaces the whole program atomically. `publish=false` saves a draft (and un-publishes a published program).
+ * `notify` (only meaningful when publishing) sends the members their notifications.
+ */
+export async function saveProgram(trainingId: string, payload: SavePayload, publish: boolean, notify: boolean): Promise<void> {
   const { error } = await supabase.rpc('save_program', {
     p_training_id: trainingId,
     p_payload: payloadAsJson(payload),
     p_publish: publish,
+    p_notify: notify,
   });
   if (error) throw error;
 }

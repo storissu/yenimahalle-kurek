@@ -38,13 +38,18 @@ self.addEventListener('push', (event) => {
   const payload = parsePayload(event);
   // iOS/Safari require every push to show a notification (userVisibleOnly), so always show one.
   event.waitUntil(
-    self.registration.showNotification(payload.title || 'Yeni Mahalle Kürek', {
-      body: payload.body ?? '',
-      icon: '/pwa-192x192.png',
-      badge: '/pwa-64x64.png',
-      tag: payload.tag,
-      data: { url: payload.url || '/' },
-    }),
+    (async () => {
+      await self.registration.showNotification(payload.title || 'Yeni Mahalle Kürek', {
+        body: payload.body ?? '',
+        icon: '/pwa-192x192.png',
+        badge: '/pwa-64x64.png',
+        tag: payload.tag,
+        data: { url: payload.url || '/' },
+      });
+      // An open app refreshes its inbox, unread badge and lists right away.
+      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of windows) client.postMessage({ type: 'PUSH_RECEIVED' });
+    })(),
   );
 });
 

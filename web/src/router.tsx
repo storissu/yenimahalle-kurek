@@ -5,7 +5,10 @@ import { AccessGate } from '@/features/auth/AccessGate';
 import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
 import { LoginPage } from '@/features/auth/LoginPage';
 import { BoatsPage } from '@/features/boats/BoatsPage';
+import { MemberDirectoryPage } from '@/features/members/MemberDirectoryPage';
 import { MembersPage } from '@/features/members/MembersPage';
+import { NotificationsPage } from '@/features/notifications/NotificationsPage';
+import { SettingsPage } from '@/features/settings/SettingsPage';
 import { CoachMemberStatsPage } from '@/features/stats/CoachMemberStatsPage';
 import { CoachStatsPage } from '@/features/stats/CoachStatsPage';
 import { MemberStatsPage } from '@/features/stats/MemberStatsPage';
@@ -59,6 +62,8 @@ export const router = createBrowserRouter([
           { path: 'antrenmanlar/:id', element: <MemberTrainingDetailPage /> },
           { path: 'istatistik', element: <MemberStatsPage /> },
           { path: 'profil', element: <MemberProfilePage /> },
+          { path: 'uyeler', element: <MemberDirectoryPage /> },
+          { path: 'bildirimler', element: <NotificationsPage backTo="/uye" backLabel={tr.nav.home} /> },
         ],
       },
       {
@@ -75,6 +80,8 @@ export const router = createBrowserRouter([
           { path: 'istatistik/:memberId', element: <CoachMemberStatsPage /> },
           { path: 'diger', element: <CoachMorePage /> },
           { path: 'diger/tekneler', element: <BoatsPage /> },
+          { path: 'diger/ayarlar', element: <SettingsPage /> },
+          { path: 'bildirimler', element: <NotificationsPage backTo="/antrenor" backLabel={tr.nav.dashboard} /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

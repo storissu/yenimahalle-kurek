@@ -5,12 +5,14 @@ import { useNow } from '@/lib/clock';
 import { errorMessage } from '@/lib/errors';
 import { tr } from '@/strings/tr';
 import type { Training } from '@/types/database';
+import { usePublishedTrainingIds } from '../program/hooks';
 import { useMyResponses, useSetRsvp } from './hooks';
 import { RsvpCard } from './RsvpCard';
 
 /** RsvpCard wired to the signed-in member's data. */
 export function MemberRsvp({ training }: { training: Training }) {
   const responses = useMyResponses();
+  const published = usePublishedTrainingIds();
   const setRsvp = useSetRsvp(training.id);
   const toast = useToast();
   const now = useNow();
@@ -24,6 +26,7 @@ export function MemberRsvp({ training }: { training: Training }) {
       training={training}
       answer={answer}
       now={now}
+      programPublished={published.data?.has(training.id) ?? false}
       pending={setRsvp.isPending}
       error={setRsvp.isError ? errorMessage(setRsvp.error) : null}
       onSubmit={async (response, note) => {

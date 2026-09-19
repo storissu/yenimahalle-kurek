@@ -118,10 +118,30 @@ describe('complete_password_change', () => {
 });
 
 describe('member_directory', () => {
-  it('shows active members by name only', async () => {
+  it('shows active members by name and phone only (no username, role or status)', async () => {
     const res = await as(db, ids.member1, () => db.query<{ full_name: string }>('select * from public.member_directory'));
     expect(names(res.rows)).toEqual(['Ali Yılmaz', 'Becca Kaya']);
-    expect(Object.keys(res.rows[0] ?? {}).sort()).toEqual(['full_name', 'id']);
+    expect(Object.keys(res.rows[0] ?? {}).sort()).toEqual(['full_name', 'id', 'phone']);
+  });
+
+  it('lets one member read the phone number of another, and nothing else of their profile', async () => {
+    await db.query(`update public.profiles set phone = '0555 111 22 33' where id = $1`, [ids.member2]);
+    const viaDirectory = await as(db, ids.member1, () =>
+      db.query<{ phone: string | null }>('select phone from public.member_directory where id = $1', [ids.member2]),
+    );
+    expect(viaDirectory.rows[0]?.phone).toBe('0555 111 22 33');
+    // the profiles table itself is still off limits for other members
+    const viaProfiles = await as(db, ids.member1, () => db.query('select phone from public.profiles where id = $1', [ids.member2]));
+    expect(viaProfiles.rows).toHaveLength(0);
+    // deactivated members' numbers are not published
+    await db.query(`update public.profiles set phone = '0555 999 99 99' where id = $1`, [ids.exMember]);
+    const ex = await as(db, ids.member1, () => db.query('select phone from public.member_directory where id = $1', [ids.exMember]));
+    expect(ex.rows).toHaveLength(0);
+    await db.query(`update public.profiles set phone = null where id in ($1, $2)`, [ids.member2, ids.exMember]);
+  });
+
+  it('is closed to anonymous callers', async () => {
+    await expect(as(db, 'anon', () => db.query('select phone from public.member_directory'))).rejects.toThrow(/permission denied/);
   });
 
   it('hides coaches and deactivated members', async () => {

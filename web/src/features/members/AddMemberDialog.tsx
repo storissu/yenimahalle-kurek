@@ -87,6 +87,7 @@ export function AddMemberDialog({ open, onClose, onCreated }: AddMemberDialogPro
           label={`${tr.members.phone} (${tr.common.optional})`}
           type="tel"
           autoComplete="off"
+          hint={tr.members.phoneHint}
           error={errors.phone?.message}
           {...register('phone')}
         />

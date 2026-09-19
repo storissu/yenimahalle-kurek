@@ -86,7 +86,8 @@ npx supabase secrets set LOGIN_EMAIL_DOMAIN=kulup.invalid `
 ```
 
 ✅ Dashboard → **Table Editor** shows `profiles`, `boats` (Mavi, Turuncu, C4X), `club_settings`, `push_subscriptions`;
-**Edge Functions** lists `admin-create-member`, `admin-reset-password`, `admin-set-active`, `push-test`.
+**Edge Functions** lists `admin-create-member`, `admin-reset-password`, `admin-set-active`, `push-test`,
+`send-notifications`, `refresh-weather` (the last two need step 7 to run on schedule).
 
 Then 👤 **Authentication → URL Configuration**: set **Site URL** to your Cloudflare address.
 
@@ -124,6 +125,65 @@ Web Push can only be proven on devices. Ask one iPhone user and one Android user
 
 Report back per phone: model, OS version, worked/not worked. Older iPhones (before iOS 16.4) cannot receive web push.
 
+## 7. Weather and automatic notifications (Phase 5)
+
+Three things run **on a schedule inside Supabase** (no server of yours): reminders/summaries every 5 minutes, delivery of
+queued push messages every minute (only when something is waiting), and a forecast refresh every 3 hours. They call the
+two new Edge Functions with a shared secret, so both sides must know the same value.
+
+1. Make a random secret (any long random text; keep it in your password manager):
+
+   ```powershell
+   -join ((48..57)+(65..90)+(97..122) | Get-Random -Count 40 | ForEach-Object {[char]$_})
+   ```
+
+2. Give it to the functions, and (optional) an identifying address for the weather providers:
+
+   ```powershell
+   npx supabase secrets set CRON_SECRET=<the secret> `
+       WEATHER_USER_AGENT="yenimahalle-kurek-club-app/1.0 (https://github.com/<you>/yenimahalle-kurek)"
+   npx supabase functions deploy          # deploys send-notifications and refresh-weather too
+   ```
+
+3. Give the **same secret** and the project address to the database (Supabase dashboard → **SQL Editor**, run once):
+
+   ```sql
+   select vault.create_secret('https://<ref>.supabase.co', 'project_url');
+   select vault.create_secret('<the secret>', 'cron_secret');
+   ```
+
+   (Stored encrypted in Supabase Vault — not in the repo. To change one later: Dashboard → *Vault*.)
+
+4. `npx supabase db push` (on a fresh setup step 4 already did it; on an existing one it adds the notification tables,
+   the reminder logic and the three schedules — Vault secrets from step 3 must exist by then). If it complains
+   that `pg_cron` / `pg_net` are not enabled: Dashboard → **Database → Extensions** → enable both, then push again.
+
+**Check it worked**
+- Dashboard → **Database → Cron Jobs** lists `club-scheduled-notifications`, `club-send-push`, `club-refresh-weather`
+  and their recent runs (green).
+- Create a training for the next few days (as coach) → within a minute every member has a notification in **Bildirimler**
+  (and a push if they enabled it). The training page shows **Hava durumu** (or *Yenile* fetches it at once).
+- Dashboard → **Edge Functions → send-notifications / refresh-weather → Logs** shows the runs; a `401` means the secret in
+  step 2 and step 3 differ.
+
+**How the automatic messages behave** (all Turkish, all also kept in each person's inbox)
+| Event | Who gets it |
+|---|---|
+| New training | all active members |
+| Time / deadline changed, cancelled | all active members |
+| Reminder: *Yanıt süresi dolmak üzere* | members **without an answer**, `reminder_lead_hours` before the deadline (Kulüp ayarları, default 3 h). Not sent for trainings created less than an hour ago or once the deadline has passed |
+| *Yanıt süresi doldu* | all coaches, once, after the deadline (X katılıyor, Y katılmıyor, Z yanıt yok) |
+| Program published | each crew member gets a personal message (boat, hour, crew mates); other attendees get "program yayınlandı" |
+| Program updated | everyone in a boat-hour that changed. The coach can untick **Üyelere bildirim gönder** for a silent fix |
+
+Delivery failures are retried up to 5 times; a device that answers "gone" (404/410) is forgotten automatically.
+Messages older than 60 days are removed from the inbox.
+
+**Weather**: forecast from Open-Meteo (free, non-commercial; the app shows the required attribution) with MET Norway
+as fallback (no gusts/waves then). Values are for the site coordinates in `club_settings`; waves come from an offshore model and are
+indicative near the coast. **Kulüp ayarları** (coach → Diğer) sets the gust / wave thresholds; when a forecast crosses
+one, only coaches see a warning. Nothing is ever cancelled automatically.
+
 ---
 
 ## Local development
@@ -153,12 +213,14 @@ $env:BROWSER_CHANNEL="msedge" ; npm run e2e       # uses the Edge already instal
 
 | Situation | What to do |
 |---|---|
-| Add a member / coach | App → Üyeler → Üye ekle → copy the invite message and send it (WhatsApp etc.). The password is shown once |
+| Add a member / coach | App → Üyeler → Üye ekle → copy the invite message and send it (WhatsApp etc.). The password is shown once. The phone number is optional; **other members can see it** (crew cards, *Profil → Kulüp üyeleri*), and the form says so |
 | Member forgot password | Üyeler → tap the member → **Şifreyi sıfırla** |
 | Member left the club | Üyeler → tap → **Hesabı devre dışı bırak** (history stays; they can't log in) |
 | **All coaches locked out** | Run `node bootstrap-coach.mjs --username <coach> --reset` (step 5 env vars) → prints a new temporary password |
 | Ship an app update | Merge/push to `main` → Cloudflare rebuilds → members see a "Yeni sürüm hazır — Yenile" banner |
-| **Update after new features** | When a new version adds migrations (Phase 2 does), run `npx supabase db push` once, then let Cloudflare redeploy the site. Existing data is kept |
+| **Update after new features** | When a new version adds migrations (Phases 2–5 and the feedback round `20260920100000_coach_feedback` do), run `npx supabase db push` once, then let Cloudflare redeploy the site. Existing data is kept |
+| Members say they get no reminders / forecasts | Dashboard → Database → **Cron Jobs**: are the three `club-*` jobs listed and green? Then Edge Functions → Logs (`401` = `CRON_SECRET` differs from the Vault `cron_secret`). See step 7 |
+| Change the reminder time or weather warning limits | App → Diğer → **Kulüp ayarları** |
 | Change database | Add a **new** file in `supabase/migrations/` (never edit an applied one), run tests, then `npx supabase db push` |
 | Supabase project paused | Free projects pause after ~1 week of inactivity: dashboard → **Restore project**. A keep-alive workflow is planned (Phase 6) |
 | Backups | Not automatic on the free tier. Planned (Phase 6): weekly encrypted export + CSV export in the coach panel. Until then, export tables from the dashboard periodically |
