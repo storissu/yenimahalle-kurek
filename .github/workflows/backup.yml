@@ -41,7 +41,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Explains a wrong connection string in plain words (never prints it): placeholder left in, "postgres" instead of
       # postgres.<project-ref> on the pooler, special characters in the password, direct address, wrong port ...
