@@ -8,10 +8,13 @@ programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini gör�
 
 ## Status
 
-Phase 1 (foundation) is implemented: username login, coach/member role routing, forced first-login password change,
-coach member management (create / reset password / deactivate), installable PWA shell with service worker and Web Push
-plumbing, database core + row-level-security tests. Trainings, RSVP, boat programs, attendance, stats and weather are
-later phases — see the plan in `docs/ARCHITECTURE.md`.
+- **Phase 1 (foundation)** — username login, coach/member role routing, forced first-login password change, coach member
+  management, installable PWA shell with service worker and Web Push plumbing, database core + security-rule tests.
+- **Phase 2 (trainings & RSVP)** — coaches create/edit/cancel trainings (1–6 one-hour sessions, RSVP deadline); members
+  answer *Katılıyorum / Katılmıyorum* with an optional note until the deadline (enforced by the database on the
+  **server** clock); coaches see who answered, can answer on a member's behalf, and manage the boats (Mavi, Turuncu, C4X).
+- Next: Phase 3 (boat program per hour-session), Phase 4 (attendance, history, monthly leaderboard), Phase 5 (weather +
+  notifications). See `docs/ARCHITECTURE.md`.
 
 ## Layout
 

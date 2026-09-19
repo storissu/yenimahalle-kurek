@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router';
 import { cn } from '@/lib/cn';
 import { useOnlineStatus } from '@/lib/useOnlineStatus';
 import { tr } from '@/strings/tr';
+import { useServerClockSync } from '@/features/trainings/hooks';
 import { UpdateBanner } from './UpdateBanner';
 
 export interface Tab {
@@ -15,6 +16,7 @@ export interface Tab {
 /** Mobile-first frame: scrolling content + fixed bottom tab bar that respects the iPhone home indicator. */
 export function AppShell({ tabs }: { tabs: Tab[] }) {
   const online = useOnlineStatus();
+  useServerClockSync(); // aligns countdowns/locks with the server clock (see lib/clock.ts)
 
   return (
     <div className="mx-auto min-h-dvh w-full max-w-xl">

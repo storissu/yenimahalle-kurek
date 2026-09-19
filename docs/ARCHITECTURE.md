@@ -21,6 +21,23 @@ later phases, risks) was agreed with the club before implementation started.
 | Push | Web Push (VAPID) sent from an Edge Function; subscriptions stored per device |
 | Weather (Phase 5) | Open-Meteo forecast + marine, fetched server-side and cached |
 
+## Trainings and RSVP (Phase 2)
+
+- A **training** is one event of 1–6 consecutive **1-hour sessions** (`slot_count`). Sessions are indexed, not stored,
+  so editing the start time shifts them consistently. Times are stored as UTC instants; forms use Istanbul wall-clock
+  and convert with `web/src/lib/time.ts` (Intl only, no date library).
+- **RSVP is per training** (`training_responses`) with an optional note (≤ 200 chars). *Attending* means "I will be
+  there that day, whichever hour you assign me". No row = no answer yet.
+- **Nobody writes `training_responses` directly.** Members use `set_rsvp()` (allowed while `now() < rsvp_deadline` and
+  the training is scheduled); coaches use `coach_set_rsvp()` (works after the deadline, flagged `set_by_coach`).
+  `now()` is the **database** clock, so a wrong phone clock cannot re-open a deadline.
+- The app measures the phone/server clock difference (`server_now()`, `web/src/lib/clock.ts`) so countdowns and the
+  lock state match what the server will enforce; a new measurement updates every countdown immediately.
+- Trainings are never deleted: **cancelling** goes through `cancel_training()` (coach-only, reason required, final).
+  Only *scheduled* trainings can be edited. `status`, `cancel_reason` and `created_by` are not client-writable.
+- Members never see other members' answers; coaches see all. Error messages from our RPCs (SQLSTATE `P0001`) are
+  written in Turkish and shown as-is; any other database error is replaced by a generic message.
+
 ## Security model
 
 - **Row Level Security on every table**, default-deny, explicit grants (never Supabase's default privileges).

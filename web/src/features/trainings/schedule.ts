@@ -1,7 +1,8 @@
 // Pure helpers about a training's sessions and RSVP window. No React, no network — easy to test.
-import { formatTime, HOUR_MS } from '@/lib/time';
+import { formatDayMonth, formatTime, HOUR_MS } from '@/lib/time';
+import type { TrainingStatus } from '@/types/database';
 
-export type TrainingStatus = 'scheduled' | 'cancelled' | 'completed';
+export type { TrainingStatus };
 
 export interface TrainingLike {
   starts_at: string;
@@ -21,6 +22,10 @@ export const endsAt = (t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): Date 
 export function timeRangeLabel(t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): string {
   return `${formatTime(startsAt(t))}–${formatTime(endsAt(t))}`;
 }
+
+/** "19 Eylül Cumartesi 20:00" — when the RSVP window closes. */
+export const deadlineLabel = (t: Pick<TrainingLike, 'rsvp_deadline'>): string =>
+  `${formatDayMonth(t.rsvp_deadline)} ${formatTime(t.rsvp_deadline)}`;
 
 /** "1 seans" / "2 seans" (a session is one hour). */
 export const sessionCountLabel = (n: number): string => `${n} seans`;

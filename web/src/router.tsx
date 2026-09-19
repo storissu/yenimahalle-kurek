@@ -4,9 +4,23 @@ import { AppShell, type Tab } from '@/components/layout/AppShell';
 import { AccessGate } from '@/features/auth/AccessGate';
 import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage';
 import { LoginPage } from '@/features/auth/LoginPage';
+import { BoatsPage } from '@/features/boats/BoatsPage';
 import { MembersPage } from '@/features/members/MembersPage';
-import { CoachDashboardPage, CoachMorePage, CoachStatsPage, CoachTrainingsPage } from '@/pages/coach/CoachPages';
-import { MemberHomePage, MemberProfilePage, MemberStatsPage, MemberTrainingsPage } from '@/pages/member/MemberPages';
+import {
+  CoachDashboardPage,
+  CoachMorePage,
+  CoachStatsPage,
+  CoachTrainingDetailPage,
+  CoachTrainingFormPage,
+  CoachTrainingsPage,
+} from '@/pages/coach/CoachPages';
+import {
+  MemberHomePage,
+  MemberProfilePage,
+  MemberStatsPage,
+  MemberTrainingDetailPage,
+  MemberTrainingsPage,
+} from '@/pages/member/MemberPages';
 import { NotFoundPage } from '@/pages/shared/NotFoundPage';
 import { PrivacyPage } from '@/pages/shared/PrivacyPage';
 import { tr } from '@/strings/tr';
@@ -41,6 +55,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <MemberHomePage /> },
           { path: 'antrenmanlar', element: <MemberTrainingsPage /> },
+          { path: 'antrenmanlar/:id', element: <MemberTrainingDetailPage /> },
           { path: 'istatistik', element: <MemberStatsPage /> },
           { path: 'profil', element: <MemberProfilePage /> },
         ],
@@ -51,9 +66,13 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <CoachDashboardPage /> },
           { path: 'antrenmanlar', element: <CoachTrainingsPage /> },
+          { path: 'antrenmanlar/yeni', element: <CoachTrainingFormPage mode="create" /> },
+          { path: 'antrenmanlar/:id', element: <CoachTrainingDetailPage /> },
+          { path: 'antrenmanlar/:id/duzenle', element: <CoachTrainingFormPage mode="edit" /> },
           { path: 'uyeler', element: <MembersPage /> },
           { path: 'istatistik', element: <CoachStatsPage /> },
           { path: 'diger', element: <CoachMorePage /> },
+          { path: 'diger/tekneler', element: <BoatsPage /> },
         ],
       },
       { path: '*', element: <NotFoundPage /> },

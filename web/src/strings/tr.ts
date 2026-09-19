@@ -89,7 +89,11 @@ export const tr = {
     greeting: (name: string) => `Merhaba, ${name}`,
     noUpcomingTitle: 'Yaklaşan antrenman yok',
     noUpcomingBody: 'Yeni bir antrenman eklendiğinde burada göreceksiniz.',
-    coachNoUpcomingBody: 'Antrenman oluşturma bir sonraki aşamada eklenecek.',
+    coachNoUpcomingBody: 'İlk antrenmanı eklemek için "Antrenman ekle" düğmesine dokunun.',
+    nextTraining: 'Sıradaki antrenman',
+    otherUpcoming: 'Diğer yaklaşan antrenmanlar',
+    coachUpcoming: 'Yaklaşan antrenmanlar',
+    seeAll: 'Tümünü gör',
     manageMembers: 'Üyeleri yönet',
   },
 
@@ -246,6 +250,12 @@ export const tr = {
     created: 'Antrenman oluşturuldu.',
     updated: 'Antrenman güncellendi.',
     notesHeading: 'Antrenör notu',
+    programHeading: 'Antrenman programı',
+    programPlaceholder: 'Tekne ve ekip programı yayınlandığında burada göreceksiniz.',
+    programPlaceholderCoach: 'Tekne ve ekip programı bir sonraki aşamada eklenecek.',
+    attendancePlaceholderCoach: 'Antrenman sonrası yoklama bir sonraki aşamada eklenecek.',
+    notEditableTitle: 'Bu antrenman düzenlenemez',
+    notEditableBody: 'İptal edilmiş veya tamamlanmış antrenmanlar değiştirilemez.',
     form: {
       titleLabel: 'Başlık',
       titleHint: 'İsteğe bağlı. Ör. "Sabah antrenmanı"',
@@ -297,6 +307,7 @@ export const tr = {
     groupLabel: 'Katılım durumu',
     yourAnswer: (answer: string) => `Yanıtınız: ${answer}`,
     noAnswerYet: 'Henüz yanıt vermediniz.',
+    awaiting: 'Yanıt bekleniyor',
     noteLabel: 'Antrenöre not',
     notePlaceholder: 'Ör. 09:00\'dan sonraya yazar mısınız? İşim var.',
     noteHint:

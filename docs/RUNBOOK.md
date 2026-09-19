@@ -158,6 +158,7 @@ $env:BROWSER_CHANNEL="msedge" ; npm run e2e       # uses the Edge already instal
 | Member left the club | Üyeler → tap → **Hesabı devre dışı bırak** (history stays; they can't log in) |
 | **All coaches locked out** | Run `node bootstrap-coach.mjs --username <coach> --reset` (step 5 env vars) → prints a new temporary password |
 | Ship an app update | Merge/push to `main` → Cloudflare rebuilds → members see a "Yeni sürüm hazır — Yenile" banner |
+| **Update after new features** | When a new version adds migrations (Phase 2 does), run `npx supabase db push` once, then let Cloudflare redeploy the site. Existing data is kept |
 | Change database | Add a **new** file in `supabase/migrations/` (never edit an applied one), run tests, then `npx supabase db push` |
 | Supabase project paused | Free projects pause after ~1 week of inactivity: dashboard → **Restore project**. A keep-alive workflow is planned (Phase 6) |
 | Backups | Not automatic on the free tier. Planned (Phase 6): weekly encrypted export + CSV export in the coach panel. Until then, export tables from the dashboard periodically |
