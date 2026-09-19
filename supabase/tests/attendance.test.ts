@@ -266,7 +266,7 @@ describe('monthly leaderboard', () => {
     expect(rows.find((r) => r.full_name === 'Ali Yılmaz')).toMatchObject({ sessions: 3, training_days: 2 });
   });
 
-  it('ranks with ties sharing a place (1, 1, 3, 3 ...) and does not count absences', async () => {
+  it('ranks with ties sharing a place (1, 1, 3, 3 ...), does not count absences, and lists members without sessions last with no place', async () => {
     const rows = await board(ids.member1, '2025-08-01');
     expect(rows.map((r) => `${r.rank}:${r.full_name}:${r.sessions}`)).toEqual([
       '1:Alex:3',
@@ -274,18 +274,29 @@ describe('monthly leaderboard', () => {
       '3:Becca Kaya:1',
       '3:Jamie:1',
       '3:John:1',
+      'null:Ashley:0', // active, but no session in August: still listed, with 0
     ]);
   });
 
   it('follows the Istanbul month boundary (00:00 local, not UTC) and lists a past month independently', async () => {
     const august = await board(ids.member1, '2025-08-31'); // any day of the month selects it
-    expect(august.some((r) => r.full_name === 'Ashley')).toBe(false); // 21:00Z on 31 Aug is already September in Istanbul
+    expect(august.find((r) => r.full_name === 'Ashley')).toMatchObject({ sessions: 0, rank: null }); // 21:00Z on 31 Aug is already September in Istanbul
     const september = await board(ids.member1, '2025-09-01');
-    expect(september.map((r) => `${r.rank}:${r.full_name}:${r.sessions}`)).toEqual(['1:Ashley:1']);
+    expect(september.map((r) => `${r.rank}:${r.full_name}:${r.sessions}`)).toEqual([
+      '1:Ashley:1',
+      'null:Alex:0',
+      'null:Ali Yılmaz:0',
+      'null:Becca Kaya:0',
+      'null:Jamie:0',
+      'null:John:0',
+    ]);
   });
 
-  it('is empty for a month without records, and excludes non-completed trainings, cancelled ones and deactivated members', async () => {
-    expect(await board(ids.member1, '2025-07-01')).toEqual([]);
+  it('lists every active member with 0 for a month without records, and excludes non-completed trainings, cancelled ones and deactivated members', async () => {
+    const empty = await board(ids.member1, '2025-07-01');
+    expect(empty).toHaveLength(6); // Ali, Becca, Alex, Ashley, John, Jamie
+    expect(empty.every((r) => r.sessions === 0 && r.training_days === 0 && r.rank === null)).toBe(true);
+    expect(empty.map((r) => r.full_name)).toEqual(['Alex', 'Ali Yılmaz', 'Ashley', 'Becca Kaya', 'Jamie', 'John']); // by name
     const august = await board(ids.member1, '2025-08-01');
     expect(august.some((r) => r.full_name === 'Eski Üye')).toBe(false);
     expect(august.find((r) => r.full_name === 'John')?.sessions).toBe(1); // the scheduled + cancelled rows did not add to it

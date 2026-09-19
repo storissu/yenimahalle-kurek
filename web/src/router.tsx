@@ -7,6 +7,7 @@ import { LoginPage } from '@/features/auth/LoginPage';
 import { BoatsPage } from '@/features/boats/BoatsPage';
 import { AuditPage } from '@/features/audit/AuditPage';
 import { HelpPage } from '@/features/help/HelpPage';
+import { ClubMemberPage } from '@/features/members/ClubMemberPage';
 import { MemberDirectoryPage } from '@/features/members/MemberDirectoryPage';
 import { MembersPage } from '@/features/members/MembersPage';
 import { NotificationsPage } from '@/features/notifications/NotificationsPage';
@@ -65,6 +66,7 @@ export const router = createBrowserRouter([
           { path: 'istatistik', element: <MemberStatsPage /> },
           { path: 'profil', element: <MemberProfilePage /> },
           { path: 'uyeler', element: <MemberDirectoryPage /> },
+          { path: 'uyeler/:memberId', element: <ClubMemberPage /> },
           { path: 'yardim', element: <HelpPage role="member" /> },
           { path: 'bildirimler', element: <NotificationsPage backTo="/uye" backLabel={tr.nav.home} /> },
         ],

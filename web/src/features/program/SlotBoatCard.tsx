@@ -1,5 +1,6 @@
 import { UserPlus, Users, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { TextField } from '@/components/ui/TextField';
@@ -25,6 +26,7 @@ export function SlotBoatCard({ boat, crew, notes, nameOf, onEdit, onRemove, onNo
     <Card className="flex flex-col gap-3" role="group" aria-label={boat.name}>
       <div className="flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2 text-base font-bold">
+          <BoatIcon capacity={boat.capacity} size={18} className="text-muted" />
           {boat.name}
           {!boat.is_active && <Badge tone="danger">{tr.program.boatInactive}</Badge>}
         </h3>

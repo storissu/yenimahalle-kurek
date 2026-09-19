@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Phone, Search, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { BackLink } from '@/components/layout/BackLink';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
@@ -65,7 +66,13 @@ export function MemberDirectoryPage() {
               <li key={m.id} className="flex min-h-16 items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 font-semibold">
-                    {m.full_name}
+                    {m.id === me.id ? (
+                      m.full_name
+                    ) : (
+                      <Link to={`/uye/uyeler/${m.id}`} aria-label={tr.contact.openProfileLabel(m.full_name)} className="inline-flex min-h-11 items-center rounded-sm underline decoration-dotted underline-offset-4">
+                        {m.full_name}
+                      </Link>
+                    )}
                     {m.id === me.id && <Badge tone="primary">{tr.members.you}</Badge>}
                   </p>
                   <p className="text-sm tabular-nums text-muted">{m.phone ?? '—'}</p>

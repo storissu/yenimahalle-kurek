@@ -96,8 +96,8 @@ later phases, risks) was agreed with the club before implementation started.
   is the next). The leaderboard "resets" because it is month-bucketed — there is no reset job — and past months stay
   browsable.
 - Ranking is standard competition ranking (1, 1, 3, …): equal sessions share a place; no sessions = no rank.
-- Members see others' numbers only as aggregates through `monthly_leaderboard()` (names + counts, members with at least
-  one session) and `my_month_stats()`. `coach_month_table()` (everyone incl. zeros), `attendance_export()` and
+- Members see others' numbers only as aggregates through `monthly_leaderboard()` (names + counts of **every active
+  member**: members without a session come last with `rank = null`, shown as "–" and 0) and `my_month_stats()`. `coach_month_table()` (everyone incl. zeros), `attendance_export()` and
   `training_attendance_counts()` are coach-only. The internal helper is not callable by clients.
 - CSV exports use `;` separators and a UTF-8 BOM (Turkish Excel), and defuse spreadsheet formulas (`lib/csv.ts`).
   On phones the file goes through the share sheet when the browser can share files, otherwise it downloads.
@@ -146,6 +146,28 @@ members only — exposes `id`, `full_name` and `phone` and nothing else (no user
 a name in the program opens a contact card with a call link; *Profil → Kulüp üyeleri* lists everyone. The phone is
 optional when a coach creates an account (the form says other members will see it) and the privacy notice states it.
 Coaches see phones in *Üyeler*.
+
+## Member profiles and shared history
+
+- `/uye/uyeler/:memberId` (`features/members/ClubMemberPage.tsx`) shows another member: name and phone from
+  `member_directory` (nothing else exists there) and the sessions the two of you rowed **in the same boat**.
+  Entry points: the directory rows, the contact card of the program ("Profili aç") and the leaderboard names. Your own id redirects to *Profil*.
+- The history comes from `shared_boat_history(p_member)` — a definer function (callable by signed-in users only,
+  `search_path` pinned, listed in the `security.test.ts` snapshot). A row is returned only when **the caller and the
+  other member were in the same crew of a published program, both were `present` in `attendance_records` for that
+  session, and the training is `completed`**. It therefore cannot reveal a training the caller did not take part in,
+  and returns nothing for the caller's own id; unknown, inactive or coach ids raise "Üye bulunamadı". Newest first, at most 200 rows.
+  Pure presentation rules (grouping, summary) live in `features/members/history.ts`; tests: `supabase/tests/shared-history.test.ts`.
+- Profile photos were considered and **deliberately not built** (storage, moderation and privacy cost for a small club).
+
+## Program display (whose session is it?)
+
+`ProgramByBoat` renders the published program by boat: the reader's own sessions are a **solid `primary` block** (independent
+of the boat's accent colour, so it works for every boat), larger type, a "Siz" pill and the forecast of that hour; the boats the
+reader rows in come **first** ("Sizin tekneniz"), the rest keep the club order. `BoatIcon` (`components/ui/BoatIcon.tsx`) draws a
+small hull with one dot per seat (single / double / quad / crew) from the boat's capacity. `MyBoatCard` shows the forecast of each of
+the reader's sessions from the session's own `weather_snapshots` row (its start hour), not the weather now.
+`features/weather/SessionWeather.tsx` holds these compact forecast pieces and imports no Supabase code (unit-testable).
 
 ## Change history (Phase 6)
 

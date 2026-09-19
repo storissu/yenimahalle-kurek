@@ -31,6 +31,15 @@ export interface MonthRow {
   training_days: number;
   rank: number | null;
 }
+/** One session two members rowed in the same boat (present both; from the published program). */
+export interface SharedHistoryRow {
+  training_id: string;
+  starts_at: string;
+  title: string | null;
+  slot_index: number;
+  boat_id: string;
+  boat_name: string;
+}
 export interface MyMonthStatsRow {
   sessions: number;
   training_days: number;
@@ -295,6 +304,7 @@ export type Database = {
       save_program: { Args: { p_training_id: string; p_payload: Json; p_publish: boolean; p_notify?: boolean }; Returns: undefined };
       save_attendance: { Args: { p_training_id: string; p_rows: Json; p_complete?: boolean }; Returns: undefined };
       monthly_leaderboard: { Args: { p_month: string }; Returns: MonthRow[] };
+      shared_boat_history: { Args: { p_member: string }; Returns: SharedHistoryRow[] };
       my_month_stats: { Args: { p_month: string }; Returns: MyMonthStatsRow[] };
       coach_month_table: { Args: { p_month: string }; Returns: MonthRow[] };
       attendance_export: { Args: { p_month: string }; Returns: ExportRow[] };

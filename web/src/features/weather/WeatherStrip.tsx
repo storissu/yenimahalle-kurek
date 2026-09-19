@@ -1,4 +1,4 @@
-import { Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain, CloudSnow, CloudSun, RefreshCw, Sun, TriangleAlert, Waves, Wind, type LucideIcon } from 'lucide-react';
+import { RefreshCw, TriangleAlert, Waves, Wind } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -10,23 +10,13 @@ import type { Training, WeatherSnapshot } from '@/types/database';
 import { useClubSettings } from '../settings/api';
 import { sessionRangeLabel } from '../trainings/schedule';
 import { useRefreshWeather, useWeather } from './hooks';
-import { beaufort, compassFrom, compassShort, describeWeather, evaluateAdvisory, formatNumber, FORECAST_HORIZON_MS, sourceName, type Thresholds, type WeatherIcon } from './format';
-
-const ICONS: Record<WeatherIcon, LucideIcon> = {
-  sun: Sun,
-  'cloud-sun': CloudSun,
-  cloud: Cloud,
-  fog: CloudFog,
-  drizzle: CloudDrizzle,
-  rain: CloudRain,
-  snow: CloudSnow,
-  thunder: CloudLightning,
-};
+import { beaufort, compassFrom, compassShort, describeWeather, evaluateAdvisory, formatNumber, FORECAST_HORIZON_MS, sourceName, type Thresholds } from './format';
+import { WEATHER_ICONS } from './weatherIcons';
 
 /** One session's forecast as a compact, readable line: sky, temperature, wind (+gust), rain, waves. */
 export function WeatherLine({ snapshot }: { snapshot: WeatherSnapshot }) {
   const sky = describeWeather(snapshot.weather_code);
-  const Icon = ICONS[sky.icon];
+  const Icon = WEATHER_ICONS[sky.icon];
   const rainy = (snapshot.precip_prob ?? 0) >= 20 || (snapshot.precip_mm ?? 0) > 0;
 
   return (

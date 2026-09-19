@@ -1,4 +1,5 @@
 // Turning forecast numbers into words a coach or member can read at a glance. Pure and tested.
+import { tr } from '@/strings/tr';
 import type { WeatherSnapshot } from '@/types/database';
 
 const numberFmt = (digits: number) => new Intl.NumberFormat('tr-TR', { maximumFractionDigits: digits, minimumFractionDigits: 0 });
@@ -80,3 +81,31 @@ export const sourceName = (source: string): string => (source === 'met.no' ? 'ME
 
 /** The forecast only reaches 16 days ahead. */
 export const FORECAST_HORIZON_MS = 16 * 24 * 3_600_000;
+
+export interface WeatherSummary {
+  label: string;
+  icon: WeatherIcon;
+  temperature: string | null;
+  wind: string | null;
+  gust: string | null;
+  wave: string | null;
+  rain: string | null;
+}
+
+/**
+ * One forecast row (one session) as short, ready-to-print pieces — "Parçalı bulutlu", "21°", "KB 14 km/s", "hamle 24 km/s",
+ * "dalga 0,6 m", "yağış %70". Values that are unknown are null; rain is only mentioned when it is likely (≥ 20 % or measurable).
+ */
+export function summarizeWeather(snapshot: WeatherSnapshot): WeatherSummary {
+  const sky = describeWeather(snapshot.weather_code);
+  const rainy = (snapshot.precip_prob ?? 0) >= 20 || (snapshot.precip_mm ?? 0) > 0;
+  return {
+    label: sky.label,
+    icon: sky.icon,
+    temperature: snapshot.temperature_c !== null ? `${formatNumber(snapshot.temperature_c, 0)}°` : null,
+    wind: snapshot.wind_kmh !== null ? `${snapshot.wind_dir_deg !== null ? `${compassShort(snapshot.wind_dir_deg)} ` : ''}${formatNumber(snapshot.wind_kmh, 0)} km/s` : null,
+    gust: snapshot.gust_kmh !== null ? tr.weather.gust(formatNumber(snapshot.gust_kmh, 0)) : null,
+    wave: snapshot.wave_height_m !== null ? tr.weather.wave(formatNumber(snapshot.wave_height_m, 1)) : null,
+    rain: rainy && snapshot.precip_prob !== null ? tr.weather.rain(formatNumber(snapshot.precip_prob, 0)) : null,
+  };
+}

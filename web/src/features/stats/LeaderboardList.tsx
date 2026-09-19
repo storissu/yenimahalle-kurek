@@ -1,4 +1,5 @@
 import { Trophy } from 'lucide-react';
+import { Link } from 'react-router';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
 import { tr } from '@/strings/tr';
@@ -13,24 +14,31 @@ export function LeaderboardList({ rows, meId }: { rows: MonthRow[]; meId?: strin
       {sorted.map((row) => {
         const mine = row.member_id === meId;
         const tied = isTied(sorted, row.rank);
+        const unranked = row.rank === null; // no session this month: listed with 0, without a place
         return (
           <li
             key={row.member_id}
-            className={cn('flex min-h-14 items-center gap-3 rounded-2xl border px-3 py-2', mine ? 'border-primary bg-primary-soft' : 'border-border bg-surface')}
+            className={cn('flex min-h-14 items-center gap-3 rounded-2xl border px-3 py-2', mine ? 'border-primary bg-primary-soft' : 'border-border bg-surface', unranked && !mine && 'text-muted')}
           >
             <span
               role="img"
-              aria-label={`${row.rank}. sıra${tied ? `, ${tr.stats.tied}` : ''}`}
+              aria-label={unranked ? tr.stats.noRank : `${row.rank}. sıra${tied ? `, ${tr.stats.tied}` : ''}`}
               className={cn(
                 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-extrabold',
                 row.rank === 1 ? 'bg-warning-soft text-warning' : 'bg-surface-2 text-fg',
               )}
             >
-              {row.rank === 1 ? <Trophy aria-hidden="true" size={18} /> : row.rank}
+              {row.rank === 1 ? <Trophy aria-hidden="true" size={18} /> : (row.rank ?? '–')}
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 font-semibold">
-                <span className="truncate">{row.full_name}</span>
+                {mine ? (
+                  <span className="truncate">{row.full_name}</span>
+                ) : (
+                  <Link to={`/uye/uyeler/${row.member_id}`} aria-label={tr.contact.openProfileLabel(row.full_name)} className="truncate underline decoration-dotted underline-offset-4">
+                    {row.full_name}
+                  </Link>
+                )}
                 {mine && <Badge tone="primary">{tr.stats.you}</Badge>}
               </span>
               <span className="block text-xs text-muted">

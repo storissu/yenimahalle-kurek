@@ -42,20 +42,23 @@ Kulübün antrenman uygulaması: antrenmana katılıp katılmayacağınızı bil
 ## 5. Programınız
 
 Antrenör programı yayınlayınca:
-- **Ana Sayfa**'nın üstünde **"Sizin programınız"** kutusunda tekneniz, saatiniz ve ekip arkadaşlarınız görünür.
-- Altında **tüm program tekne tekne** listelenir. Her teknenin kendi rengi ve adı vardır; her satırda saat aralığı ve ekip yazar. **Sizin seanslarınız "Siz" etiketiyle vurgulanır.**
+- **Ana Sayfa**'nın üstünde **"Sizin programınız"** kutusunda tekneniz, saatiniz, ekip arkadaşlarınız ve **o saatin hava tahmini** görünür.
+- Altında **tüm program tekne tekne** listelenir. Her teknenin kendi rengi, adı ve **küçük bir tekne çizimi** vardır (tek, çift, dörtlü); her satırda saat aralığı ve ekip yazar.
+- **Sizin seanslarınız dolu mavi bir kutu ve "Siz" etiketiyle öne çıkar** (daha büyük yazıyla, hava tahminiyle birlikte). Kürek çektiğiniz **tekneler listenin en üstünde** gelir ve "Sizin tekneniz" yazar.
 - Program değişirse yalnızca ilgili kişilere bildirim gelir.
 
 **Bir arkadaşınıza ulaşmak için:** programda adına dokunun → telefon numarası açılır → **Ara**. Tüm üyeler: **Profil → Kulüp üyeleri**. (Numaralar yalnızca kulüp üyelerine görünür.)
 
+**Bir üyenin profili:** Kulüp üyeleri'nde (veya sıralamada, veya programdaki kartta **Profili aç** ile) bir ada dokunun. Adı, telefonu ve **sizinle aynı teknede kürek çektiğiniz seanslar** (tarih, saat, tekne; toplam seans sayısı) görünür. Yalnızca ikinizin de o seansta olduğu ve yoklamada "Geldi" işaretlendiği seanslar sayılır; farklı teknelerdeyseniz görünmez. Henüz birlikte çekmediyseniz bunu söyleyen bir mesaj çıkar.
+
 ## 6. Hava durumu
 
-Her antrenmanda saat saat rüzgâr, hamle, dalga ve yağış tahmini görürsünüz. Dalga değerleri açık deniz modelinden geldiği için kıyıda yaklaşık olabilir. **Antrenmanın yapılıp yapılmayacağına her zaman antrenör karar verir.**
+Her antrenmanda saat saat rüzgâr, hamle, dalga ve yağış tahmini görürsünüz. Programınız yayınlandıysa **sizin seansınızın saatine ait tahmin** "Sizin programınız" kutusunda ve programdaki satırınızda görünür (antrenmana çok varsa henüz alınmamış olabilir; yaklaştıkça belirir). Dalga değerleri açık deniz modelinden geldiği için kıyıda yaklaşık olabilir. **Antrenmanın yapılıp yapılmayacağına her zaman antrenör karar verir.**
 
 ## 7. Geçmişiniz ve sıralama
 
 - **Antrenmanlar → Geçmiş**: katıldığınız antrenmanlar ve kaç saat kürek çektiğiniz.
-- **İstatistik**: bu ayki seans sayınız ve **aylık sıralama**. Tamamlanmış antrenmanlarda kürek çektiğiniz her saat **1 seans** sayılır (2 saat = 2). Sıralama her ayın başında sıfırlanır; eşit seansı olanlar aynı sırayı paylaşır. Geçmiş aylara ay seçicisinden bakabilirsiniz.
+- **İstatistik**: bu ayki seans sayınız ve **aylık sıralama**. Tamamlanmış antrenmanlarda kürek çektiğiniz her saat **1 seans** sayılır (2 saat = 2). Sıralama her ayın başında sıfırlanır; eşit seansı olanlar aynı sırayı paylaşır. **Tüm üyeler listelenir**: bu ay hiç seansı olmayanlar en altta, sıra yerine "–" ve 0 seansla görünür. İsme dokunarak profiline gidebilirsiniz. Geçmiş aylara ay seçicisinden bakabilirsiniz.
 
 ## 8. Sorun mu var?
 

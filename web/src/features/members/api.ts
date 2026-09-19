@@ -1,6 +1,6 @@
 import { invokeFunction } from '@/lib/functions';
 import { supabase } from '@/lib/supabase';
-import type { Profile, UserRole } from '@/types/database';
+import type { Profile, SharedHistoryRow, UserRole } from '@/types/database';
 
 export const membersKey = ['members'] as const;
 
@@ -49,6 +49,15 @@ export interface DirectoryEntry {
 
 export async function fetchMemberNames(): Promise<DirectoryEntry[]> {
   const { data, error } = await supabase.from('member_directory').select('id, full_name, phone');
+  if (error) throw error;
+  return data;
+}
+
+export const sharedHistoryKey = (memberId: string) => ['shared-history', memberId] as const;
+
+/** The sessions the signed-in member and `memberId` rowed in the same boat (newest first). The database decides what counts. */
+export async function fetchSharedHistory(memberId: string): Promise<SharedHistoryRow[]> {
+  const { data, error } = await supabase.rpc('shared_boat_history', { p_member: memberId });
   if (error) throw error;
   return data;
 }

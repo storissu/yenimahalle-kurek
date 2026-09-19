@@ -11,7 +11,7 @@ import { tr } from '@/strings/tr';
 import { useProfile } from '../auth/AuthProvider';
 import { useLeaderboard, useMyMonthStats } from '../attendance/hooks';
 import { LeaderboardList } from './LeaderboardList';
-import { myPositionText } from './leaderboard';
+import { myPositionText, nobodyRowed } from './leaderboard';
 import { MonthPicker } from './MonthPicker';
 
 /** Member's "İstatistik" tab: my month + the leaderboard of the selected calendar month (club time). */
@@ -72,6 +72,9 @@ export function MemberStatsPage() {
           {board.isError && <ErrorState message={tr.stats.loadError} onRetry={() => void board.refetch()} />}
           {board.isSuccess && board.data.length === 0 && (
             <EmptyState icon={Trophy} title={tr.stats.leaderboardEmptyTitle} body={tr.stats.leaderboardEmptyBody} />
+          )}
+          {board.isSuccess && board.data.length > 0 && nobodyRowed(board.data) && (
+            <p className="rounded-xl bg-surface-2 px-4 py-3 text-sm text-muted">{tr.stats.nobodyYet}</p>
           )}
           {board.isSuccess && board.data.length > 0 && <LeaderboardList rows={board.data} meId={me.id} />}
         </section>

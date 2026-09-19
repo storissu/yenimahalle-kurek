@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import { describe, expect, it, vi } from 'vitest';
 import { tr } from '@/strings/tr';
 import { telHref } from './contact';
@@ -46,5 +47,25 @@ describe('ContactDialog', () => {
     rerender(<ContactDialog contact={{ name: 'Ahmet Kaya', phone: null }} onClose={onClose} />);
     fireEvent.click(screen.getByRole('button', { name: tr.common.close }));
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('ContactDialog profile link', () => {
+  it("links to the member's profile when their id is known, and closes the card on the way", () => {
+    const onClose = vi.fn();
+    render(
+      <MemoryRouter>
+        <ContactDialog contact={{ id: 'm-1', name: 'Ahmet Kaya', phone: null }} onClose={onClose} />
+      </MemoryRouter>,
+    );
+    const link = screen.getByRole('link', { name: tr.contact.openProfileLabel('Ahmet Kaya') });
+    expect(link).toHaveAttribute('href', '/uye/uyeler/m-1');
+    fireEvent.click(link);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('shows no profile link without an id', () => {
+    render(<ContactDialog contact={{ name: 'Ahmet Kaya', phone: '0555 111 22 33' }} onClose={vi.fn()} />);
+    expect(screen.queryByText(tr.contact.openProfile)).not.toBeInTheDocument();
   });
 });

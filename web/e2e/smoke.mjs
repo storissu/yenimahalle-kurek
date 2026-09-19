@@ -392,7 +392,27 @@ async function newPage(scheme = 'light') {
       if (b.p_complete && t.status === 'scheduled') t.status = 'completed';
       return route.fulfill({ status: 204, headers: cors });
     }
-    if (path === '/rest/v1/rpc/monthly_leaderboard') return json(route, monthRows(monthKeyParam()).filter((r) => r.sessions > 0).sort((a, b) => a.rank - b.rank));
+    // every active member, ranked ones first; members without a session come last with rank null (like the database)
+    if (path === '/rest/v1/rpc/monthly_leaderboard') return json(route, monthRows(monthKeyParam()).sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9) || a.full_name.localeCompare(b.full_name, 'tr')));
+    if (path === '/rest/v1/rpc/shared_boat_history') {
+      const other = roster.find((r) => r.id === body().p_member);
+      if (!caller?.is_active) return dbError(route, 'P0001', 'Yetkisiz');
+      if (!other || other.role !== 'member' || !other.is_active) return dbError(route, 'P0001', 'Üye bulunamadı');
+      if (other.id === caller.id) return json(route, []);
+      const rows = [];
+      for (const [trainingId, entry] of Object.entries(db.programs)) {
+        const t = db.trainings.find((x) => x.id === trainingId);
+        if (!t || t.status !== 'completed' || entry.program.status !== 'published') continue;
+        for (const a of entry.assignments) {
+          const crew = entry.crew.filter((c) => c.assignment_id === a.id).map((c) => c.member_id);
+          const present = (m) => db.attendance.some((x) => x.training_id === trainingId && x.slot_index === a.slot_index && x.member_id === m && x.status === 'present');
+          if (crew.includes(caller.id) && crew.includes(other.id) && present(caller.id) && present(other.id)) {
+            rows.push({ training_id: trainingId, starts_at: t.starts_at, title: t.title, slot_index: a.slot_index, boat_id: a.boat_id, boat_name: db.boats.find((b) => b.id === a.boat_id)?.name ?? '?' });
+          }
+        }
+      }
+      return json(route, rows.sort((a, b) => b.starts_at.localeCompare(a.starts_at) || a.slot_index - b.slot_index));
+    }
     if (path === '/rest/v1/rpc/my_month_stats') {
       const rows = monthRows(monthKeyParam());
       const me = rows.find((r) => r.member_id === caller?.id);
@@ -979,15 +999,23 @@ const shot = async (page, name, fullPage = false) => {
     const above = async (a, b) => (await a.boundingBox()).y < (await b.boundingBox()).y;
     check('home: my boat comes BEFORE the RSVP card (the first thing a member sees)', await above(mine, mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' })));
     // the whole program is on Home too, grouped by boat, my sessions highlighted
-    const turuncu = mp.getByRole('region', { name: 'Turuncu', exact: true });
-    const mavi = mp.getByRole('region', { name: 'Mavi', exact: true });
+    const turuncu = mp.getByRole('region', { name: /^Turuncu( Sizin tekneniz)?$/ });
+    const mavi = mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ });
     await turuncu.waitFor();
     check('home: the full program is grouped by boat (Mavi, Turuncu), each with its sessions and crews', (await mavi.getByText('Alex').isVisible()) && (await mavi.getByText('Jamie').isVisible()) && (await turuncu.getByText('John').first().isVisible()));
     check('home: my two Turuncu sessions are highlighted, the Mavi ones are not', (await turuncu.getByText('Sizin seansınız').count()) === 2 && (await mavi.getByText('Sizin seansınız').count()) === 0);
+    const solid = (loc) => loc.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const pageBg = await solid(mp.locator('body'));
+    const mineRows = mp.locator('li[data-mine="true"]');
+    check('home: my sessions are SOLID blocks (own background, not the page background) — one per session of mine', (await mineRows.count()) === 2 && (await solid(mineRows.first())) !== pageBg && (await solid(mineRows.first())) === (await solid(mineRows.last())));
+    check('home: the boat I row in comes first and is tagged "Sizin tekneniz"', (await above(turuncu, mavi)) && (await turuncu.getByText('Sizin tekneniz').isVisible()) && (await mavi.getByText('Sizin tekneniz').count()) === 0);
+    check('home: each boat carries its icon (drawn, decorative)', (await mp.locator('section svg[data-boat]').count()) >= 2);
+    await mine.getByRole('group', { name: /^Hava durumu, / }).first().waitFor();
+    check('home: my card shows the forecast under EACH of my two sessions (the coach\'s publish fetched it)', (await mine.getByRole('group', { name: /^Hava durumu, / }).count()) === 2);
     await shot(mp, '26-member-my-boat-dark', true);
     await mp.goto(BASE + `/uye/antrenmanlar/${t.id}`);
     await mp.getByRole('heading', { name: 'Tüm program' }).waitFor();
-    check('detail: whole program by boat with everyone\'s crew, notes and weather', (await mp.getByRole('region', { name: 'Mavi', exact: true }).getByText('08:00–09:00').isVisible()) && (await mp.getByText('Alex').first().isVisible()) && (await mp.getByText('teknik çalışma').isVisible()) && (await mp.getByText('Rüzgâr batıdan 15 km/s').isVisible()) && (await mp.getByText('Isınma 10 dk, sonra uzun set').isVisible()));
+    check('detail: whole program by boat with everyone\'s crew, notes and weather', (await mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ }).getByText('08:00–09:00').isVisible()) && (await mp.getByText('Alex').first().isVisible()) && (await mp.getByText('teknik çalışma').isVisible()) && (await mp.getByText('Rüzgâr batıdan 15 km/s').isVisible()) && (await mp.getByText('Isınma 10 dk, sonra uzun set').isVisible()));
     check('detail: the reader\'s own sessions are marked', (await mp.getByText('Sizin seansınız').count()) >= 1);
     check('detail: the answer is locked because the program is published (the deadline is still days away)', (await mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' }).isVisible()) && (await mp.getByRole('radio', { name: 'Katılmıyorum' }).count()) === 0);
     await shot(mp, '27-member-full-program-dark');
@@ -1118,8 +1146,8 @@ const shot = async (page, name, fullPage = false) => {
   {
     const { page: mp, ctx: mc } = await memberStatsPage();
     await mp.goto(BASE + '/uye/istatistik');
-    await mp.getByText('Bu ay için henüz kayıt yok').waitFor();
-    check('statistics ignore attendance that is not completed', true);
+    await mp.getByText(/Bu ay henüz kimse kürek çekmedi/).waitFor();
+    check('statistics ignore attendance that is not completed (everybody is listed with 0)', (await mp.locator('main ol li').count()) >= 1 && (await mp.getByRole('img', { name: 'henüz sıralamada değil' }).count()) === (await mp.locator('main ol li').count()));
     await mc.close();
   }
 
@@ -1179,7 +1207,9 @@ const shot = async (page, name, fullPage = false) => {
     const flat = myCard.split(/\s+/).join(' ');
     check('my month: 2 sessions, 1 training day, rank 1 of 4', flat.includes('2 seans') && flat.includes('1 antrenman günü'), flat);
     const board = mp.locator('main ol li');
-    check('leaderboard: I am first (marked "Siz"); the others share second place', (await board.first().innerText()).includes('Ali Kaya') && (await board.first().getByText('Siz').isVisible()) && (await board.count()) === 4 && (await mp.getByText('eşit').count()) >= 3);
+    check('leaderboard: I am first (marked "Siz"); the others share second place', (await board.first().innerText()).includes('Ali Kaya') && (await board.first().getByText('Siz').isVisible()) && (await board.count()) === roster.filter((r) => r.role === 'member' && r.is_active).length && (await mp.getByText('eşit').count()) >= 3);
+    const unrankedRows = mp.locator('main ol li', { has: mp.getByRole('img', { name: 'henüz sıralamada değil' }) });
+    check('leaderboard: members without a session are listed too — last, with "–" instead of a place and 0 seans', (await unrankedRows.count()) >= 1 && (await unrankedRows.first().innerText()).replace(/\s+/g, ' ').includes('0 seans') && (await board.last().getByRole('img', { name: 'henüz sıralamada değil' }).count()) === 1);
     check('the leaderboard shows names and counts only, no phone numbers or usernames', !(await mp.locator('main ol').innerText()).match(/@|\d{3} \d{3}/));
     await shot(mp, '32-member-stats-dark');
     check('I cannot go past the current month', await mp.getByRole('button', { name: 'Sonraki ay' }).isDisabled());
@@ -1466,24 +1496,27 @@ const shot = async (page, name, fullPage = false) => {
   await mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' }).waitFor();
   check('a stale page cannot change the answer after publishing (the server refuses), and the card switches to the locked state', answerOfAli()?.response === 'attending' && (await mp.getByRole('radio').count()) === 0);
   await mp.reload();
-  const c4x = mp.getByRole('region', { name: 'C4X', exact: true });
-  const mavi = mp.getByRole('region', { name: 'Mavi', exact: true });
+  const c4x = mp.getByRole('region', { name: /^C4X( Sizin tekneniz)?$/ });
+  const mavi = mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ });
   await c4x.waitFor();
   check('the member sees every boat with its whole crew: the C4X has four names', (await Promise.all(['Alex', 'Ashley', 'John', 'Jamie'].map((n) => c4x.getByText(n).isVisible()))).every(Boolean));
   check('the length is known now: 08:00–10:00 · 2 seans', await mp.getByText('08:00–10:00 · 2 seans').first().isVisible());
   check('only my own session (Mavi, 09:00–10:00) is highlighted', (await mavi.getByText('Sizin seansınız').count()) === 1 && (await c4x.getByText('Sizin seansınız').count()) === 0 && (await mavi.getByText('09:00–10:00').isVisible()));
+  check('the boat I row in (Mavi) is listed before the C4X, tagged "Sizin tekneniz"', (await mavi.boundingBox()).y < (await c4x.boundingBox()).y && (await mavi.getByText('Sizin tekneniz').isVisible()) && (await c4x.getByText('Sizin tekneniz').count()) === 0);
+  check('the C4X shows the four-seat icon and Mavi the two-seat icon', (await c4x.locator('svg[data-boat="quad"]').count()) === 1 && (await mavi.locator('svg[data-boat="double"]').count()) === 1);
   await shot(mp, '40-member-by-boat-dark', true);
 
   // ---- phone numbers of the other members ----
   await c4x.getByRole('button', { name: 'Alex — telefon numarasını göster' }).click();
-  const callLink = mp.getByRole('link', { name: /Alex/ });
+  const callLink = mp.getByRole('link', { name: /^Ara: Alex/ });
   await callLink.waitFor();
   check("tapping a crew member's name shows their phone number with a call link", (await callLink.getAttribute('href')) === 'tel:05551112233' && (await callLink.innerText()).includes('0555 111 22 33'));
+  check('the contact card also offers "Profili aç"', (await mp.getByRole('dialog').getByRole('link', { name: 'Alex profilini aç' }).getAttribute('href')) === `/uye/uyeler/${alex.id}`);
   await shot(mp, '41-contact-dialog-dark');
   await mp.getByRole('dialog').getByRole('button', { name: 'Kapat' }).click();
   await c4x.getByRole('button', { name: 'Ashley — telefon numarasını göster' }).click();
   await mp.getByText('Bu üye için telefon numarası eklenmemiş.').waitFor();
-  check('a member without a saved number says so instead of a dead link', (await mp.getByRole('link', { name: /Ashley/ }).count()) === 0);
+  check('a member without a saved number says so instead of a dead link', (await mp.getByRole('link', { name: /^Ara:/ }).count()) === 0);
   await mp.getByRole('dialog').getByRole('button', { name: 'Kapat' }).click();
   check('my own name in the crew is plain text (no phone card for myself)', (await mavi.getByRole('button', { name: /Ali Kaya/ }).count()) === 0);
 
@@ -1703,6 +1736,115 @@ const shot = async (page, name, fullPage = false) => {
   check('help pages: no unexpected errors', problems.length === 0 && member.problems.length === 0, [...problems, ...member.problems].join(' | '));
   await ctx.close();
   await member.ctx.close();
+}
+
+// ---------- 13. another member's profile: phone + trained together (same boat only) ----------
+{
+  const now = Date.now();
+  const byName = (n) => roster.find((p) => p.full_name === n);
+  const ali = people.member;
+  const [cagla, alex, jamie] = ['Çağla Şahin', 'Alex', 'Jamie'].map(byName);
+  cagla.phone = '0532 111 22 33';
+  db.trainings = [];
+  db.responses = [];
+  db.programs = {};
+  db.attendance = [];
+  db.notifications = [];
+  db.weather = {};
+  const at8 = (daysAgo) => Date.parse(`${istanbulDate(now - daysAgo * 24 * 3_600_000)}T08:00:00+03:00`);
+  const publishedProgram = (t, assignments, crew) => {
+    db.programs[t.id] = {
+      program: { training_id: t.id, status: 'published', version: 1, weather_note: null, training_notes: null, published_at: iso(now - 300 * 3_600_000), published_by: people.coach.id, created_at: '', updated_at: '' },
+      assignments: assignments.map(([id, slot, boat]) => ({ id, training_id: t.id, slot_index: slot, boat_id: boat, notes: null })),
+      crew: crew.map(([assignment, slot, member, seat]) => ({ assignment_id: assignment, training_id: t.id, slot_index: slot, member_id: member.id, seat })),
+    };
+  };
+  const present = (t, slot, member) => db.attendance.push({ training_id: t.id, slot_index: slot, member_id: member.id, status: 'present', note: null, recorded_by: people.coach.id, recorded_at: iso(now) });
+
+  // T1 (3 days ago, 2 sessions): hour 1 Ali + Çağla in Mavi; hour 2 Ali in Turuncu with Alex
+  const t1 = makeTraining({ title: 'Ortak antrenman', starts_at: iso(at8(3)), slot_count: 2, rsvp_deadline: iso(at8(4)), status: 'completed' });
+  // T2 (10 days ago, 1 session, no title): Ali in Mavi, Çağla in Turuncu -> NOT shared
+  const t2 = makeTraining({ title: null, starts_at: iso(at8(10)), slot_count: 1, rsvp_deadline: iso(at8(11)), status: 'completed' });
+  db.trainings.push(t1, t2);
+  publishedProgram(t1, [['as-1', 0, 'boat-1'], ['as-2', 1, 'boat-2']], [['as-1', 0, ali, 1], ['as-1', 0, cagla, 2], ['as-2', 1, ali, 1], ['as-2', 1, alex, 2]]);
+  publishedProgram(t2, [['as-3', 0, 'boat-1'], ['as-4', 0, 'boat-2']], [['as-3', 0, ali, 1], ['as-4', 0, cagla, 1]]);
+  for (const [t, slot, m] of [[t1, 0, ali], [t1, 0, cagla], [t1, 1, ali], [t1, 1, alex], [t2, 0, ali], [t2, 0, cagla]]) present(t, slot, m);
+  // an upcoming training with a forecast, for the "my session" card
+  const up = makeTraining({ title: 'Sıradaki', starts_at: iso(Date.parse(`${istanbulDate(now + 2 * 24 * 3_600_000)}T08:00:00+03:00`)), slot_count: 2, rsvp_deadline: iso(now + 24 * 3_600_000) });
+  db.trainings.push(up);
+  db.responses.push({ training_id: up.id, member_id: ali.id, response: 'attending', note: null, responded_at: iso(now), set_by_coach: false });
+  publishedProgram(up, [['as-5', 0, 'boat-1'], ['as-6', 1, 'boat-1']], [['as-5', 0, jamie, 1], ['as-6', 1, ali, 1]]);
+  db.weather[up.id] = [weatherRow(up.id, 0, Date.parse(up.starts_at)), weatherRow(up.id, 1, Date.parse(up.starts_at), { temperature_c: 23.6, wind_kmh: 27, gust_kmh: 38, wave_height_m: 1.4, weather_code: 63, precip_prob: 70 })];
+
+  const { page: mp, ctx, problems } = await newPage('dark');
+  await mp.goto(BASE + '/giris');
+  await mp.getByLabel('Kullanıcı adı').fill('ali');
+  await mp.getByLabel('Şifre').fill('Kurek2026x');
+  await mp.getByRole('button', { name: 'Giriş yap' }).click();
+  await mp.waitForURL('**/uye');
+
+  // ---- weather for MY session's hour, next to it ----
+  const mine = mp.getByRole('region', { name: 'Sizin programınız' });
+  await mine.waitFor();
+  const forMySession = mine.getByRole('group', { name: 'Hava durumu, 09:00–10:00' });
+  await forMySession.waitFor();
+  const forecastText = (await forMySession.innerText()).replace(/\s+/g, ' ');
+  check("home: my card shows the forecast for MY hour (09:00–10:00: rain, 24°, 27 km/s wind, 1,4 m waves), not another hour's", /Yağmurlu/.test(forecastText) && forecastText.includes('24°') && forecastText.includes('27 km/s') && forecastText.includes('1,4 m'), forecastText);
+  check('home: only my own hour has a forecast in the card (Jamie rows at 08:00, not me)', (await mine.getByRole('group').count()) === 1);
+  const inBoat = mp.locator('li[data-mine="true"]').first();
+  check('home: the same forecast is inside my highlighted row in the program by boat', (await inBoat.innerText()).replace(/\s+/g, ' ').includes('24°'));
+  await shot(mp, '47-member-my-session-weather-dark', true);
+
+  // ---- the directory: names are links to a profile (mine is plain) ----
+  await mp.goto(BASE + '/uye/uyeler');
+  await mp.getByRole('heading', { name: 'Kulüp üyeleri' }).waitFor();
+  await mp.getByRole('link', { name: 'Çağla Şahin profilini aç' }).waitFor();
+  check("directory: every name (except my own) opens that member's profile", (await mp.getByRole('link', { name: 'Ali Kaya profilini aç' }).count()) === 0 && (await mp.getByRole('link', { name: 'Alex profilini aç' }).count()) === 1);
+  await mp.getByRole('link', { name: 'Çağla Şahin profilini aç' }).click();
+  await mp.getByRole('heading', { name: 'Çağla Şahin', level: 1 }).waitFor();
+  await mp.getByText('1 seans · 1 antrenman günü').waitFor();
+  const cagPage = (await mp.locator('main').innerText()).replace(/\s+/g, ' ');
+  check('profile: name, phone with a call link, and only the session in the SAME boat (08:00–09:00, Mavi)', (await mp.getByRole('link', { name: /^Ara: Çağla Şahin/ }).getAttribute('href')) === 'tel:05321112233' && cagPage.includes('08:00–09:00') && cagPage.includes('Mavi: 1'), cagPage);
+  check('profile: the sessions where we sat in DIFFERENT boats are not listed', !cagPage.includes('09:00–10:00') && !cagPage.includes('Turuncu') && (await mp.locator('main ul li ul li').count()) === 1);
+  check('profile: the training title is shown, no username or other private data', cagPage.includes('Ortak antrenman') && !/@|cagla/.test(cagPage));
+  await shot(mp, '48-member-profile-dark', true);
+
+  // ---- Alex: shared the second hour in Turuncu ----
+  await mp.getByRole('link', { name: 'Kulüp üyeleri' }).click();
+  await mp.getByRole('link', { name: 'Alex profilini aç' }).click();
+  await mp.getByText('1 seans · 1 antrenman günü').waitFor();
+  const alexPage = (await mp.locator('main').innerText()).replace(/\s+/g, ' ');
+  check('profile: another member — the other hour, another boat', alexPage.includes('09:00–10:00') && alexPage.includes('Turuncu'));
+
+  // ---- Jamie: never in my boat -> friendly empty state ----
+  await mp.getByRole('link', { name: 'Kulüp üyeleri' }).click();
+  await mp.getByRole('link', { name: 'Jamie profilini aç' }).click();
+  await mp.getByRole('heading', { name: 'Henüz birlikte kürek çekmediniz' }).waitFor();
+  check('profile: nobody shared -> an explanation instead of an empty list (phone still shown)', (await mp.getByRole('link', { name: /^Ara: Jamie/ }).count()) === 1);
+  await shot(mp, '49-member-profile-empty-dark');
+
+  // ---- unknown id and my own id ----
+  await mp.goto(BASE + '/uye/uyeler/00000000-0000-4000-8000-000000000000');
+  await mp.getByText('Bu üye bulunamadı.').waitFor();
+  check('an unknown member id says so (no broken page)', true);
+  await mp.goto(BASE + `/uye/uyeler/${ali.id}`);
+  await mp.waitForURL('**/uye/profil');
+  check('my own profile link leads to my profile page', true);
+
+  // ---- the leaderboard: every member, names lead to their profile ----
+  await mp.goto(BASE + '/uye/istatistik');
+  await mp.getByRole('heading', { name: 'Aylık sıralama' }).waitFor();
+  const rows = mp.locator('main ol li');
+  const members = roster.filter((r) => r.role === 'member' && r.is_active).length;
+  await rows.first().waitFor();
+  check(`leaderboard: all ${members} active members are listed`, (await rows.count()) === members);
+  await shot(mp, '50-member-leaderboard-everyone-dark');
+  await mp.getByRole('link', { name: 'Çağla Şahin profilini aç' }).first().click();
+  await mp.getByRole('heading', { name: 'Çağla Şahin', level: 1 }).waitFor();
+  check("leaderboard: a name opens that member's profile", true);
+
+  check('profiles: no unexpected errors', problems.length === 0, problems.join(' | '));
+  await ctx.close();
 }
 
 // ---------- 4. PWA basics (service worker allowed) ----------

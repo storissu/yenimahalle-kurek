@@ -273,6 +273,11 @@ scorecard for the go / no-go decision, the rollout after a "go", and the monthly
 The same answers are inside the app under *Profil → Yardım* (members) and *Diğer → Yardım* (coaches); set `VITE_FEEDBACK_URL`
 in Cloudflare (a WhatsApp link like `https://wa.me/905XXXXXXXXX`, or a form) to add a **Görüş bildir** button there.
 
+**9.4 After updating to the profile / leaderboard release** — run `npx supabase db push` once (migration
+`20260922100000_shared_history_leaderboard`: `shared_boat_history()` and a leaderboard that lists every active member),
+then deploy the website as usual. Until the push, the profile page shows "Birlikte kürek çekme geçmişi yüklenemedi" and the
+leaderboard still hides members without sessions; nothing else is affected.
+
 ## Local development
 
 ```powershell

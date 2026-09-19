@@ -34,6 +34,7 @@ Not a target: payments (none), public content (none), other clubs (single club).
 | 5 | Every `security definer` function pins `search_path` | ✅ | `security.test.ts` → "pins its search_path" |
 | 6 | App users can call exactly the reviewed list of functions; helpers, triggers, cron jobs and the audit writer are closed | ✅ | `security.test.ts` → "exactly the reviewed list" |
 | 7 | Coach-only actions refuse members; deactivated accounts see and do nothing | ✅ | `security.test.ts`; `trainings.test.ts`, `program.test.ts`, `attendance.test.ts`, `last-coach.test.ts` |
+| 7a | `shared_boat_history()` tells a member only about sessions **they took part in** (same crew, both present, training completed) — never another member's other trainings | ✅ | `shared-history.test.ts` |
 | 8 | Business rules live in the database (RSVP deadline on the **server** clock, RSVP locked once the program is published, one boat/one person per session, capacity, C4X full crew, drafts private) | ✅ | `trainings.test.ts`, `program.test.ts` |
 | 9 | Nobody can remove the last active coach | ✅ | `last-coach.test.ts` |
 | 10 | Audit log: written only by the database, readable by coaches only, no passwords/phone numbers stored, kept one year | ✅ | `audit.test.ts` |

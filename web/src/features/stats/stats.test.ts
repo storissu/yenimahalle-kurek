@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { ExportRow, MonthRow } from '@/types/database';
 import { detailCsvRows, detailFilename, summaryCsvRows, summaryFilename } from './exports';
-import { isTied, myPositionText, sortBoard } from './leaderboard';
+import { isTied, myPositionText, nobodyRowed, sortBoard } from './leaderboard';
 
 const row = (over: Partial<MonthRow>): MonthRow => ({ member_id: 'x', full_name: 'X', sessions: 0, training_days: 0, rank: null, ...over });
 
@@ -51,6 +51,23 @@ describe('sortBoard', () => {
       row({ full_name: 'Mert', sessions: 1, rank: 4 }),
     ]);
     expect(sorted.map((r) => r.full_name)).toEqual(['Ahmet', 'Çağla', 'Zeynep', 'Mert']);
+  });
+
+  it('puts members without a place (0 sessions) after everybody ranked, alphabetically the Turkish way', () => {
+    const sorted = sortBoard([
+      row({ full_name: 'Zeynep', sessions: 0, rank: null }),
+      row({ full_name: 'Ahmet', sessions: 3, rank: 1 }),
+      row({ full_name: 'Çağla', sessions: 0, rank: null }),
+      row({ full_name: 'Öykü', sessions: 1, rank: 2 }),
+      row({ full_name: 'Ali', sessions: 0, rank: null }),
+    ]);
+    expect(sorted.map((r) => r.full_name)).toEqual(['Ahmet', 'Öykü', 'Ali', 'Çağla', 'Zeynep']);
+  });
+
+  it('knows when nobody has rowed yet', () => {
+    expect(nobodyRowed([row({ sessions: 0 }), row({ sessions: 0 })])).toBe(true);
+    expect(nobodyRowed([row({ sessions: 0 }), row({ sessions: 2 })])).toBe(false);
+    expect(nobodyRowed([])).toBe(false); // no members at all is a different (empty) state
   });
 
   it('does not change the input', () => {

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, Plus, Ship } from 'lucide-react';
+import { BoatIcon } from '@/components/ui/BoatIcon';
 import { useState } from 'react';
 import { BackLink } from '@/components/layout/BackLink';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -52,7 +53,7 @@ export function BoatsPage() {
                 className="flex min-h-[72px] w-full items-center gap-3 rounded-2xl border border-border bg-surface p-4 text-left"
               >
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
-                  <Ship aria-hidden="true" size={22} />
+                  <BoatIcon capacity={boat.capacity} size={24} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-semibold">{boat.name}</p>

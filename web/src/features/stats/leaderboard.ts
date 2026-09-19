@@ -7,6 +7,9 @@ export function sortBoard<T extends Pick<MonthRow, 'rank' | 'full_name' | 'sessi
   return [...rows].sort((a, b) => (a.rank ?? Number.MAX_SAFE_INTEGER) - (b.rank ?? Number.MAX_SAFE_INTEGER) || b.sessions - a.sessions || a.full_name.localeCompare(b.full_name, 'tr'));
 }
 
+/** Nobody has a session yet (the list then shows every member with 0 and no place). */
+export const nobodyRowed = (rows: Array<Pick<MonthRow, 'sessions'>>): boolean => rows.length > 0 && rows.every((r) => r.sessions === 0);
+
 /** True when another member shares this member's rank (shown as "3. (eşit)"). */
 export function isTied(rows: Array<Pick<MonthRow, 'rank'>>, rank: number | null): boolean {
   return rank !== null && rows.filter((r) => r.rank === rank).length > 1;

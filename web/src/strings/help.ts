@@ -39,11 +39,15 @@ export const help = {
     },
     {
       q: `Hangi tekneye, hangi saate yazıldığımı nerede görürüm?`,
-      a: `Program yayınlanınca Ana Sayfa'nın üstünde "Sizin programınız" kutusunda tekneniz, saatiniz ve ekip arkadaşlarınız görünür. Altında tüm program tekne tekne listelenir; sizin seanslarınız "Siz" ile vurgulanır.`,
+      a: `Program yayınlanınca Ana Sayfa'nın üstünde "Sizin programınız" kutusunda tekneniz, saatiniz, ekip arkadaşlarınız ve o saatin hava tahmini görünür. Altında tüm program tekne tekne listelenir; sizin seanslarınız dolu mavi bir kutuyla ve "Siz" etiketiyle öne çıkar, kürek çektiğiniz tekneler en üstte "Sizin tekneniz" etiketiyle gelir. Teknelerin yanındaki küçük çizim kaç kişilik olduğunu gösterir.`,
     },
     {
       q: `Ekip arkadaşımın telefonuna nasıl ulaşırım?`,
       a: `Programda arkadaşınızın adına dokunun; telefon numarası açılır ve tek dokunuşla arayabilirsiniz. Tüm üyeleri Profil → Kulüp üyeleri sayfasında da görebilirsiniz. Numaralar yalnızca kulüp üyelerine görünür.`,
+    },
+    {
+      q: `Bir üyeyle birlikte ne zaman kürek çektik?`,
+      a: `Profil → Kulüp üyeleri'nde (ya da sıralamada, ya da programda bir ismin kartında "Profili aç") üyenin adına dokunun. Telefonu ve sizinle aynı teknede kürek çektiğiniz seanslar görünür. Yalnızca ikinizin de o seansta olduğu ve yoklamada "Geldi" işaretlendiği seanslar sayılır; farklı teknelerde çektiyseniz görünmez.`,
     },
     {
       q: `Bildirim almıyorum.`,
@@ -51,7 +55,7 @@ export const help = {
     },
     {
       q: `Sıralama nasıl hesaplanıyor?`,
-      a: `Tamamlanmış antrenmanlarda kürek çektiğiniz her saat 1 seans sayılır (2 saat çektiyseniz 2). Sıralama her takvim ayının başında sıfırlanır; geçmiş aylara ay seçicisinden bakabilirsiniz. Eşit seansı olanlar aynı sırayı paylaşır.`,
+      a: `Tamamlanmış antrenmanlarda kürek çektiğiniz her saat 1 seans sayılır (2 saat çektiyseniz 2). Sıralama her takvim ayının başında sıfırlanır; geçmiş aylara ay seçicisinden bakabilirsiniz. Eşit seansı olanlar aynı sırayı paylaşır. Bu ay hiç seansı olmayan üyeler de listenin en altında "–" ve 0 seansla yer alır.`,
     },
     {
       q: `Hava durumu tahmini ne kadar güvenilir?`,

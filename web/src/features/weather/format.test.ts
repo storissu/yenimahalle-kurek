@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { beaufort, compassFrom, compassShort, describeWeather, evaluateAdvisory, formatNumber, sourceName } from './format';
+import type { WeatherSnapshot } from '@/types/database';
+import { beaufort, compassFrom, compassShort, describeWeather, evaluateAdvisory, formatNumber, sourceName, summarizeWeather } from './format';
 
 describe('formatNumber', () => {
   it('uses the Turkish decimal comma and drops needless zeros', () => {
@@ -93,5 +94,37 @@ describe('sourceName', () => {
   it('names the provider for the attribution line', () => {
     expect(sourceName('open-meteo')).toBe('Open-Meteo');
     expect(sourceName('met.no')).toBe('MET Norway');
+  });
+});
+
+describe('summarizeWeather (the compact forecast of one session)', () => {
+  const snapshot = (over: Partial<WeatherSnapshot> = {}): WeatherSnapshot => ({
+    training_id: 't', slot_index: 0, fetched_at: '2026-09-21T14:30:00Z', source: 'open-meteo', forecast_for: '2026-09-22T05:00:00Z',
+    temperature_c: 21.4, apparent_c: 20, wind_kmh: 14.2, gust_kmh: 24.4, wind_dir_deg: 315, precip_prob: 10, precip_mm: 0, weather_code: 2, cloud_pct: 40,
+    wave_height_m: 0.64, wave_period_s: 4, wave_dir_deg: 300, ...over,
+  });
+
+  it('prints each measurement as a short Turkish piece, rounded', () => {
+    expect(summarizeWeather(snapshot())).toEqual({
+      label: 'Parçalı bulutlu',
+      icon: describeWeather(2).icon,
+      temperature: '21°',
+      wind: 'KB 14 km/s',
+      gust: 'hamle 24 km/s',
+      wave: 'dalga 0,6 m',
+      rain: null, // 10 % is not worth mentioning
+    });
+  });
+
+  it('mentions rain from 20 % on, or when any is measurable', () => {
+    expect(summarizeWeather(snapshot({ precip_prob: 20 })).rain).toBe('yağış %20');
+    expect(summarizeWeather(snapshot({ precip_prob: 5, precip_mm: 0.4 })).rain).toBe('yağış %5');
+    expect(summarizeWeather(snapshot({ precip_prob: 19, precip_mm: 0 })).rain).toBeNull();
+    expect(summarizeWeather(snapshot({ precip_prob: null, precip_mm: 2 })).rain).toBeNull(); // no probability to print
+  });
+
+  it('leaves out what the source did not give (no marine data, no direction)', () => {
+    const s = summarizeWeather(snapshot({ temperature_c: null, wind_kmh: 9, wind_dir_deg: null, gust_kmh: null, wave_height_m: null }));
+    expect(s).toMatchObject({ temperature: null, wind: '9 km/s', gust: null, wave: null });
   });
 });
