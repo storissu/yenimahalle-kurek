@@ -83,6 +83,10 @@ later phases, risks) was agreed with the club before implementation started.
   teams keeps the times; toggling a member refuses "full" / "already in another boat at that time"; time problems
   (order, length, overlaps) and the pre-publish checks (attendees in no session; people placed against their RSVP; boats
   that must be full) are computed here. `view.ts` groups the program by boat and picks out "my boat" lines for members.
+- **Light / dark mode**: the CSS tokens react only to `data-theme="light|dark"` on `<html>`. `public/theme-init.js` (a plain
+  blocking script, allowed by the CSP, precached by the service worker) sets it before the first paint from the saved choice
+  (`localStorage` `yk-theme`: system | light | dark; "system" = the phone's setting); `src/lib/theme.ts` keeps it in sync
+  (new choice, phone setting changing) and a test keeps the two in step. The choice lives on the profile page ("Görünüm").
 - Leaving the editor with unsaved changes is guarded (in-app navigation and browser unload); the editor stays mounted
   while the coach looks at other tabs.
 - `save_program(training, payload, publish, notify)`: `notify=false` gives the coach a silent correction (Phase 5).

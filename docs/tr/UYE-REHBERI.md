@@ -47,6 +47,8 @@ Antrenör programı yayınlayınca:
 - **Sizin seanslarınız dolu mavi bir kutu ve "Siz" etiketiyle öne çıkar** (daha büyük yazıyla). Kürek çektiğiniz **tekneler listenin en üstünde** gelir ve "Sizin tekneniz" yazar.
 - Program değişirse yalnızca ilgili kişilere bildirim gelir.
 
+**Açık / koyu görünüm:** Profil sayfasındaki **Görünüm** kutusundan **Sistem** (telefonunuzun ayarı), **Açık** veya **Koyu**'yu seçin; seçiminiz bu telefonda hatırlanır. Antrenörler için aynı kutu **Diğer** sayfasındadır.
+
 **Kendi numaranız:** **Profil** sayfasında telefonunuzun yanındaki **Düzenle**'ye dokunup numaranızı yazın veya silin. Numara diğer kulüp üyelerine görünür; yalnızca rakam, boşluk ve + ( ) . / - yazabilirsiniz.
 
 **Bir arkadaşınıza ulaşmak için:** programda adına dokunun → telefon numarası açılır → **Ara**. Tüm üyeler: alttaki **Üyeler** sekmesi. (Numaralar yalnızca kulüp üyelerine görünür.)

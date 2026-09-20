@@ -8,6 +8,7 @@ import { useAuth, useProfile } from '@/features/auth/AuthProvider';
 import { InstallGuide } from '@/features/install/InstallGuide';
 import { MyPhone } from '@/features/members/MyPhone';
 import { PushSettings } from '@/features/notifications/PushSettings';
+import { ThemeSetting } from '@/features/theme/ThemeSetting';
 import { errorMessage } from '@/lib/errors';
 import { help } from '@/strings/help';
 import { tr } from '@/strings/tr';
@@ -40,6 +41,7 @@ export function ProfilePanel() {
       </Card>
 
       <PushSettings />
+      <ThemeSetting />
       <InstallGuide />
 
       <Card className="divide-y divide-border py-1">

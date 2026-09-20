@@ -6,7 +6,7 @@
  * src/theme.contrast.test.ts — keep it green when changing values.
  */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   --bg: #f3f8fb;
   --surface: #ffffff;
@@ -44,41 +44,41 @@
   --focus: #0b6a9c;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0a1a24;
-    --surface: #112634;
-    --surface-2: #173444;
-    --fg: #e6f1f7;
-    --muted: #9fb7c6;
-    --border: #27475a;
+:root[data-theme='dark'] {
+  color-scheme: dark;
 
-    --primary: #5bb8e8;
-    --primary-fg: #06212f;
-    --primary-soft: #12384d;
+  --bg: #0a1a24;
+  --surface: #112634;
+  --surface-2: #173444;
+  --fg: #e6f1f7;
+  --muted: #9fb7c6;
+  --border: #27475a;
 
-    --success: #6fdba6;
-    --success-soft: #0f3a28;
-    --warning: #f0c46a;
-    --warning-soft: #3d2f0a;
-    --danger: #ff9d94;
-    --danger-soft: #4a1a17;
+  --primary: #5bb8e8;
+  --primary-fg: #06212f;
+  --primary-soft: #12384d;
 
-    --boat-1: #5bb8e8;
-    --boat-1-soft: #12384d;
-    --boat-2: #ffb37a;
-    --boat-2-soft: #3f2510;
-    --boat-3: #c9a8ff;
-    --boat-3-soft: #2b1a4d;
-    --boat-4: #5fd8c4;
-    --boat-4-soft: #0c3a33;
-    --boat-5: #ff9cc8;
-    --boat-5-soft: #4a1730;
-    --boat-6: #b8c4d6;
-    --boat-6-soft: #263244;
+  --success: #6fdba6;
+  --success-soft: #0f3a28;
+  --warning: #f0c46a;
+  --warning-soft: #3d2f0a;
+  --danger: #ff9d94;
+  --danger-soft: #4a1a17;
 
-    --focus: #5bb8e8;
-  }
+  --boat-1: #5bb8e8;
+  --boat-1-soft: #12384d;
+  --boat-2: #ffb37a;
+  --boat-2-soft: #3f2510;
+  --boat-3: #c9a8ff;
+  --boat-3-soft: #2b1a4d;
+  --boat-4: #5fd8c4;
+  --boat-4-soft: #0c3a33;
+  --boat-5: #ff9cc8;
+  --boat-5-soft: #4a1730;
+  --boat-6: #b8c4d6;
+  --boat-6-soft: #263244;
+
+  --focus: #5bb8e8;
 }
 
 @theme inline {

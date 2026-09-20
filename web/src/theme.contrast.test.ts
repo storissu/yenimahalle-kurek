@@ -9,8 +9,8 @@ function tokens(block: string): Record<string, string> {
   return Object.fromEntries([...block.matchAll(/--([a-z0-9-]+):\s*(#[0-9a-fA-F]{6});/g)].map((m) => [m[1] as string, m[2] as string]));
 }
 
-const lightBlock = css.slice(css.indexOf(':root {'), css.indexOf('@media (prefers-color-scheme: dark)'));
-const darkBlock = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'), css.indexOf('@theme inline'));
+const lightBlock = css.slice(css.indexOf(':root {'), css.indexOf(":root[data-theme='dark']"));
+const darkBlock = css.slice(css.indexOf(":root[data-theme='dark']"), css.indexOf('@theme inline'));
 const light = tokens(lightBlock);
 const dark = { ...light, ...tokens(darkBlock) };
 

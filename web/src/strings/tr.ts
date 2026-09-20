@@ -161,6 +161,13 @@ export const tr = {
     error: 'Bildirim ayarı değiştirilemedi.',
   },
 
+  theme: {
+    title: 'Görünüm',
+    system: 'Sistem',
+    light: 'Açık',
+    dark: 'Koyu',
+  },
+
   install: {
     title: 'Uygulamayı telefonunuza yükleyin',
     installedTitle: 'Uygulama yüklü',

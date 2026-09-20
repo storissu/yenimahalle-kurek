@@ -704,6 +704,13 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('heading', { name: 'Bildirimler' }).waitFor();
   check('coach "Diğer" page has notifications + install + logout', (await page.getByText('Uygulamayı telefonunuza yükleyin').first().isVisible()) && (await page.getByRole('button', { name: 'Çıkış yap' }).isVisible()));
   await shot(page, '08-coach-more');
+  // the same choice for a coach on a LIGHT phone: force dark, look at it (axe checks its contrast), and go back to "Sistem"
+  check('theme: a coach on a light phone starts light', (await page.locator('html').getAttribute('data-theme')) === 'light');
+  await page.getByRole('radiogroup', { name: 'Görünüm' }).getByRole('radio', { name: 'Koyu' }).click();
+  check('theme: choosing "Koyu" turns a light phone dark', (await page.locator('html').getAttribute('data-theme')) === 'dark');
+  await shot(page, '08b-coach-more-forced-dark');
+  await page.getByRole('radiogroup', { name: 'Görünüm' }).getByRole('radio', { name: 'Sistem' }).click();
+  check('theme: "Sistem" returns to light', (await page.locator('html').getAttribute('data-theme')) === 'light');
 
   await page.getByRole('button', { name: 'Çıkış yap' }).click();
   await page.waitForURL('**/giris');
@@ -1610,6 +1617,26 @@ const shot = async (page, name, fullPage = false) => {
     await mp.getByRole('button', { name: 'Kaydet' }).click();
     await mp.getByText('Eklenmemiş').waitFor();
     check('profile: emptying the field removes the number again', (state.phoneSaves ?? []).at(-1) === null);
+
+    // light / dark: "Sistem" follows the phone (dark here); a choice overrides it, applies at once and is remembered
+    const theme = () => mp.locator('html').getAttribute('data-theme');
+    const pageBg = () => mp.locator('body').evaluate((el) => getComputedStyle(el).backgroundColor);
+    const barColour = () => mp.locator('meta[name="theme-color"]').getAttribute('content');
+    const lastNav = () => mp.getByRole('radiogroup', { name: 'Görünüm' });
+    check('theme: by default the app follows the phone (this phone is dark) and "Sistem" is selected', (await theme()) === 'dark' && (await lastNav().getByRole('radio', { name: 'Sistem' }).getAttribute('aria-checked')) === 'true' && (await barColour()) === '#0a1a24');
+    const darkBg = await pageBg();
+    await lastNav().getByRole('radio', { name: 'Açık' }).click();
+    check('theme: choosing "Açık" turns a dark phone light at once — the page colours and the browser bar really change', (await theme()) === 'light' && (await pageBg()) !== darkBg && (await barColour()) === '#0b6a9c');
+    await shot(mp, '57-theme-light-on-dark-phone', true);
+    await mp.reload();
+    await mp.getByRole('heading', { name: 'Profil', level: 1 }).waitFor();
+    check('theme: the choice is remembered on this device after a reload', (await theme()) === 'light' && (await mp.evaluate(() => localStorage.getItem('yk-theme'))) === 'light' && (await lastNav().getByRole('radio', { name: 'Açık' }).getAttribute('aria-checked')) === 'true');
+    const script = await mp.request.get(BASE + '/theme-init.js');
+    check('theme: the pre-paint script (so the wrong theme never flashes) is served as a plain script', script.status() === 200 && /javascript/.test(script.headers()['content-type'] ?? '') && (await script.text()).includes('data-theme'));
+    await lastNav().getByRole('radio', { name: 'Koyu' }).click();
+    check('theme: "Koyu" is dark', (await theme()) === 'dark' && (await mp.evaluate(() => localStorage.getItem('yk-theme'))) === 'dark');
+    await lastNav().getByRole('radio', { name: 'Sistem' }).click();
+    check('theme: back to "Sistem" follows the (dark) phone again', (await theme()) === 'dark' && (await mp.evaluate(() => localStorage.getItem('yk-theme'))) === 'system');
 
     // a member cannot reach the coach's club settings
     await mp.goto(BASE + '/antrenor/diger/ayarlar');

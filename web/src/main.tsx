@@ -2,7 +2,9 @@ import './index.css';
 import { renderConfigError } from './ConfigError';
 import { envResult } from './lib/env';
 import { initInstallPrompt } from './lib/install';
+import { initTheme } from './lib/theme';
 
+initTheme(); // the saved light / dark choice (public/theme-init.js already applied it before the first paint)
 initInstallPrompt();
 
 const container = document.getElementById('root');
