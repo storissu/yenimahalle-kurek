@@ -343,4 +343,4 @@ $env:BROWSER_CHANNEL="msedge" ; npm run e2e       # uses the Edge already instal
 - **Add member fails with a 401/403/500**: Supabase → Edge Functions → *Logs*; confirm the functions were deployed and the caller is an active coach.
 - **The app says "Bağlantı kurulamadı" only for actions that call Edge Functions (add member, reset password, refresh weather)**: `ALLOWED_ORIGIN` is missing or wrong. It must be exactly your site address (`https://<your-site>.pages.dev`, no path, no `*`); the functions refuse to answer browsers otherwise. `npx supabase secrets set ALLOWED_ORIGIN=https://<your-site>.pages.dev`.
 - **Browser console shows CSP errors**: edit `web/public/_headers` (`connect-src` must allow your Supabase URL).
-- **No notification on iPhone**: needs iOS ≥ 16.4, the app added to the Home Screen and opened from that icon, and permission granted (Ayarlar → Bildirimler → Kürek).
+- **No notification on iPhone**: needs iOS ≥ 16.4, the app added to the Home Screen and opened from that icon, and permission granted (Ayarlar → Bildirimler → YSK).

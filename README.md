@@ -1,4 +1,4 @@
-# Yeni Mahalle Kürek — kulüp uygulaması
+# YSK — kulüp uygulaması
 
 Kdz. Ereğli Yeni Mahalle Kürek Kulübü için özel (davetli) antrenman yönetim uygulaması. Antrenörler antrenman ve tekne
 programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini görür. Android ve iPhone'da çalışan, mağazasız,

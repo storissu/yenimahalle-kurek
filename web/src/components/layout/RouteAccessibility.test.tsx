@@ -37,10 +37,10 @@ afterEach(() => {
 
 describe('titleFor', () => {
   it('uses the heading and the app name, or just the app name', () => {
-    expect(titleFor('  Bildirimler ')).toBe('Bildirimler · Yeni Mahalle Kürek');
-    expect(titleFor('Antrenman\n 21 Eylül')).toBe('Antrenman 21 Eylül · Yeni Mahalle Kürek');
-    expect(titleFor('')).toBe('Yeni Mahalle Kürek');
-    expect(titleFor(null)).toBe('Yeni Mahalle Kürek');
+    expect(titleFor('  Bildirimler ')).toBe('Bildirimler · YSK');
+    expect(titleFor('Antrenman\n 21 Eylül')).toBe('Antrenman 21 Eylül · YSK');
+    expect(titleFor('')).toBe('YSK');
+    expect(titleFor(null)).toBe('YSK');
   });
 });
 
@@ -48,7 +48,7 @@ describe('RouteAccessibility', () => {
   it('sets the document title from the page heading on first load without stealing focus', async () => {
     show();
     await nextFrame();
-    expect(document.title).toBe('Sayfa A · Yeni Mahalle Kürek');
+    expect(document.title).toBe('Sayfa A · YSK');
     expect(document.activeElement).toBe(document.body);
   });
 
@@ -56,7 +56,7 @@ describe('RouteAccessibility', () => {
     show();
     fireEvent.click(screen.getByRole('button', { name: 'git b' }));
     await nextFrame();
-    expect(document.title).toBe('Sayfa B · Yeni Mahalle Kürek');
+    expect(document.title).toBe('Sayfa B · YSK');
     expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Sayfa B' }));
   });
 

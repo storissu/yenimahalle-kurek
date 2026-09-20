@@ -20,8 +20,8 @@ export default defineConfig({
       injectRegister: false, // registered explicitly in src/pwa.ts
       manifest: {
         id: '/',
-        name: 'Yeni Mahalle Kürek Kulübü',
-        short_name: 'Kürek',
+        name: 'YSK',
+        short_name: 'YSK',
         description: 'Kdz. Ereğli Yeni Mahalle Kürek Kulübü antrenman yönetimi',
         lang: 'tr',
         dir: 'ltr',

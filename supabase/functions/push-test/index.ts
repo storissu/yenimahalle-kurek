@@ -24,7 +24,7 @@ Deno.serve(
     if (!subs || subs.length === 0) throw new HttpError(404, 'Bu hesap için kayıtlı bildirim cihazı yok');
 
     const payload = JSON.stringify({
-      title: 'Yeni Mahalle Kürek',
+      title: 'YSK',
       body: 'Test bildirimi başarıyla ulaştı 🚣',
       url: '/',
     });

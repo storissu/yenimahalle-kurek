@@ -25,7 +25,7 @@ Lütfen ilk girişte bildirimleri de açın (Profil → Bildirimleri aç). Bir �
 ## 2. Kişisel davet (uygulamanın "Davet mesajını kopyala" düğmesi bunu üretir)
 
 ```
-Yeni Mahalle Kürek uygulaması
+YSK uygulaması
 Adres: <https://....pages.dev>
 Kullanıcı adı: <kullanıcı adı>
 Geçici şifre: <şifre>

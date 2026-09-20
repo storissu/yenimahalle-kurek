@@ -3,7 +3,7 @@
 
 export const tr = {
   app: {
-    name: 'Yeni Mahalle Kürek',
+    name: 'YSK',
     clubName: 'Kdz. Ereğli Yeni Mahalle Kürek Kulübü',
     loading: 'Yükleniyor…',
   },
@@ -123,7 +123,7 @@ export const tr = {
     credentialsPassword: 'Geçici şifre',
     copyInvite: 'Davet mesajını kopyala',
     inviteMessage: (appUrl: string, username: string, password: string) =>
-      `Yeni Mahalle Kürek uygulaması\nAdres: ${appUrl}\nKullanıcı adı: ${username}\nGeçici şifre: ${password}\n(İlk girişte yeni şifre belirlemeniz istenecek.)`,
+      `YSK uygulaması\nAdres: ${appUrl}\nKullanıcı adı: ${username}\nGeçici şifre: ${password}\n(İlk girişte yeni şifre belirlemeniz istenecek.)`,
     detailsTitle: 'Üye işlemleri',
     resetPassword: 'Şifreyi sıfırla',
     resetConfirm: 'Yeni bir geçici şifre oluşturulsun mu? Eski şifre geçersiz olur.',
@@ -179,14 +179,14 @@ export const tr = {
       'Bu sayfayı Safari\'de açın (Chrome değil).',
       'Alttaki Paylaş düğmesine (kare ve yukarı ok) dokunun.',
       '"Ana Ekrana Ekle"yi seçin ve Ekle\'ye dokunun.',
-      'Ana ekrandaki "Kürek" simgesinden açın; sonra Profil → Bildirimleri aç.',
+      'Ana ekrandaki "YSK" simgesinden açın; sonra Profil → Bildirimleri aç.',
     ],
     iosNote: 'Bildirimler için iPhone\'unuzda iOS 16.4 veya üstü gerekir.',
     androidTitle: 'Android (Chrome)',
     androidSteps: [
       'Sağ üstteki ⋮ menüsüne dokunun.',
       '"Uygulamayı yükle" veya "Ana ekrana ekle"yi seçin.',
-      'Ana ekrandaki "Kürek" simgesinden açın.',
+      'Ana ekrandaki "YSK" simgesinden açın.',
     ],
     dismiss: 'Şimdilik gizle',
     seeSteps: 'Nasıl yapılır?',

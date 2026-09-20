@@ -1,14 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Yeni Mahalle Kürek">
-  <!-- PLACEHOLDER icon (no club logo yet). Replace this file with the club logo, then run `npm run icons`. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="YSK">
+  <!-- YSK app icon: two crossed oars (white + the sun's warm yellow) over a small ripple, on the app's blue.
+       Full-bleed flat square on purpose (the maskable / Apple icons are cut from it, so no artwork may touch the edges);
+       everything that matters sits inside the central ~70%, so phone masks never clip it.
+       `npm run icons` turns this file into the PNG / ICO icons. Keep the background in step with BACKGROUND in
+       pwa-assets.config.ts. -->
+  <rect width="512" height="512" fill="#0b5f8e"/>
   <defs>
-    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2a97cf"/>
-      <stop offset="1" stop-color="#0b5f8e"/>
-    </linearGradient>
+    <!-- one oar pointing up from its own origin: shaft, rounded grip at the bottom, flat wide blade with a centre ridge -->
+    <g id="oar">
+      <path d="M0 -100 V 138" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round"/>
+      <circle cx="0" cy="136" r="17" fill="currentColor"/>
+      <path d="M-12 -92 C -16 -114 -40 -126 -40 -150 V -192 Q -40 -224 -8 -224 H 8 Q 40 -224 40 -192 V -150 C 40 -126 16 -114 12 -92 Z" fill="currentColor"/>
+      <path d="M0 -206 V -132" fill="none" stroke="#0b5f8e" stroke-opacity="0.35" stroke-width="7" stroke-linecap="round"/>
+    </g>
   </defs>
-  <rect width="512" height="512" fill="url(#sky)"/>
-  <circle cx="256" cy="180" r="60" fill="#ffd27a"/>
-  <path d="M0 300 Q 64 262 128 300 T 256 300 T 384 300 T 512 300 V 512 H 0 Z" fill="#7fc3e6" fill-opacity="0.55"/>
-  <path d="M0 348 Q 64 310 128 348 T 256 348 T 384 348 T 512 348 V 512 H 0 Z" fill="#3b9ccc"/>
-  <path d="M0 400 Q 64 362 128 400 T 256 400 T 384 400 T 512 400 V 512 H 0 Z" fill="#0b4d75"/>
+  <!-- back oar (yellow), then the front oar (white) with a thin blue edge so the crossing stays readable -->
+  <use href="#oar" transform="translate(256 286) rotate(-36)" color="#ffd27a"/>
+  <g transform="translate(256 286) rotate(36)">
+    <path d="M0 -100 V 138" fill="none" stroke="#0b5f8e" stroke-width="36" stroke-linecap="round"/>
+    <use href="#oar" color="#ffffff"/>
+  </g>
+  <!-- the water: two short ripples, kept inside the safe zone -->
+  <path d="M168 426 Q 196 408 224 426 T 280 426 T 344 426" fill="none" stroke="#7fc3e6" stroke-width="14" stroke-linecap="round"/>
 </svg>

@@ -39,7 +39,7 @@ self.addEventListener('push', (event) => {
   // iOS/Safari require every push to show a notification (userVisibleOnly), so always show one.
   event.waitUntil(
     (async () => {
-      await self.registration.showNotification(payload.title || 'Yeni Mahalle Kürek', {
+      await self.registration.showNotification(payload.title || 'YSK', {
         body: payload.body ?? '',
         icon: '/pwa-192x192.png',
         badge: '/pwa-64x64.png',

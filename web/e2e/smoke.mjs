@@ -1970,7 +1970,7 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('heading', { name: 'Değişiklik geçmişi', level: 1 }).waitFor();
   await page.waitForFunction(() => document.activeElement?.tagName === 'H1');
   check('after navigating, focus is on the new page heading (so it is announced)', (await page.evaluate(() => document.activeElement?.textContent)) === 'Değişiklik geçmişi');
-  check('and the tab title follows the page', (await page.title()) === 'Değişiklik geçmişi · Yeni Mahalle Kürek', await page.title());
+  check('and the tab title follows the page', (await page.title()) === 'Değişiklik geçmişi · YSK', await page.title());
 
   // ---- the audit log itself ----
   await page.getByText('Program yayınlandı (sürüm 2): 23 Eylül Çarşamba 08:00').waitFor();

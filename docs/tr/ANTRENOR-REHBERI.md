@@ -1,4 +1,4 @@
-# Yeni Mahalle Kürek — Antrenör Rehberi
+# YSK — Antrenör Rehberi
 
 Bir antrenmanın yolculuğu: **oluştur → üyeler yanıtlar → programı hazırla ve yayınla → yoklama al → istatistikler kendiliğinden oluşur.**
 

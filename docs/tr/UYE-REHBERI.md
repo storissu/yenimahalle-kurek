@@ -1,4 +1,4 @@
-# Yeni Mahalle Kürek — Üye Rehberi
+# YSK — Üye Rehberi
 
 Kulübün antrenman uygulaması: antrenmana katılıp katılmayacağınızı bildirirsiniz, hangi tekneye ve hangi saate yazıldığınızı görürsünüz. **Mağazadan indirmek gerekmez, ücretsizdir.**
 
@@ -12,12 +12,12 @@ Kulübün antrenman uygulaması: antrenmana katılıp katılmayacağınızı bil
 1. Antrenörünüzün gönderdiği adresi **Safari**'de açın (Chrome değil).
 2. Alttaki **Paylaş** düğmesine (kare ve yukarı ok) dokunun.
 3. **Ana Ekrana Ekle** → **Ekle**.
-4. Bundan sonra uygulamayı ana ekrandaki **Kürek** simgesinden açın.
+4. Bundan sonra uygulamayı ana ekrandaki **YSK** simgesinden açın.
 
 **Android**
 1. Adresi **Chrome**'da açın.
 2. Sağ üstteki **⋮** menüsü → **Uygulamayı yükle** (veya "Ana ekrana ekle").
-3. Ana ekrandaki **Kürek** simgesinden açın.
+3. Ana ekrandaki **YSK** simgesinden açın.
 
 ## 2. İlk giriş
 
@@ -69,7 +69,7 @@ Antrenman sayfasında **tek bir küçük hava kartı** vardır: rüzgâr, hamle,
 | Sorun | Ne yapmalı |
 |---|---|
 | Giriş yapamıyorum | Kullanıcı adını küçük harfle yazın; olmazsa antrenörünüze söyleyin |
-| Bildirim gelmiyor | Profil → Bildirimleri aç; telefonun ayarlarından Kürek için bildirime izin verin; Android'de pil tasarrufunu Kürek için kapatın |
+| Bildirim gelmiyor | Profil → Bildirimleri aç; telefonun ayarlarından YSK için bildirime izin verin; Android'de pil tasarrufunu YSK için kapatın |
 | Yanıtımı değiştiremiyorum | Süre dolmuş veya program yayınlanmış olabilir; antrenörünüz sizin yerinize güncelleyebilir |
 | Ekranda eski bilgi görünüyor | Uygulamayı kapatıp açın; "Yeni sürüm hazır" çıkarsa **Yenile**'ye dokunun |
 | İnternet yok | Yüklü sayfalar görünür ama kaydetme çalışmaz; bağlanınca tekrar deneyin |

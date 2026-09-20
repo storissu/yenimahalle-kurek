@@ -19,7 +19,7 @@ export const help = {
   member: [
     {
       q: `Uygulamayı telefonuma nasıl yüklerim?`,
-      a: `Mağazadan indirmeniz gerekmez. iPhone'da Safari ile siteyi açın, Paylaş düğmesine dokunup "Ana Ekrana Ekle"yi seçin. Android'de Chrome'da ⋮ menüsünden "Uygulamayı yükle"yi seçin. Sonra ana ekrandaki "Kürek" simgesinden açın. Adım adım anlatım için Profil sayfasındaki yükleme kutusuna bakın.`,
+      a: `Mağazadan indirmeniz gerekmez. iPhone'da Safari ile siteyi açın, Paylaş düğmesine dokunup "Ana Ekrana Ekle"yi seçin. Android'de Chrome'da ⋮ menüsünden "Uygulamayı yükle"yi seçin. Sonra ana ekrandaki "YSK" simgesinden açın. Adım adım anlatım için Profil sayfasındaki yükleme kutusuna bakın.`,
     },
     {
       q: `İlk kez nasıl giriş yaparım?`,
@@ -51,7 +51,7 @@ export const help = {
     },
     {
       q: `Bildirim almıyorum.`,
-      a: `Profil → "Bildirimleri aç"a dokunup izin verin. iPhone'da bildirim için uygulamanın ana ekrandan açılması ve iOS 16.4 veya üstü gerekir. Android'de pil tasarrufu uygulamayı kısıtlıyorsa Kürek için kısıtlamayı kapatın. Bildirimleri kaçırsanız da hepsi sağ üstteki zil simgesinde durur.`,
+      a: `Profil → "Bildirimleri aç"a dokunup izin verin. iPhone'da bildirim için uygulamanın ana ekrandan açılması ve iOS 16.4 veya üstü gerekir. Android'de pil tasarrufu uygulamayı kısıtlıyorsa YSK için kısıtlamayı kapatın. Bildirimleri kaçırsanız da hepsi sağ üstteki zil simgesinde durur.`,
     },
     {
       q: `Sıralama nasıl hesaplanıyor?`,
