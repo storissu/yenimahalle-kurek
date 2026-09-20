@@ -72,6 +72,7 @@ Antrenman sayfasında **tek bir küçük hava kartı** vardır: rüzgâr, hamle,
 | Bildirim gelmiyor | Profil → Bildirimleri aç; telefonun ayarlarından YSK için bildirime izin verin; Android'de pil tasarrufunu YSK için kapatın |
 | Yanıtımı değiştiremiyorum | Süre dolmuş veya program yayınlanmış olabilir; antrenörünüz sizin yerinize güncelleyebilir |
 | Ekranda eski bilgi görünüyor | Uygulamayı kapatıp açın; "Yeni sürüm hazır" çıkarsa **Yenile**'ye dokunun |
+| Uygulama boş açılıyor veya "Uygulama açılamadı" yazıyor | **Yeniden dene**'ye dokunun; olmazsa Wi-Fi'den mobil veriye (veya tersine) geçin. Hâlâ açılmazsa ekrandaki "Hata ayrıntısı" yazısının fotoğrafını antrenörünüze gönderin |
 | İnternet yok | Yüklü sayfalar görünür ama kaydetme çalışmaz; bağlanınca tekrar deneyin |
 
 Bir hata görürseniz veya öneriniz varsa **Profil → Yardım → Görüş bildir** (veya doğrudan antrenörünüze yazın). Hangi telefonu kullandığınızı ve ne yaptığınızı yazarsanız çabuk çözeriz.

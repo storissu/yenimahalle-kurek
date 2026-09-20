@@ -2279,6 +2279,28 @@ const shot = async (page, name, fullPage = false) => {
   await ctx.close();
 }
 
+// ---------- 5. a phone network that drops the app's code: no blank screen ----------
+for (const scheme of ['light', 'dark']) {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, colorScheme: scheme, serviceWorkers: 'block' });
+  const page = await ctx.newPage();
+  let blocked = 0;
+  await ctx.route('**/assets/mountApp-*.js', (route) => {
+    blocked += 1;
+    return route.abort('connectionreset'); // what iOS reports as "The network connection was lost"
+  });
+  await page.goto(BASE + '/giris');
+  // First failure: one quiet automatic reload; second failure: the visible message.
+  const shown = await page.getByRole('heading', { name: 'Uygulama açılamadı' }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+  check(`blocked app code (${scheme}): fallback message instead of a blank page`, shown);
+  check(`blocked app code (${scheme}): the page was reloaded once automatically`, blocked >= 2, `requests: ${blocked}`);
+  check(`blocked app code (${scheme}): the failed file is shown for support`, (await page.locator('code').textContent()).includes('mountApp'));
+  await a11y(page, `boot fallback ${scheme}`);
+  await ctx.unroute('**/assets/mountApp-*.js');
+  await page.getByRole('button', { name: 'Yeniden dene' }).click();
+  check(`blocked app code (${scheme}): "Yeniden dene" loads the app once the network is back`, await page.getByRole('heading', { name: 'Giriş yap' }).waitFor({ timeout: 10_000 }).then(() => true, () => false));
+  await ctx.close();
+}
+
 await browser.close();
 if (a11yNotes.length) console.log('\naxe: minor/moderate findings (not failing):\n  ' + [...new Set(a11yNotes)].join('\n  '));
 const failed = results.filter((r) => !r).length;
