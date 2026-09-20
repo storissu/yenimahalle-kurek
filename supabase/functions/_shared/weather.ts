@@ -234,18 +234,41 @@ export interface TrainingWindow {
   id: string;
   starts_at: string;
   slot_count: number;
+  /** End of the last session (null until a program exists). */
+  ends_at?: string | null;
+  /** The program's sessions: each boat session has its own start. Empty when there is no program. */
+  sessions?: Array<{ slot_index: number; starts_at: string }>;
 }
 
-/** Sessions to forecast: a training whose length is not planned yet (slot_count 0) still gets its first hour. */
-export const forecastSlots = (t: Pick<TrainingWindow, 'slot_count'>): number => Math.max(1, t.slot_count);
+/**
+ * The sessions to forecast, each at ITS OWN start. With a program: one per session number (an older program may let several
+ * boats share a number: the earliest start counts). Without one — a training whose length is not planned yet (slot_count 0) —
+ * the old hourly grid, and at least its first hour.
+ */
+export function forecastSessions(t: TrainingWindow): Array<{ slotIndex: number; startMs: number }> {
+  if (t.sessions && t.sessions.length > 0) {
+    const earliest = new Map<number, number>();
+    for (const s of t.sessions) {
+      const ms = Date.parse(s.starts_at);
+      const known = earliest.get(s.slot_index);
+      if (known === undefined || ms < known) earliest.set(s.slot_index, ms);
+    }
+    return [...earliest].map(([slotIndex, startMs]) => ({ slotIndex, startMs })).sort((a, b) => a.slotIndex - b.slotIndex);
+  }
+  const start = Date.parse(t.starts_at);
+  return Array.from({ length: Math.max(1, t.slot_count) }, (_, slot) => ({ slotIndex: slot, startMs: start + slot * HOUR_MS }));
+}
+
+/** When the training is over: the end of its last session, or (no program) start + one hour per session. */
+export const trainingEndMs = (t: Pick<TrainingWindow, 'starts_at' | 'slot_count' | 'ends_at'>): number =>
+  t.ends_at ? Date.parse(t.ends_at) : Date.parse(t.starts_at) + Math.max(1, t.slot_count) * HOUR_MS;
 
 /** Snapshot rows for every session of every training that the forecast covers. */
 export function snapshotsForTrainings(trainings: TrainingWindow[], series: Series, source: Source, fetchedAt: Date = new Date()): SnapshotRow[] {
   const rows: SnapshotRow[] = [];
   for (const t of trainings) {
-    const start = Date.parse(t.starts_at);
-    for (let slot = 0; slot < forecastSlots(t); slot++) {
-      const row = snapshotFor(t.id, slot, start + slot * HOUR_MS, series, source, fetchedAt);
+    for (const { slotIndex, startMs } of forecastSessions(t)) {
+      const row = snapshotFor(t.id, slotIndex, startMs, series, source, fetchedAt);
       if (row) rows.push(row);
     }
   }

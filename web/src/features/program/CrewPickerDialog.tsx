@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn';
 import { tr } from '@/strings/tr';
 import type { Boat } from '@/types/database';
 import { boatStyle } from './boatStyle';
-import { assignedInSlot, crewOf, memberSlots, type ProgramDraft } from './model';
+import { conflictFor, memberSessions, type ProgramDraft, type SessionDraft } from './model';
 
 export interface RosterMemberInfo {
   id: string;
@@ -18,18 +18,17 @@ export interface RosterMemberInfo {
 }
 
 interface CrewPickerDialogProps {
-  /** `position` = the boat's place in the club order (its accent colour). */
-  target: { slot: number; boat: Boat; position: number } | null;
+  /** The session being filled, its boat, and `position` = the boat's place in the club order (its accent colour). */
+  target: { session: SessionDraft; boat: Boat; position: number } | null;
   draft: ProgramDraft;
   roster: RosterMemberInfo[];
-  rangeLabel: (slot: number) => string;
   boatName: (boatId: string) => string;
   onToggle: (memberId: string) => void;
   onClose: () => void;
 }
 
 interface PickerBodyProps extends Omit<CrewPickerDialogProps, 'target'> {
-  slot: number;
+  session: SessionDraft;
   boat: Boat;
 }
 
@@ -69,16 +68,18 @@ function Row({ member, checked, disabledReason, load, onToggle }: { member: Rost
   );
 }
 
-function PickerBody({ slot, boat, draft, roster, rangeLabel, boatName, onToggle, onClose }: PickerBodyProps) {
-  const inBoat = crewOf(draft, slot, boat.id);
-  const elsewhere = assignedInSlot(draft, slot);
+function PickerBody({ session: target, boat, draft, roster, boatName, onToggle, onClose }: PickerBodyProps) {
+  // always read the session from the draft: the crew changes while the dialog is open
+  const session = draft.sessions.find((s) => s.id === target.id) ?? target;
+  const inBoat = session.crew;
   const full = inBoat.length >= boat.capacity;
 
   const renderRow = (member: RosterMemberInfo) => {
     const checked = inBoat.includes(member.id);
-    const otherBoat = elsewhere.get(member.id);
-    const disabledReason = checked ? null : otherBoat && otherBoat !== boat.id ? tr.program.inOtherBoat(boatName(otherBoat)) : full ? tr.program.boatFull : null;
-    return <Row key={member.id} member={member} checked={checked} disabledReason={disabledReason} load={memberSlots(draft, member.id).length} onToggle={() => onToggle(member.id)} />;
+    // somebody who already rows ANOTHER boat while this session is on the water cannot be picked (nobody is in two boats at once)
+    const clash = checked ? undefined : conflictFor(draft, session, member.id);
+    const disabledReason = checked ? null : clash ? tr.program.inOtherBoat(boatName(clash.boatId), `${clash.start}–${clash.end}`) : full ? tr.program.boatFull : null;
+    return <Row key={member.id} member={member} checked={checked} disabledReason={disabledReason} load={memberSessions(draft, member.id).length} onToggle={() => onToggle(member.id)} />;
   };
 
   const attending = roster.filter((m) => m.answer === 'attending');
@@ -117,7 +118,7 @@ function PickerBody({ slot, boat, draft, roster, rangeLabel, boatName, onToggle,
         {tr.program.pickerDone}
       </Button>
       <span className="sr-only" aria-live="polite">
-        {rangeLabel(slot)} {boat.name} {tr.program.crewCount(inBoat.length, boat.capacity)}
+        {session.start}–{session.end} {boat.name} {tr.program.crewCount(inBoat.length, boat.capacity)}
       </span>
     </>
   );
@@ -133,14 +134,16 @@ export function CrewPickerDialog({ target, ...rest }: CrewPickerDialogProps) {
         {target.boat.name}
       </span>
       {' · '}
-      <span className="text-2xl font-extrabold tabular-nums">{rest.rangeLabel(target.slot)}</span>
+      <span className="text-2xl font-extrabold tabular-nums">
+        {target.session.start}–{target.session.end}
+      </span>
     </>
   ) : (
     ''
   );
   return (
     <Dialog open={target !== null} onClose={rest.onClose} title={title}>
-      {target && <PickerBody slot={target.slot} boat={target.boat} {...rest} />}
+      {target && <PickerBody session={target.session} boat={target.boat} {...rest} />}
     </Dialog>
   );
 }

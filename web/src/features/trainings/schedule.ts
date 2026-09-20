@@ -8,12 +8,14 @@ export type { TrainingStatus };
 export interface TrainingLike {
   starts_at: string;
   slot_count: number;
+  /** End of the last session (server-derived); null until a program exists. */
+  ends_at?: string | null;
   rsvp_deadline: string;
   status: TrainingStatus;
 }
 
-/** The most sessions one training can have (the database enforces the same limit). */
-export const MAX_SLOTS = 12;
+/** The most session numbers one training can use (the database enforces the same limit). */
+export const MAX_SLOTS = 30;
 
 export const startsAt = (t: Pick<TrainingLike, 'starts_at'>): Date => new Date(t.starts_at);
 
@@ -22,19 +24,33 @@ export const startsAt = (t: Pick<TrainingLike, 'starts_at'>): Date => new Date(t
  * attendance sheet) exists. Until then the training counts as one hour long, so lists and "is it over?"
  * checks keep working.
  */
-export const hasPlannedSessions = (t: Pick<TrainingLike, 'slot_count'>): boolean => t.slot_count > 0;
+type Span = Pick<TrainingLike, 'starts_at' | 'slot_count'> & { ends_at?: string | null };
 
-export const endsAt = (t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): Date =>
-  new Date(new Date(t.starts_at).getTime() + Math.max(1, t.slot_count) * HOUR_MS);
+export const hasPlannedSessions = (t: Pick<TrainingLike, 'slot_count'> & { ends_at?: string | null }): boolean => Boolean(t.ends_at) || t.slot_count > 0;
 
-/** "08:00–10:00", or just "08:00" while the length is not known yet. */
-export function timeRangeLabel(t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): string {
+/** When the training is over: the end of its last session; without a program, start + one hour per session (at least one). */
+export const endsAt = (t: Span): Date => (t.ends_at ? new Date(t.ends_at) : new Date(new Date(t.starts_at).getTime() + Math.max(1, t.slot_count) * HOUR_MS));
+
+/** "08:00–10:30", or just "08:00" while the length is not known yet. */
+export function timeRangeLabel(t: Span): string {
   return hasPlannedSessions(t) ? `${formatTime(startsAt(t))}–${formatTime(endsAt(t))}` : formatTime(startsAt(t));
 }
 
-/** "08:00–10:00 · 2 seans", or "08:00 · süre program hazırlanınca belli olur". */
-export function trainingTimeText(t: Pick<TrainingLike, 'starts_at' | 'slot_count'>): string {
-  return hasPlannedSessions(t) ? `${timeRangeLabel(t)} · ${sessionCountLabel(t.slot_count)}` : `${timeRangeLabel(t)} · ${tr.trainings.durationUnknown}`;
+/** "08:00–10:30", or "08:00 · süre program hazırlanınca belli olur". */
+export function trainingTimeText(t: Span): string {
+  return hasPlannedSessions(t) ? timeRangeLabel(t) : `${timeRangeLabel(t)} · ${tr.trainings.durationUnknown}`;
+}
+
+/** "08:15–09:15" from the two instants of a session. */
+export const spanLabel = (from: string | Date, to: string | Date): string => `${formatTime(from)}–${formatTime(to)}`;
+
+/**
+ * When a session was, given the times the database knows for it (or not): its own window if there is one, otherwise the old
+ * hourly grid — an hour per session number from the training's start (sessions nobody planned, older data).
+ */
+export function sessionWindow(t: Pick<TrainingLike, 'starts_at'>, slot: number, own?: { starts_at: string | null; ends_at: string | null } | null): { start: string; end: string } {
+  if (own?.starts_at && own.ends_at) return { start: formatTime(own.starts_at), end: formatTime(own.ends_at) };
+  return sessionTimes(t, slot);
 }
 
 /** "19 Eylül Cumartesi 20:00" — when the RSVP window closes. */
@@ -102,7 +118,7 @@ export interface Partitioned<T> {
 }
 
 /** Splits trainings into upcoming (end time still ahead) and past. Cancelled ones stay in the list they belong to by time. */
-export function partitionTrainings<T extends Pick<TrainingLike, 'starts_at' | 'slot_count'>>(list: T[], now: Date): Partitioned<T> {
+export function partitionTrainings<T extends Span>(list: T[], now: Date): Partitioned<T> {
   const upcoming: T[] = [];
   const past: T[] = [];
   for (const training of list) (endsAt(training) > now ? upcoming : past).push(training);

@@ -104,9 +104,9 @@ describe('trainings: coach management', () => {
     expect(none.rows[0]?.rsvp_deadline_rule).toBeNull(); // older trainings simply have no memory
   });
 
-  it('keeps the session count between 0 and 12', async () => {
+  it('keeps the session count between 0 and 30', async () => {
     await expect(
-      db.query(`insert into public.trainings (starts_at, slot_count, rsvp_deadline, created_by) values (now() + interval '1 day', 13, now(), $1)`, [ids.coach1]),
+      db.query(`insert into public.trainings (starts_at, slot_count, rsvp_deadline, created_by) values (now() + interval '1 day', 31, now(), $1)`, [ids.coach1]),
     ).rejects.toThrow(/trainings_slot_count_range/);
     await expect(
       db.query(`insert into public.trainings (starts_at, slot_count, rsvp_deadline, created_by) values (now() + interval '1 day', -1, now(), $1)`, [ids.coach1]),

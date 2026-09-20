@@ -11,7 +11,7 @@ import { TrainingNote, WeatherNote } from './ProgramParts';
  * same compact layout as on a member's phone (no one is highlighted — the coach is not rowing). Nothing is shown for a
  * draft (the editor below is the place for that) or for a cancelled training. Names open a contact card with the phone.
  */
-export function CoachProgramView({ training }: { training: Pick<Training, 'id' | 'starts_at' | 'slot_count' | 'status'> }) {
+export function CoachProgramView({ training }: { training: Pick<Training, 'id' | 'status'> }) {
   const program = useProgram(training.id);
   const boats = useBoats();
   const { query: namesQuery, nameOf, contactOf } = useMemberNames();
@@ -38,7 +38,7 @@ export function CoachProgramView({ training }: { training: Pick<Training, 'id' |
         {tr.program.coachPublished}
       </h2>
       <TrainingNote notes={program.data.program.training_notes} />
-      <ProgramByBoat data={program.data} training={training} boats={boats.data} nameOf={nameOf} contactOf={contactOf} profileLinks={false} />
+      <ProgramByBoat data={program.data} boats={boats.data} nameOf={nameOf} contactOf={contactOf} profileLinks={false} />
       <WeatherNote note={program.data.program.weather_note} />
     </section>
   );

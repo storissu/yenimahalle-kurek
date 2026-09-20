@@ -1,11 +1,22 @@
 // The coach's editable program, as plain data + pure functions (no React, no network).
-// Every rule the database enforces (capacity, one boat per member per hour, one use of a boat per
-// hour) is mirrored here so the editor can refuse a bad move immediately instead of after a save.
+//
+// Every boat has its OWN sequence of sessions, each with its own start and end (club wall time, "HH:MM"):
+//   Mavi    08:00–09:00 Ali + John   09:00–10:00 Ayşe + Mehmet
+//   Turuncu 08:15–09:15 Elif + Can   09:15–10:15 Zeynep + Deniz
+// Sessions of different boats never influence each other. A session lasts one hour unless the coach says otherwise.
+// Every rule the database enforces (capacity, no overlapping sessions of one boat, nobody in two boats at once, full C4X)
+// is mirrored here so the editor can refuse a bad move immediately instead of after a save.
 import type { Boat, Json, ProgramAssignment, ProgramCrew, TrainingProgram } from '@/types/database';
+import { instantToWallTime, wallTimeToInstant } from '@/lib/time';
 import { MAX_SLOTS } from '../trainings/schedule';
 
-export interface BoatEntry {
+export interface SessionDraft {
+  /** The session's number in the database (`slot_index`): stable, unique within the training; new sessions get fresh ones. */
+  id: number;
   boatId: string;
+  /** "HH:MM", club time. */
+  start: string;
+  end: string;
   /** Member ids in seat order. */
   crew: string[];
   notes: string;
@@ -14,8 +25,8 @@ export interface BoatEntry {
 export interface ProgramDraft {
   weatherNote: string;
   trainingNotes: string;
-  /** slots[i] = the boats on the water in hour i (only boats that have a crew). */
-  slots: BoatEntry[][];
+  /** Every session of every boat (grouped by boat and ordered by time only when shown). */
+  sessions: SessionDraft[];
 }
 
 /** What the database holds for a training's program (coach sees drafts too; members only published). */
@@ -25,229 +36,347 @@ export interface ProgramData {
   crew: ProgramCrew[];
 }
 
-export const emptyDraft = (slotCount: number): ProgramDraft => ({
-  weatherNote: '',
-  trainingNotes: '',
-  slots: Array.from({ length: slotCount }, () => []),
-});
+// --- clock arithmetic ("HH:MM" <-> minutes) -----------------------------------------------------
 
-/** Turns what was loaded from the database into an editable draft. */
-export function draftFromProgram(data: ProgramData, slotCount: number): ProgramDraft {
-  const draft = emptyDraft(slotCount);
-  draft.weatherNote = data.program?.weather_note ?? '';
-  draft.trainingNotes = data.program?.training_notes ?? '';
+export const DEFAULT_MINUTES = 60;
+export const MAX_SESSION_MINUTES = 8 * 60;
+const DAY_END = 23 * 60 + 59;
+
+export function toMinutes(time: string): number {
+  const match = /^(\d{2}):(\d{2})$/.exec(time);
+  if (!match) return Number.NaN;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+export function fromMinutes(minutes: number): string {
+  const clamped = Math.max(0, Math.min(DAY_END, Math.round(minutes)));
+  return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
+}
+
+export const isTime = (time: string): boolean => Number.isFinite(toMinutes(time)) && toMinutes(time) <= DAY_END;
+
+/** "1 sa", "1 sa 15 dk", "45 dk". */
+export function durationLabel(start: string, end: string): string {
+  const minutes = toMinutes(end) - toMinutes(start);
+  if (!Number.isFinite(minutes) || minutes <= 0) return '';
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return [h > 0 ? `${h} sa` : '', m > 0 ? `${m} dk` : ''].filter(Boolean).join(' ');
+}
+
+// --- loading -------------------------------------------------------------------------------------
+
+export const emptyDraft = (): ProgramDraft => ({ weatherNote: '', trainingNotes: '', sessions: [] });
+
+/** Turns what was loaded from the database into an editable draft (sessions without a crew are not part of a program). */
+export function draftFromProgram(data: ProgramData): ProgramDraft {
+  const sessions: SessionDraft[] = [];
   for (const assignment of data.assignments) {
-    if (assignment.slot_index < 0 || assignment.slot_index >= slotCount) continue;
     const crew = data.crew
       .filter((c) => c.assignment_id === assignment.id)
       .sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0) || a.member_id.localeCompare(b.member_id))
       .map((c) => c.member_id);
     if (crew.length === 0) continue;
-    draft.slots[assignment.slot_index]?.push({ boatId: assignment.boat_id, crew, notes: assignment.notes ?? '' });
+    sessions.push({
+      id: assignment.slot_index,
+      boatId: assignment.boat_id,
+      start: instantToWallTime(assignment.starts_at).time,
+      end: instantToWallTime(assignment.ends_at).time,
+      crew,
+      notes: assignment.notes ?? '',
+    });
   }
-  return normalize(draft);
+  return normalize({ weatherNote: data.program?.weather_note ?? '', trainingNotes: data.program?.training_notes ?? '', sessions });
 }
 
-/** Canonical form: empty boats dropped, boats in a stable order, text trimmed. Used for comparing and saving. */
+/** Canonical form: sessions without a crew dropped, a stable order, text trimmed. Used for comparing and saving. */
 export function normalize(draft: ProgramDraft): ProgramDraft {
   return {
     weatherNote: draft.weatherNote.trim(),
     trainingNotes: draft.trainingNotes.trim(),
-    slots: draft.slots.map((entries) =>
-      entries
-        .filter((e) => e.crew.length > 0)
-        .map((e) => ({ boatId: e.boatId, crew: [...e.crew], notes: e.notes.trim() }))
-        .sort((a, b) => a.boatId.localeCompare(b.boatId)),
-    ),
+    sessions: draft.sessions
+      .filter((s) => s.crew.length > 0)
+      .map((s) => ({ id: s.id, boatId: s.boatId, start: s.start, end: s.end, crew: [...s.crew], notes: s.notes.trim() }))
+      .sort((a, b) => a.id - b.id || a.boatId.localeCompare(b.boatId)),
   };
 }
 
-/** Sessions after the last one that has a crew are not part of the program (the training simply ends earlier). */
-export function trimTrailingEmpty(draft: ProgramDraft): ProgramDraft {
-  const slots = normalize(draft).slots;
-  let end = slots.length;
-  while (end > 0 && (slots[end - 1]?.length ?? 0) === 0) end--;
-  return { ...normalize(draft), slots: slots.slice(0, end) };
+/** Two drafts are the same program when they only differ by empty sessions. */
+export const isSameDraft = (a: ProgramDraft, b: ProgramDraft): boolean => JSON.stringify(normalize(a)) === JSON.stringify(normalize(b));
+
+// --- reading -------------------------------------------------------------------------------------
+
+const byTime = (a: SessionDraft, b: SessionDraft) => toMinutes(a.start) - toMinutes(b.start) || toMinutes(a.end) - toMinutes(b.end) || a.id - b.id;
+
+/** One boat's sessions in time order. */
+export const sessionsOf = (draft: ProgramDraft, boatId: string): SessionDraft[] => draft.sessions.filter((s) => s.boatId === boatId).sort(byTime);
+
+export const sessionById = (draft: ProgramDraft, id: number, boatId?: string): SessionDraft | undefined =>
+  draft.sessions.find((s) => s.id === id && (boatId === undefined || s.boatId === boatId));
+
+export const hasAnyCrew = (draft: ProgramDraft): boolean => draft.sessions.some((s) => s.crew.length > 0);
+
+/** The sessions a member rows in, in time order (each with its boat). */
+export const memberSessions = (draft: ProgramDraft, memberId: string): SessionDraft[] => draft.sessions.filter((s) => s.crew.includes(memberId)).sort(byTime);
+
+const overlaps = (a: Pick<SessionDraft, 'start' | 'end'>, b: Pick<SessionDraft, 'start' | 'end'>): boolean =>
+  toMinutes(a.start) < toMinutes(b.end) && toMinutes(b.start) < toMinutes(a.end);
+
+/** Another session of a DIFFERENT boat that the member already rows in while `session` is on the water, if any. */
+export function conflictFor(draft: ProgramDraft, session: SessionDraft, memberId: string): SessionDraft | undefined {
+  return draft.sessions.find((s) => s !== session && s.crew.includes(memberId) && overlaps(s, session));
 }
 
-/** Two drafts are the same program when they only differ by empty sessions at the end. */
-export function isSameDraft(a: ProgramDraft, b: ProgramDraft): boolean {
-  return JSON.stringify(trimTrailingEmpty(a)) === JSON.stringify(trimTrailingEmpty(b));
+// --- adding, timing, removing sessions -------------------------------------------------------------
+
+/** The number a new session gets: above every number in the draft and above `floor` (the training's bound, which covers attendance). */
+export const nextSessionId = (draft: ProgramDraft, floor = 0): number => Math.max(floor, ...draft.sessions.map((s) => s.id + 1), 0);
+
+export const canAddSession = (draft: ProgramDraft, boatId: string): boolean => {
+  if (draft.sessions.length >= MAX_SLOTS) return false;
+  const last = sessionsOf(draft, boatId).at(-1);
+  return !last || toMinutes(last.end) < DAY_END;
+};
+
+/** Where the next session of a boat would start: when its last one ends, or at `firstStart` for a boat's first session. */
+export function suggestedStart(draft: ProgramDraft, boatId: string, firstStart: string): string {
+  const last = [...sessionsOf(draft, boatId)].sort((a, b) => toMinutes(a.end) - toMinutes(b.end)).at(-1);
+  return last ? last.end : firstStart;
 }
 
 /**
- * How many sessions the editor starts with: whatever the program already uses, whatever the training was planned
- * with (older trainings had a fixed count), and at least one.
+ * A new (empty) session for the boat: it starts when the boat's previous session ends (or at `firstStart` for the first
+ * one) and lasts an hour. Returns the draft and the new session's number; refuses beyond the maximum.
  */
-export function initialSessionCount(data: Pick<ProgramData, 'assignments'>, trainingSlotCount: number): number {
-  const used = data.assignments.reduce((max, a) => Math.max(max, a.slot_index + 1), 0);
-  return Math.max(1, trainingSlotCount, used);
-}
-
-export const canAddSession = (draft: ProgramDraft): boolean => draft.slots.length < MAX_SLOTS;
-
-/** One more (empty) session at the end. Refuses beyond the maximum, like the database does. */
-export function addSession(draft: ProgramDraft): ProgramDraft {
-  return canAddSession(draft) ? { ...draft, slots: [...draft.slots, []] } : draft;
-}
-
-export const canRemoveSession = (draft: ProgramDraft): boolean => draft.slots.length > 1;
-
-/** Drops the last session together with its crews. There is always at least one session. */
-export function removeLastSession(draft: ProgramDraft): ProgramDraft {
-  return canRemoveSession(draft) ? { ...draft, slots: draft.slots.slice(0, -1) } : draft;
-}
-
-// --- boats that must be full (C4X) ---------------------------------------------------------------
-
-export interface FullCrewProblem {
-  slot: number;
-  boatId: string;
-  count: number;
-  capacity: number;
+export function addSession(draft: ProgramDraft, boatId: string, firstStart: string, floor = 0): { draft: ProgramDraft; id: number | null } {
+  if (!canAddSession(draft, boatId)) return { draft, id: null };
+  const start = suggestedStart(draft, boatId, firstStart);
+  const end = fromMinutes(toMinutes(start) + DEFAULT_MINUTES);
+  const id = nextSessionId(draft, floor);
+  return { draft: { ...draft, sessions: [...draft.sessions, { id, boatId, start, end, crew: [], notes: '' }] }, id };
 }
 
 /**
- * Boats with `requires_full_crew` (C4X = exactly 4) that have a crew of the wrong size. A boat with nobody in it is
- * simply not used and is fine. Publishing (and updating a published program) must be blocked while this is non-empty;
- * drafts may be incomplete. The database refuses the same thing.
+ * Gives every listed boat that has no session yet one empty session (an hour, starting at `firstStart`): the starting
+ * point of the editor, so the coach only sets the boat's first start time and picks a team. Empty sessions are never saved.
  */
-export function fullCrewProblems(draft: ProgramDraft, boats: ReadonlyArray<Pick<Boat, 'id' | 'capacity' | 'requires_full_crew'>>): FullCrewProblem[] {
-  const byId = new Map(boats.map((b) => [b.id, b]));
-  const problems: FullCrewProblem[] = [];
-  draft.slots.forEach((entries, slot) => {
-    for (const entry of entries) {
-      const boat = byId.get(entry.boatId);
-      if (boat?.requires_full_crew && entry.crew.length > 0 && entry.crew.length !== boat.capacity) {
-        problems.push({ slot, boatId: entry.boatId, count: entry.crew.length, capacity: boat.capacity });
-      }
-    }
-  });
-  return problems;
+export function withDefaultSessions(draft: ProgramDraft, boatIds: readonly string[], firstStart: string, floor = 0): ProgramDraft {
+  let next = draft;
+  for (const boatId of boatIds) if (!next.sessions.some((s) => s.boatId === boatId)) next = addSession(next, boatId, firstStart, floor).draft;
+  return next;
 }
 
-export interface SavePayload {
-  weather_note: string | null;
-  training_notes: string | null;
-  assignments: Array<{ slot_index: number; boat_id: string; notes: string | null; crew: string[] }>;
-}
-
-/** The argument of save_program(). Boats without a crew are left out. */
-export function toPayload(draft: ProgramDraft): SavePayload {
-  const n = normalize(draft);
-  return {
-    weather_note: n.weatherNote || null,
-    training_notes: n.trainingNotes || null,
-    assignments: n.slots.flatMap((entries, slot) =>
-      entries.map((e) => ({ slot_index: slot, boat_id: e.boatId, notes: e.notes || null, crew: e.crew })),
-    ),
-  };
-}
-
-export const payloadAsJson = (payload: SavePayload): Json => payload as unknown as Json;
-
-// --- reading -----------------------------------------------------------------------------------
-
-export function entryOf(draft: ProgramDraft, slot: number, boatId: string): BoatEntry | undefined {
-  return draft.slots[slot]?.find((e) => e.boatId === boatId);
-}
-
-export const crewOf = (draft: ProgramDraft, slot: number, boatId: string): string[] => entryOf(draft, slot, boatId)?.crew ?? [];
-
-/** member id → the boat they are in during this hour. */
-export function assignedInSlot(draft: ProgramDraft, slot: number): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const entry of draft.slots[slot] ?? []) for (const id of entry.crew) map.set(id, entry.boatId);
-  return map;
-}
-
-/** Hours (0-based) in which a member rows, with the boat. */
-export function memberSlots(draft: ProgramDraft, memberId: string): Array<{ slot: number; boatId: string }> {
-  const result: Array<{ slot: number; boatId: string }> = [];
-  draft.slots.forEach((entries, slot) => {
-    const entry = entries.find((e) => e.crew.includes(memberId));
-    if (entry) result.push({ slot, boatId: entry.boatId });
-  });
-  return result;
-}
-
-export const slotHasCrew = (draft: ProgramDraft, slot: number): boolean => (draft.slots[slot] ?? []).some((e) => e.crew.length > 0);
-export const hasAnyCrew = (draft: ProgramDraft): boolean => draft.slots.some((_, i) => slotHasCrew(draft, i));
-
-// --- editing (all return a NEW draft; the input is never mutated) ------------------------------
-
-const withSlot = (draft: ProgramDraft, slot: number, entries: BoatEntry[]): ProgramDraft => ({
+const mapSession = (draft: ProgramDraft, id: number, fn: (s: SessionDraft) => SessionDraft): ProgramDraft => ({
   ...draft,
-  slots: draft.slots.map((existing, i) => (i === slot ? entries : existing)),
+  sessions: draft.sessions.map((s) => (s.id === id ? fn(s) : s)),
 });
+
+/**
+ * Sets a session's start.
+ *  - The FIRST session of a boat is the boat's starting time: the whole boat moves with it (every session keeps its
+ *    length and the gaps between them), so the coach types 08:15 once. Refused if something would leave the day.
+ *  - Any other session only changes its own start (a shorter or longer session); an end that is no longer after
+ *    the start becomes one hour after it.
+ * Other boats are never touched.
+ */
+export function setStart(draft: ProgramDraft, id: number, start: string): ProgramDraft {
+  const session = sessionById(draft, id);
+  if (!session || !isTime(start)) return draft;
+  const first = sessionsOf(draft, session.boatId)[0];
+  if (first && first.id === id) {
+    const delta = toMinutes(start) - toMinutes(session.start);
+    const moved = draft.sessions.filter((s) => s.boatId === session.boatId);
+    if (moved.some((s) => toMinutes(s.start) + delta < 0 || toMinutes(s.end) + delta > DAY_END)) return draft;
+    return {
+      ...draft,
+      sessions: draft.sessions.map((s) => (s.boatId === session.boatId ? { ...s, start: fromMinutes(toMinutes(s.start) + delta), end: fromMinutes(toMinutes(s.end) + delta) } : s)),
+    };
+  }
+  return mapSession(draft, id, (s) => ({ ...s, start, end: toMinutes(s.end) > toMinutes(start) ? s.end : fromMinutes(toMinutes(start) + DEFAULT_MINUTES) }));
+}
+
+/**
+ * Sets a session's end. The boat's LATER sessions follow by the same amount (they keep their length and the gaps), so
+ * making 08:00–09:00 into 08:00–09:15 turns 09:00–10:00 into 09:15–10:15. Earlier sessions and other boats are untouched.
+ */
+export function setEnd(draft: ProgramDraft, id: number, end: string): ProgramDraft {
+  const session = sessionById(draft, id);
+  if (!session || !isTime(end)) return draft;
+  const delta = toMinutes(end) - toMinutes(session.end);
+  const later = draft.sessions.filter((s) => s.boatId === session.boatId && s.id !== id && toMinutes(s.start) >= toMinutes(session.end));
+  if (later.some((s) => toMinutes(s.start) + delta < 0 || toMinutes(s.end) + delta > DAY_END)) return mapSession(draft, id, (s) => ({ ...s, end }));
+  const laterIds = new Set(later.map((s) => s.id));
+  return {
+    ...draft,
+    sessions: draft.sessions.map((s) => {
+      if (s.id === id) return { ...s, end };
+      if (s.boatId === session.boatId && laterIds.has(s.id)) return { ...s, start: fromMinutes(toMinutes(s.start) + delta), end: fromMinutes(toMinutes(s.end) + delta) };
+      return s;
+    }),
+  };
+}
+
+/** Removes the session together with its crew. The boat's other sessions keep their times. */
+export const removeSession = (draft: ProgramDraft, id: number): ProgramDraft => ({ ...draft, sessions: draft.sessions.filter((s) => s.id !== id) });
+
+/**
+ * Swaps the TEAMS (crew and note) of a session and its neighbour in the same boat, `direction` -1 = the one before, +1 =
+ * the one after. The times stay where they are: the first team simply rows second.
+ */
+export function moveTeam(draft: ProgramDraft, id: number, direction: -1 | 1): ProgramDraft {
+  const session = sessionById(draft, id);
+  if (!session) return draft;
+  const list = sessionsOf(draft, session.boatId);
+  const index = list.findIndex((s) => s.id === id);
+  const other = list[index + direction];
+  if (!other) return draft;
+  return {
+    ...draft,
+    sessions: draft.sessions.map((s) => {
+      if (s.id === session.id) return { ...s, crew: [...other.crew], notes: other.notes };
+      if (s.id === other.id) return { ...s, crew: [...session.crew], notes: session.notes };
+      return s;
+    }),
+  };
+}
+
+// --- crew ---------------------------------------------------------------------------------------------
 
 export type ToggleError = 'full' | 'elsewhere';
 export interface ToggleResult {
   draft: ProgramDraft;
   error?: ToggleError;
+  /** For 'elsewhere': the session the member is already in at that time. */
+  conflict?: SessionDraft;
 }
 
 /**
- * Adds the member to the boat for this hour, or removes them if they are already in it.
- * Refuses (and returns the draft unchanged) when the boat is full or the member is already in
- * ANOTHER boat during the same hour.
+ * Adds the member to the session, or removes them if they are already in it. Refuses (and returns the draft unchanged)
+ * when the boat is full or the member already rows another boat while this session is on the water.
  */
-export function toggleMember(draft: ProgramDraft, slot: number, boatId: string, memberId: string, capacity: number): ToggleResult {
-  const entries = draft.slots[slot];
-  if (!entries) return { draft };
-  const entry = entries.find((e) => e.boatId === boatId);
-
-  if (entry?.crew.includes(memberId)) {
-    const crew = entry.crew.filter((id) => id !== memberId);
-    const next = crew.length === 0 ? entries.filter((e) => e !== entry) : entries.map((e) => (e === entry ? { ...e, crew } : e));
-    return { draft: withSlot(draft, slot, next) };
+export function toggleMember(draft: ProgramDraft, id: number, memberId: string, capacity: number): ToggleResult {
+  const session = sessionById(draft, id);
+  if (!session) return { draft };
+  if (session.crew.includes(memberId)) {
+    return { draft: mapSession(draft, id, (s) => ({ ...s, crew: s.crew.filter((m) => m !== memberId) })) };
   }
-
-  const elsewhere = assignedInSlot(draft, slot).get(memberId);
-  if (elsewhere && elsewhere !== boatId) return { draft, error: 'elsewhere' };
-  if ((entry?.crew.length ?? 0) >= capacity) return { draft, error: 'full' };
-
-  const next = entry
-    ? entries.map((e) => (e === entry ? { ...e, crew: [...e.crew, memberId] } : e))
-    : [...entries, { boatId, crew: [memberId], notes: '' }];
-  return { draft: withSlot(draft, slot, next) };
+  const conflict = conflictFor(draft, session, memberId);
+  if (conflict) return { draft, error: 'elsewhere', conflict };
+  if (session.crew.length >= capacity) return { draft, error: 'full' };
+  return { draft: mapSession(draft, id, (s) => ({ ...s, crew: [...s.crew, memberId] })) };
 }
 
-export function removeMember(draft: ProgramDraft, slot: number, boatId: string, memberId: string): ProgramDraft {
-  const entry = entryOf(draft, slot, boatId);
-  if (!entry?.crew.includes(memberId)) return draft;
-  // toggling a member who is in the boat removes them; capacity is irrelevant for removal
-  return toggleMember(draft, slot, boatId, memberId, Number.MAX_SAFE_INTEGER).draft;
+export function removeMember(draft: ProgramDraft, id: number, memberId: string): ProgramDraft {
+  return mapSession(draft, id, (s) => ({ ...s, crew: s.crew.filter((m) => m !== memberId) }));
 }
 
-export function clearBoat(draft: ProgramDraft, slot: number, boatId: string): ProgramDraft {
-  return withSlot(draft, slot, (draft.slots[slot] ?? []).filter((e) => e.boatId !== boatId));
-}
-
-export function clearSlot(draft: ProgramDraft, slot: number): ProgramDraft {
-  return withSlot(draft, slot, []);
-}
-
-export function setBoatNotes(draft: ProgramDraft, slot: number, boatId: string, notes: string): ProgramDraft {
-  return withSlot(
-    draft,
-    slot,
-    (draft.slots[slot] ?? []).map((e) => (e.boatId === boatId ? { ...e, notes } : e)),
-  );
-}
-
-/**
- * Copies every boat + crew of hour `from` into hour `to`, replacing what `to` had.
- * `isBoatUsable` lets the caller skip boats that were taken out of use (the server would refuse them).
- */
-export function copySlot(draft: ProgramDraft, from: number, to: number, isBoatUsable: (boatId: string) => boolean = () => true): ProgramDraft {
-  if (from === to) return draft;
-  const source = (draft.slots[from] ?? []).filter((e) => e.crew.length > 0 && isBoatUsable(e.boatId));
-  return withSlot(draft, to, source.map((e) => ({ boatId: e.boatId, crew: [...e.crew], notes: e.notes })));
-}
-
+export const setSessionNotes = (draft: ProgramDraft, id: number, notes: string): ProgramDraft => mapSession(draft, id, (s) => ({ ...s, notes }));
 export const setWeatherNote = (draft: ProgramDraft, weatherNote: string): ProgramDraft => ({ ...draft, weatherNote });
 export const setTrainingNotes = (draft: ProgramDraft, trainingNotes: string): ProgramDraft => ({ ...draft, trainingNotes });
+
+// --- what is wrong with the schedule ------------------------------------------------------------------
+
+export type ProblemKind = 'order' | 'long' | 'early' | 'boat-overlap' | 'person-overlap';
+export interface SessionProblem {
+  kind: ProblemKind;
+  /** The other session for overlaps. */
+  other?: SessionDraft;
+  /** The person for 'person-overlap'. */
+  memberId?: string;
+}
+
+/**
+ * Problems per session (only sessions with a crew are part of the program, but a bad time on any session is flagged).
+ * `trainingStart` ("HH:MM") is the earliest a session may start. Saving must be blocked while any exists; the database
+ * refuses the same things.
+ */
+export function sessionProblems(draft: ProgramDraft, trainingStart: string): Map<number, SessionProblem[]> {
+  const result = new Map<number, SessionProblem[]>();
+  const add = (id: number, problem: SessionProblem) => result.set(id, [...(result.get(id) ?? []), problem]);
+  const crewed = draft.sessions.filter((s) => s.crew.length > 0);
+
+  for (const s of draft.sessions) {
+    const length = toMinutes(s.end) - toMinutes(s.start);
+    if (!Number.isFinite(length) || length <= 0) add(s.id, { kind: 'order' });
+    else if (length > MAX_SESSION_MINUTES) add(s.id, { kind: 'long' });
+  }
+  for (const s of crewed) if (toMinutes(s.start) < toMinutes(trainingStart)) add(s.id, { kind: 'early' });
+
+  for (let i = 0; i < crewed.length; i++) {
+    for (let j = i + 1; j < crewed.length; j++) {
+      const a = crewed[i] as SessionDraft;
+      const b = crewed[j] as SessionDraft;
+      if (!overlaps(a, b)) continue;
+      if (a.boatId === b.boatId) {
+        add(a.id, { kind: 'boat-overlap', other: b });
+        add(b.id, { kind: 'boat-overlap', other: a });
+      }
+      for (const memberId of a.crew) {
+        if (b.crew.includes(memberId)) {
+          add(a.id, { kind: 'person-overlap', other: b, memberId });
+          add(b.id, { kind: 'person-overlap', other: a, memberId });
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// --- boats that must be full (C4X) ---------------------------------------------------------------
+
+export interface FullCrewProblem {
+  sessionId: number;
+  boatId: string;
+  start: string;
+  end: string;
+  count: number;
+  capacity: number;
+}
+
+/**
+ * Boats with `requires_full_crew` (C4X = exactly 4) that have a session with a crew of the wrong size. A session with
+ * nobody in it is simply not used and is fine. Publishing (and updating a published program) must be blocked while this
+ * is non-empty; drafts may be incomplete. The database refuses the same thing.
+ */
+export function fullCrewProblems(draft: ProgramDraft, boats: ReadonlyArray<Pick<Boat, 'id' | 'capacity' | 'requires_full_crew'>>): FullCrewProblem[] {
+  const byId = new Map(boats.map((b) => [b.id, b]));
+  return draft.sessions.flatMap((s) => {
+    const boat = byId.get(s.boatId);
+    return boat?.requires_full_crew && s.crew.length > 0 && s.crew.length !== boat.capacity
+      ? [{ sessionId: s.id, boatId: s.boatId, start: s.start, end: s.end, count: s.crew.length, capacity: boat.capacity }]
+      : [];
+  });
+}
+
+// --- saving --------------------------------------------------------------------------------------
+
+export interface SavePayload {
+  weather_note: string | null;
+  training_notes: string | null;
+  assignments: Array<{ slot_index: number; boat_id: string; starts_at: string; ends_at: string; notes: string | null; crew: string[] }>;
+}
+
+/**
+ * The argument of save_program(). `date` is the training's day ("2026-09-22", club time): every session's "HH:MM"
+ * becomes a real instant on that day. Sessions without a crew are left out.
+ */
+export function toPayload(draft: ProgramDraft, date: string): SavePayload {
+  const n = normalize(draft);
+  return {
+    weather_note: n.weatherNote || null,
+    training_notes: n.trainingNotes || null,
+    assignments: n.sessions.map((s) => ({
+      slot_index: s.id,
+      boat_id: s.boatId,
+      starts_at: wallTimeToInstant(date, s.start).toISOString(),
+      ends_at: wallTimeToInstant(date, s.end).toISOString(),
+      notes: s.notes || null,
+      crew: s.crew,
+    })),
+  };
+}
+
+export const payloadAsJson = (payload: SavePayload): Json => payload as unknown as Json;
 
 // --- checks shown to the coach before publishing -----------------------------------------------
 
@@ -258,7 +387,7 @@ export interface RosterEntry {
 }
 
 export interface Analysis {
-  /** Said "attending" but rows in no hour at all. */
+  /** Said "attending" but rows in no session at all. */
   unassignedAttending: string[];
   /** Placed in a boat although they said "not attending". */
   assignedNotAttending: string[];
@@ -266,13 +395,11 @@ export interface Analysis {
   assignedNoAnswer: string[];
   /** How many different people row at least once. */
   peopleAssigned: number;
-  /** Hours without any crew. */
-  emptySlots: number[];
 }
 
 export function analyzeDraft(draft: ProgramDraft, roster: RosterEntry[]): Analysis {
   const inProgram = new Set<string>();
-  draft.slots.forEach((entries) => entries.forEach((e) => e.crew.forEach((id) => inProgram.add(id))));
+  for (const s of draft.sessions) for (const id of s.crew) inProgram.add(id);
   const byId = new Map(roster.map((r) => [r.id, r]));
 
   const unassignedAttending = roster.filter((r) => r.answer === 'attending' && !inProgram.has(r.id)).map((r) => r.id);
@@ -283,11 +410,5 @@ export function analyzeDraft(draft: ProgramDraft, roster: RosterEntry[]): Analys
     if (member?.answer === 'not_attending') assignedNotAttending.push(id);
     else if (member && !member.answer) assignedNoAnswer.push(id);
   }
-  return {
-    unassignedAttending,
-    assignedNotAttending,
-    assignedNoAnswer,
-    peopleAssigned: inProgram.size,
-    emptySlots: draft.slots.map((_, i) => i).filter((i) => !slotHasCrew(draft, i)),
-  };
+  return { unassignedAttending, assignedNotAttending, assignedNoAnswer, peopleAssigned: inProgram.size };
 }

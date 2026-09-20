@@ -6,7 +6,8 @@ import { tr } from '@/strings/tr';
 import type { Training } from '@/types/database';
 import { useProfile } from '../auth/AuthProvider';
 import { useProgram } from '../program/hooks';
-import { sessionRangeLabel } from '../trainings/schedule';
+import { myAssignments } from '../program/view';
+import { sessionRangeLabel, spanLabel } from '../trainings/schedule';
 import { FORECAST_HORIZON_MS } from './format';
 import { useWeather } from './hooks';
 import { SourceLink, WeatherRow } from './SessionWeather';
@@ -26,9 +27,14 @@ export function MemberWeather({ training }: { training: Pick<Training, 'id' | 's
   if (weather.isPending || program.isPending) return <Skeleton className="h-16" />;
 
   const rows = weather.data ?? [];
-  const mine = [...new Set((program.data?.crew ?? []).filter((c) => c.member_id === me.id).map((c) => c.slot_index))].sort((a, b) => a - b);
-  const wanted = mine.length > 0 ? mine : [0];
+  // My sessions, each with its own time (every boat has its own schedule); nobody's boat yet → the training's first hour.
+  const mine = program.data ? myAssignments(program.data, me.id) : [];
+  const wanted = mine.length > 0 ? [...new Set(mine.map((a) => a.slotIndex))] : [0];
   const shown = wanted.flatMap((slot) => rows.filter((r) => r.slot_index === slot));
+  const labelOf = (slot: number) => {
+    const own = mine.find((a) => a.slotIndex === slot);
+    return own ? spanLabel(own.startsAt, own.endsAt) : sessionRangeLabel(training, slot);
+  };
 
   if (shown.length === 0) {
     const tooFar = Date.parse(training.starts_at) - now.getTime() > FORECAST_HORIZON_MS;
@@ -40,7 +46,7 @@ export function MemberWeather({ training }: { training: Pick<Training, 'id' | 's
   return (
     <Card role="region" aria-label={tr.weather.heading} className="flex flex-col gap-2 px-4 py-3">
       {shown.map((row) => (
-        <WeatherRow key={row.slot_index} snapshot={row} {...(shown.length > 1 ? { label: sessionRangeLabel(training, row.slot_index) } : {})} />
+        <WeatherRow key={row.slot_index} snapshot={row} {...(shown.length > 1 ? { label: labelOf(row.slot_index) } : {})} />
       ))}
       <p className="text-xs text-muted">
         {tr.weather.forecastAt(formatTime(newest))} · <SourceLink source={shown[0]?.source ?? 'open-meteo'} />

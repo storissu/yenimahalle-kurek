@@ -14,6 +14,7 @@ import {
   parseOpenMeteoMarine,
   snapshotFor,
   snapshotsForTrainings,
+  trainingEndMs,
   wmoFromMetSymbol,
 } from '../functions/_shared/weather.ts';
 
@@ -152,6 +153,45 @@ describe('snapshotsForTrainings', () => {
     );
     expect(rows.filter((r) => r.training_id === 'a').map((r) => r.slot_index)).toEqual([0, 1, 2]);
     expect(rows.filter((r) => r.training_id === 'b').map((r) => r.slot_index)).toEqual([0, 1]);
+  });
+
+  it('forecasts every boat session at ITS OWN start: one row per session number, each for the hour it falls in', () => {
+    const rows = snapshotsForTrainings(
+      [
+        {
+          id: 'd',
+          starts_at: '2026-09-19T05:00:00Z',
+          slot_count: 3,
+          sessions: [
+            { slot_index: 2, starts_at: '2026-09-19T07:30:00Z' }, // C4X, half past seven
+            { slot_index: 0, starts_at: '2026-09-19T05:00:00Z' }, // Mavi
+            { slot_index: 1, starts_at: '2026-09-19T05:15:00Z' }, // Turuncu, a quarter past: same hour as Mavi
+          ],
+        },
+      ],
+      series,
+      'open-meteo',
+    );
+    expect(rows.map((r) => [r.slot_index, r.forecast_for])).toEqual([
+      [0, '2026-09-19T05:00:00.000Z'],
+      [1, '2026-09-19T05:00:00.000Z'],
+      [2, '2026-09-19T07:00:00.000Z'],
+    ]);
+  });
+
+  it('lets an older program that shares one session number between boats count from its earliest start', () => {
+    const rows = snapshotsForTrainings(
+      [{ id: 'e', starts_at: '2026-09-19T05:00:00Z', slot_count: 1, sessions: [{ slot_index: 0, starts_at: '2026-09-19T06:00:00Z' }, { slot_index: 0, starts_at: '2026-09-19T05:00:00Z' }] }],
+      series,
+      'open-meteo',
+    );
+    expect(rows.map((r) => [r.slot_index, r.forecast_for])).toEqual([[0, '2026-09-19T05:00:00.000Z']]);
+  });
+
+  it('knows when a training is over: the end of its last session, or start + an hour per session without a program', () => {
+    expect(trainingEndMs({ starts_at: '2026-09-19T05:00:00Z', slot_count: 3, ends_at: '2026-09-19T07:45:00Z' })).toBe(Date.parse('2026-09-19T07:45:00Z'));
+    expect(trainingEndMs({ starts_at: '2026-09-19T05:00:00Z', slot_count: 2, ends_at: null })).toBe(Date.parse('2026-09-19T07:00:00Z'));
+    expect(trainingEndMs({ starts_at: '2026-09-19T05:00:00Z', slot_count: 0 })).toBe(Date.parse('2026-09-19T06:00:00Z'));
   });
 
   it('still forecasts the first hour of a training whose length is not planned yet (0 sessions)', () => {

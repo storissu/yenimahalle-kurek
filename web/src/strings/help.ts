@@ -73,7 +73,7 @@ export const help = {
     },
     {
       q: `Programı nasıl hazırlar ve yayınlarım?`,
-      a: `Antrenmanı açıp Program sekmesine gidin. Her seans için bir sekme vardır; tekneye "Ekip seç" ile üyeleri ekleyin, aynı tekneye sonraki seansta başka ekip yazabilirsiniz. "Önceki seansı kopyala" işi hızlandırır. "Taslağı kaydet" üyelere görünmez; "Yayınla" herkese gösterir ve bildirim gönderir. Yayınlanınca sekmelerin üstünde "Yayınlanan program" bölümü üyelerin gördüğü sade tekne listesini gösterir. C4X tam 4 kişi olmadan yayınlanamaz.`,
+      a: `Antrenmanı açıp Program sekmesine gidin. Her teknenin kendi saatleri vardır: teknenin ilk seansının başlangıç saatini yazın (bitiş otomatik 1 saat sonradır), "Ekip seç" ile üyeleri ekleyin. "Seans ekle" bir sonraki seansı öncekinin bittiği saatte başlatır; gerekirse başlangıç veya bitiş saatini değiştirebilirsiniz (ör. 09:15'e kadar süren bir seans). Tekneler birbirinden bağımsızdır: Mavi 08:00'da, Turuncu 08:15'te başlayabilir. "Taslağı kaydet" üyelere görünmez; "Yayınla" herkese gösterir ve bildirim gönderir. Yayınlanınca sekmelerin üstünde "Yayınlanan program" bölümü üyelerin gördüğü sade tekne listesini gösterir. C4X tam 4 kişi olmadan yayınlanamaz.`,
     },
     {
       q: `Yayınladıktan sonra değişiklik yapabilir miyim?`,

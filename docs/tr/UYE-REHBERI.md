@@ -58,7 +58,7 @@ Antrenman sayfasında **tek bir küçük hava kartı** vardır: rüzgâr, hamle,
 ## 7. Geçmişiniz ve sıralama
 
 - **Antrenmanlar → Geçmiş**: katıldığınız antrenmanlar ve kaç saat kürek çektiğiniz.
-- **İstatistik**: bu ayki seans sayınız ve **aylık sıralama**. Tamamlanmış antrenmanlarda kürek çektiğiniz her saat **1 seans** sayılır (2 saat = 2). Sıralama her ayın başında sıfırlanır; eşit seansı olanlar aynı sırayı paylaşır. **Tüm üyeler listelenir**: bu ay hiç seansı olmayanlar en altta, sıra yerine "–" ve 0 seansla görünür. İsme dokunarak profiline gidebilirsiniz. Geçmiş aylara ay seçicisinden bakabilirsiniz.
+- **İstatistik**: bu ayki seans sayınız ve **aylık sıralama**. Tamamlanmış antrenmanlarda kürek çektiğiniz her seans **1 seans** sayılır (2 seans = 2; her teknenin kendi saatleri vardır). Sıralama her ayın başında sıfırlanır; eşit seansı olanlar aynı sırayı paylaşır. **Tüm üyeler listelenir**: bu ay hiç seansı olmayanlar en altta, sıra yerine "–" ve 0 seansla görünür. İsme dokunarak profiline gidebilirsiniz. Geçmiş aylara ay seçicisinden bakabilirsiniz.
 
 ## 8. Sorun mu var?
 

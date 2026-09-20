@@ -37,7 +37,11 @@ describe('session schedule', () => {
     expect(hasPlannedSessions(training())).toBe(true);
     expect(timeRangeLabel(open)).toBe('08:00');
     expect(trainingTimeText(open)).toBe('08:00 · süre program hazırlanınca belli olur');
-    expect(trainingTimeText(training())).toBe('08:00–10:00 · 2 seans');
+    expect(trainingTimeText(training())).toBe('08:00–10:00');
+    // the end is the end of the LAST session, whatever its length: boats have their own schedules
+    expect(trainingTimeText(training({ ends_at: '2026-09-19T07:15:00Z' }))).toBe('08:00–10:15');
+    expect(endsAt(training({ ends_at: '2026-09-19T07:15:00Z' })).toISOString()).toBe('2026-09-19T07:15:00.000Z');
+    expect(hasPlannedSessions({ slot_count: 0, ends_at: '2026-09-19T07:15:00Z' })).toBe(true);
     expect(endsAt(open).toISOString()).toBe('2026-09-19T06:00:00.000Z'); // "is it over?" still works
   });
 

@@ -9,10 +9,9 @@ import type { Training } from '@/types/database';
 import { useProfile } from '../auth/AuthProvider';
 import { useMyResponses } from '../trainings/hooks';
 import { useBoats, useMemberNames, useProgram } from './hooks';
-import { initialSessionCount } from './model';
 import { MyBoatCard, TrainingNote, WeatherNote } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
-import { buildTimeline, myAssignments } from './view';
+import { myAssignments } from './view';
 
 interface MemberProgramProps {
   training: Training;
@@ -32,7 +31,6 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
   const responses = useMyResponses();
 
   const boatById = useMemo(() => new Map((boats.data ?? []).map((b) => [b.id, b])), [boats.data]);
-  const boatOrder = useMemo(() => new Map((boats.data ?? []).map((b) => [b.id, b.sort_order])), [boats.data]);
   const boatName = (id: string) => boatById.get(id)?.name ?? '?';
   const capacityOf = (id: string) => boatById.get(id)?.capacity ?? 2;
 
@@ -57,13 +55,12 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
     return <EmptyState icon={ClipboardList} title={tr.program.notPublishedTitle} body={tr.program.notPublishedBody} />;
   }
 
-  const timeline = buildTimeline(program.data, initialSessionCount(program.data, training.slot_count), boatOrder);
-  const mine = myAssignments(timeline, me.id);
+  const mine = myAssignments(program.data, me.id);
   const attending = responses.data?.find((r) => r.training_id === training.id)?.response === 'attending';
 
   const yours =
     mine.length > 0 ? (
-      <MyBoatCard assignments={mine} training={training} nameOf={nameOf} boatName={boatName} capacityOf={capacityOf} />
+      <MyBoatCard assignments={mine} nameOf={nameOf} boatName={boatName} capacityOf={capacityOf} />
     ) : attending ? (
       <Card className="border-warning bg-warning-soft text-sm font-medium text-warning">{tr.program.yourNoneAttending}</Card>
     ) : null;
@@ -77,7 +74,7 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
         <h2 id="full-program-heading" className="text-sm font-bold text-muted">
           {tr.program.fullProgram}
         </h2>
-        <ProgramByBoat data={program.data} training={training} boats={boats.data} meId={me.id} nameOf={nameOf} contactOf={contactOf} />
+        <ProgramByBoat data={program.data} boats={boats.data} meId={me.id} nameOf={nameOf} contactOf={contactOf} />
       </section>
       <WeatherNote note={program.data.program?.weather_note ?? null} />
     </>

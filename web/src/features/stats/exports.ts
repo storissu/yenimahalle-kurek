@@ -1,7 +1,7 @@
 // The two CSV files a coach can export for a month. Built from database rows; pure and testable.
 import type { MonthKey } from '@/lib/months';
 import type { ExportRow, MonthRow } from '@/types/database';
-import { sessionRangeLabel } from '../trainings/schedule';
+import { spanLabel } from '../trainings/schedule';
 
 /** Sıra;Ad Soyad;Seans;Antrenman günü — one line per active member, best first. */
 export function summaryCsvRows(rows: MonthRow[]): string[][] {
@@ -20,7 +20,7 @@ export function detailCsvRows(rows: ExportRow[]): string[][] {
     ['Tarih', 'Seans saati', 'Ad Soyad', 'Durum', 'Not'],
     ...rows.map((r) => [
       isoDate(r.starts_at),
-      sessionRangeLabel({ starts_at: r.starts_at }, r.slot_index),
+      spanLabel(r.session_starts_at, r.session_ends_at),
       r.full_name,
       r.status === 'present' ? 'Geldi' : 'Gelmedi',
       r.note ?? '',

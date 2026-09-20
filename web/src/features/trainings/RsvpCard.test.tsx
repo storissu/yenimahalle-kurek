@@ -11,6 +11,7 @@ const training: Training = {
   title: null,
   starts_at: '2026-09-19T05:00:00Z',
   slot_count: 2,
+  ends_at: null,
   rsvp_deadline: '2026-09-18T17:00:00Z',
   rsvp_deadline_rule: '12',
   status: 'scheduled',

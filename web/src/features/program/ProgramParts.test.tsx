@@ -4,11 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { tr } from '@/strings/tr';
 import { MyBoatCard, TrainingNote, WeatherNote } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
-import { buildTimeline, myAssignments } from './view';
+import { myAssignments } from './view';
 import type { ProgramData } from './model';
 
-// 08:00 Istanbul, two one-hour sessions.
-const training = { starts_at: '2026-09-22T05:00:00Z' };
+// Every boat has its own schedule (08:00 Istanbul = 05:00Z): Mavi 08:00–09:00 and 09:00–10:00, Turuncu 08:15–09:15.
+const asg = (id: string, slot: number, boat: string, from: string, to: string, notes: string | null) => ({ id, training_id: 't', slot_index: slot, boat_id: boat, notes, starts_at: `2026-09-22T${from}:00Z`, ends_at: `2026-09-22T${to}:00Z` });
 const names: Record<string, string> = { alex: 'Alex', ashley: 'Ashley', john: 'John', jamie: 'Jamie', ali: 'Ali', becca: 'Becca' };
 const nameOf = (id: string) => names[id] ?? '?';
 const boatName = (id: string) => ({ mavi: 'Mavi', turuncu: 'Turuncu' })[id as 'mavi' | 'turuncu'] ?? '?';
@@ -16,25 +16,23 @@ const boatName = (id: string) => ({ mavi: 'Mavi', turuncu: 'Turuncu' })[id as 'm
 const data: ProgramData = {
   program: null,
   assignments: [
-    { id: 'a1', training_id: 't', slot_index: 0, boat_id: 'mavi', notes: null },
-    { id: 'a2', training_id: 't', slot_index: 1, boat_id: 'mavi', notes: 'sprint çalışması' },
-    { id: 'a3', training_id: 't', slot_index: 0, boat_id: 'turuncu', notes: null },
+    asg('a1', 0, 'mavi', '05:00', '06:00', null),
+    asg('a2', 1, 'mavi', '06:00', '07:00', 'sprint çalışması'),
+    asg('a3', 2, 'turuncu', '05:15', '06:15', null),
   ],
   crew: [
     { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'alex', seat: 1 },
     { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ashley', seat: 2 },
     { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'john', seat: 1 },
     { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'jamie', seat: 2 },
-    { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'ali', seat: 1 },
-    { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'becca', seat: 2 },
+    { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'ali', seat: 1 },
+    { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'becca', seat: 2 },
   ],
 };
-const order = new Map([['mavi', 1], ['turuncu', 2]]);
-const timeline = buildTimeline(data, 2, order);
 
 describe('MyBoatCard', () => {
   it('shows each hour with the boat and the crew mates', () => {
-    render(<MyBoatCard assignments={myAssignments(timeline, 'jamie')} training={training} nameOf={nameOf} boatName={boatName} />);
+    render(<MyBoatCard assignments={myAssignments(data, 'jamie')} nameOf={nameOf} boatName={boatName} />);
     const card = screen.getByRole('region', { name: tr.program.yours });
     expect(within(card).getByText('09:00–10:00')).toBeInTheDocument();
     expect(within(card).getByText('Mavi')).toBeInTheDocument();
@@ -44,13 +42,13 @@ describe('MyBoatCard', () => {
 
   it('draws the boat icon by capacity next to each boat name (double for Mavi, quad for the C4X)', () => {
     const capacities: Record<string, number> = { mavi: 2, turuncu: 2 };
-    render(<MyBoatCard assignments={myAssignments(timeline, 'jamie')} training={training} nameOf={nameOf} boatName={boatName} capacityOf={(id) => capacities[id] ?? 4} />);
+    render(<MyBoatCard assignments={myAssignments(data, 'jamie')} nameOf={nameOf} boatName={boatName} capacityOf={(id) => capacities[id] ?? 4} />);
     const icon = screen.getByRole('region', { name: tr.program.yours }).querySelector('svg[data-boat]') as SVGElement;
     expect(icon).toHaveAttribute('data-boat', 'double');
   });
 
   it('leads with the start hour, big, and the end hour small beneath it (read out as one range)', () => {
-    render(<MyBoatCard assignments={myAssignments(timeline, 'jamie')} training={training} nameOf={nameOf} boatName={boatName} />);
+    render(<MyBoatCard assignments={myAssignments(data, 'jamie')} nameOf={nameOf} boatName={boatName} />);
     const card = screen.getByRole('region', { name: tr.program.yours });
     const range = within(card).getByText('09:00–10:00'); // screen-reader text of the time block
     const block = range.parentElement as HTMLElement;
@@ -61,7 +59,7 @@ describe('MyBoatCard', () => {
   });
 
   it('carries no weather of its own: the forecast has one place, right below the card', () => {
-    render(<MyBoatCard assignments={myAssignments(timeline, 'jamie')} training={training} nameOf={nameOf} boatName={boatName} />);
+    render(<MyBoatCard assignments={myAssignments(data, 'jamie')} nameOf={nameOf} boatName={boatName} />);
     expect(screen.queryByRole('group')).not.toBeInTheDocument();
     expect(screen.queryByText(/Tahmin/)).not.toBeInTheDocument();
     expect(screen.queryByText(tr.weather.mySessionLater)).not.toBeInTheDocument();
@@ -69,8 +67,8 @@ describe('MyBoatCard', () => {
 
   it('shows every hour for someone who rows twice, alone when nobody else is in the boat', () => {
     const solo: ProgramData = { ...data, crew: [...data.crew.filter((c) => c.member_id !== 'john' && c.member_id !== 'jamie'), { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'ali', seat: 1 }] };
-    render(<MyBoatCard assignments={myAssignments(buildTimeline(solo, 2, order), 'ali')} training={training} nameOf={nameOf} boatName={boatName} />);
-    expect(screen.getByText('08:00–09:00')).toBeInTheDocument();
+    render(<MyBoatCard assignments={myAssignments(solo, 'ali')} nameOf={nameOf} boatName={boatName} />);
+    expect(screen.getByText('08:15–09:15')).toBeInTheDocument();
     expect(screen.getByText('Becca ile')).toBeInTheDocument();
     expect(screen.getByText('09:00–10:00')).toBeInTheDocument();
     expect(screen.getByText('tek başına')).toBeInTheDocument();
@@ -88,7 +86,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
   const show = (meId?: string) =>
     render(
       <MemoryRouter>
-        <ProgramByBoat data={data} training={training} boats={boats} meId={meId} nameOf={nameOf} contactOf={contactOf} />
+        <ProgramByBoat data={data} boats={boats} meId={meId} nameOf={nameOf} contactOf={contactOf} />
       </MemoryRouter>,
     );
   // the accessible name of a boat I row in also carries the "Sizin tekneniz" tag, so match on the boat name at the start
@@ -102,8 +100,9 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(within(mavi).getAllByRole('listitem')).toHaveLength(2);
     for (const name of ['Alex', 'Ashley', 'John', 'Jamie']) expect(within(mavi).getByText(name)).toBeInTheDocument();
     const turuncu = boatSection('Turuncu');
-    expect(within(turuncu).getByText('08:00–09:00')).toBeInTheDocument();
-    expect(within(turuncu).queryByText('09:00–10:00')).not.toBeInTheDocument(); // Turuncu rests in the second hour
+    expect(within(turuncu).getByText('08:15–09:15')).toBeInTheDocument(); // Turuncu's own schedule
+    expect(within(turuncu).queryByText('09:00–10:00')).not.toBeInTheDocument();
+    expect(within(turuncu).queryByText('08:00–09:00')).not.toBeInTheDocument(); // Mavi's time is not Turuncu's
     expect(within(turuncu).getByText('Ali')).toBeInTheDocument();
     expect(within(turuncu).getByText('Becca')).toBeInTheDocument();
   });
@@ -162,15 +161,15 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
 
   it('a person in two boats sees both first, in club order', () => {
     const both: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'jamie', seat: 3 }].filter((c) => !(c.assignment_id === 'a3' && c.member_id === 'becca')) };
-    render(<ProgramByBoat data={both} training={training} boats={boats} meId="jamie" nameOf={nameOf} />);
+    render(<ProgramByBoat data={both} boats={boats} meId="jamie" nameOf={nameOf} />);
     expect(screen.getAllByText(tr.program.yourBoat)).toHaveLength(2);
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['MaviSizin tekneniz', 'TuruncuSizin tekneniz']);
   });
 
   it('gives each boat its icon by capacity, and the highlight does not depend on the boat colour', () => {
     const withQuad = [...boats, { id: 'c4x', name: 'C4X', sort_order: 3, capacity: 4 }];
-    const quad: ProgramData = { ...data, assignments: [...data.assignments, { id: 'a4', training_id: 't', slot_index: 0, boat_id: 'c4x', notes: null }], crew: [...data.crew, { assignment_id: 'a4', training_id: 't', slot_index: 0, member_id: 'jamie', seat: 1 }] };
-    render(<ProgramByBoat data={quad} training={training} boats={withQuad} meId="jamie" nameOf={nameOf} />);
+    const quad: ProgramData = { ...data, assignments: [...data.assignments, asg('a4', 5, 'c4x', '05:30', '06:30', null)], crew: [...data.crew, { assignment_id: 'a4', training_id: 't', slot_index: 5, member_id: 'jamie', seat: 1 }] };
+    render(<ProgramByBoat data={quad} boats={withQuad} meId="jamie" nameOf={nameOf} />);
     expect(boatSection('C4X').querySelector('svg[data-boat]')).toHaveAttribute('data-boat', 'quad');
     expect(boatSection('Mavi').querySelector('svg[data-boat]')).toHaveAttribute('data-boat', 'double');
     // "me" is drawn with the same solid block in every boat, whatever the boat's accent colour
@@ -208,7 +207,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
 
   it('highlights each of my sessions when I row more than once', () => {
     const twice: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'alex', seat: 3 }].filter((c) => !(c.assignment_id === 'a1' && c.member_id === 'alex')) };
-    render(<ProgramByBoat data={twice} training={training} boats={boats} meId="alex" nameOf={nameOf} />);
+    render(<ProgramByBoat data={twice} boats={boats} meId="alex" nameOf={nameOf} />);
     expect(screen.getAllByText(tr.program.you)).toHaveLength(1);
   });
 
@@ -235,7 +234,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
   it('leaves out the profile link when the viewer is a coach (profiles are a member page), but keeps the phone', () => {
     render(
       <MemoryRouter>
-        <ProgramByBoat data={data} training={training} boats={boats} nameOf={nameOf} contactOf={contactOf} profileLinks={false} />
+        <ProgramByBoat data={data} boats={boats} nameOf={nameOf} contactOf={contactOf} profileLinks={false} />
       </MemoryRouter>,
     );
     fireEvent.click(screen.getByRole('button', { name: tr.program.contactAbout('Alex') }));
@@ -253,10 +252,10 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
   });
 
   it('shows plain names (no buttons) without a directory, and says so for an empty program', () => {
-    const { unmount } = render(<ProgramByBoat data={data} training={training} boats={boats} nameOf={nameOf} />);
+    const { unmount } = render(<ProgramByBoat data={data} boats={boats} nameOf={nameOf} />);
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
     unmount();
-    render(<ProgramByBoat data={{ program: null, assignments: [], crew: [] }} training={training} boats={boats} nameOf={nameOf} />);
+    render(<ProgramByBoat data={{ program: null, assignments: [], crew: [] }} boats={boats} nameOf={nameOf} />);
     expect(screen.getByText(tr.program.noBoats)).toBeInTheDocument();
   });
 });

@@ -15,7 +15,7 @@ export interface HistoryDay {
   /** Trainings need not have a title. */
   title: string | null;
   /** This training's sessions, in time order. The boat is null when none is known. */
-  sessions: Array<{ slotIndex: number; boatId: string | null; boatName: string | null }>;
+  sessions: Array<{ slotIndex: number; boatId: string | null; boatName: string | null; startsAt: string | null; endsAt: string | null }>;
 }
 
 export interface HistorySummary {
@@ -34,9 +34,10 @@ export function groupByTraining(rows: HistoryRow[]): HistoryDay[] {
       day = { trainingId: row.training_id, startsAt: row.starts_at, title: row.title, sessions: [] };
       days.set(row.training_id, day);
     }
-    day.sessions.push({ slotIndex: row.slot_index, boatId: row.boat_id, boatName: row.boat_name });
+    day.sessions.push({ slotIndex: row.slot_index, boatId: row.boat_id, boatName: row.boat_name, startsAt: row.session_starts_at, endsAt: row.session_ends_at });
   }
-  for (const day of days.values()) day.sessions.sort((a, b) => a.slotIndex - b.slotIndex);
+  // by the session's own time (each boat has its own schedule), then by number
+  for (const day of days.values()) day.sessions.sort((a, b) => (a.startsAt ?? '').localeCompare(b.startsAt ?? '') || a.slotIndex - b.slotIndex);
   return [...days.values()];
 }
 

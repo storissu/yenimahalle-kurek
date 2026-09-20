@@ -3,14 +3,13 @@ import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { tr } from '@/strings/tr';
 import type { AttendanceRecord, Training } from '@/types/database';
-import { endsAt, sessionRangeLabel } from '../trainings/schedule';
-import { mySessions } from './model';
+import { endsAt, spanLabel } from '../trainings/schedule';
+import { mySessions, myTimedSessions } from './model';
 
 /** A member's own attendance for one finished training: which hours they rowed and which they missed. */
-export function MyAttendanceCard({ training, records }: { training: Pick<Training, 'id' | 'starts_at' | 'slot_count'>; records: AttendanceRecord[] }) {
+export function MyAttendanceCard({ training, records }: { training: Pick<Training, 'id'>; records: AttendanceRecord[] }) {
   const mine = records.filter((r) => r.training_id === training.id);
-  const sessions = mySessions(mine);
-  const all = [...sessions.present.map((slot) => ({ slot, present: true })), ...sessions.absent.map((slot) => ({ slot, present: false }))].sort((a, b) => a.slot - b.slot);
+  const all = myTimedSessions(mine);
 
   return (
     <Card className="flex flex-col gap-3" role="region" aria-labelledby="my-attendance-heading">
@@ -22,9 +21,9 @@ export function MyAttendanceCard({ training, records }: { training: Pick<Trainin
         <p className="text-sm text-muted">{tr.attendance.mineNone}</p>
       ) : (
         <ul className="flex flex-col gap-2">
-          {all.map(({ slot, present }) => (
+          {all.map(({ slot, present, startsAt, endsAt }) => (
             <li key={slot} className="flex items-center justify-between gap-3 rounded-xl bg-surface-2 px-3 py-2.5">
-              <span className="font-semibold">{sessionRangeLabel(training, slot)}</span>
+              <span className="font-semibold tabular-nums">{spanLabel(startsAt, endsAt)}</span>
               <Badge tone={present ? 'success' : 'neutral'}>
                 {present ? <CircleCheck aria-hidden="true" size={14} /> : <CircleX aria-hidden="true" size={14} />}
                 {present ? tr.attendance.minePresent : tr.attendance.mineAbsent}

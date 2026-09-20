@@ -7,7 +7,7 @@ import { hasValidCronSecret, serviceClient } from '../_shared/cron.ts';
 import { handle, HttpError, json } from '../_shared/http.ts';
 import {
   FORECAST_DAYS,
-  forecastSlots,
+  forecastSessions,
   forecastUrl,
   HOUR_MS,
   marineUrl,
@@ -17,6 +17,7 @@ import {
   parseOpenMeteoForecast,
   parseOpenMeteoMarine,
   snapshotsForTrainings,
+  trainingEndMs,
   type Series,
   type Source,
 } from '../_shared/weather.ts';
@@ -67,7 +68,7 @@ Deno.serve(
 
     let query = admin
       .from('trainings')
-      .select('id, starts_at, slot_count')
+      .select('id, starts_at, ends_at, slot_count')
       .eq('status', 'scheduled')
       .lt('starts_at', new Date(Date.now() + FORECAST_DAYS * 24 * HOUR_MS).toISOString());
     if (trainingId) query = query.eq('id', trainingId);
@@ -75,8 +76,16 @@ Deno.serve(
     if (trainingsError) throw new HttpError(500, 'Antrenmanlar okunamadı');
 
     const now = Date.now();
-    const upcoming = (trainings ?? []).filter((t) => Date.parse(t.starts_at) + forecastSlots(t) * HOUR_MS > now);
-    if (upcoming.length === 0) return json({ updated: 0 });
+    const notOver = (trainings ?? []).filter((t) => trainingEndMs(t) > now);
+    if (notOver.length === 0) return json({ updated: 0 });
+
+    // every boat session is forecast at its own start
+    const { data: assignments, error: assignmentsError } = await admin
+      .from('program_assignments')
+      .select('training_id, slot_index, starts_at')
+      .in('training_id', notOver.map((t) => t.id));
+    if (assignmentsError) throw new HttpError(500, 'Program okunamadı');
+    const upcoming = notOver.map((t) => ({ ...t, sessions: (assignments ?? []).filter((a) => a.training_id === t.id) }));
 
     const { series, source } = await loadSeries(Number(settings.site_lat), Number(settings.site_lng));
     const rows = snapshotsForTrainings(upcoming, series, source);
@@ -90,7 +99,8 @@ Deno.serve(
     }
     // A training that lost sessions must not keep their old forecasts.
     for (const t of upcoming) {
-      await admin.from('weather_snapshots').delete().eq('training_id', t.id).gte('slot_index', forecastSlots(t));
+      const keep = forecastSessions(t).map((s) => s.slotIndex);
+      await admin.from('weather_snapshots').delete().eq('training_id', t.id).not('slot_index', 'in', `(${keep.join(',')})`);
     }
     return json({ updated: rows.length, trainings: upcoming.length, source });
   }),

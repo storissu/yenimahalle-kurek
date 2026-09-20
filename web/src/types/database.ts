@@ -39,6 +39,9 @@ export interface MemberHistoryRow {
   slot_index: number;
   boat_id: string | null;
   boat_name: string | null;
+  /** When the session was (its own time, not the training's). */
+  session_starts_at: string | null;
+  session_ends_at: string | null;
 }
 /** One session two members rowed in the same boat (present both; from the published program). */
 export interface SharedHistoryRow {
@@ -48,6 +51,8 @@ export interface SharedHistoryRow {
   slot_index: number;
   boat_id: string;
   boat_name: string;
+  session_starts_at: string | null;
+  session_ends_at: string | null;
 }
 export interface MyMonthStatsRow {
   sessions: number;
@@ -63,6 +68,8 @@ export interface ExportRow {
   full_name: string;
   status: AttendanceStatus;
   note: string | null;
+  session_starts_at: string;
+  session_ends_at: string;
 }
 export interface TrainingCountRow {
   training_id: string;
@@ -141,6 +148,8 @@ export type Database = {
           starts_at: string;
           /** One-hour sessions. 0 = not planned yet; the program (or the attendance sheet) sets it, clients cannot. */
           slot_count: number;
+          /** End of the last session; null until a program exists. Server-derived. */
+          ends_at: string | null;
           rsvp_deadline: string;
           /** How the coach chose the deadline: hours before ('12' | '24' | '48'), 'evening' (20:00 the evening before) or 'custom'. */
           rsvp_deadline_rule: RsvpDeadlineRule | null;
@@ -190,7 +199,8 @@ export type Database = {
         Relationships: [];
       };
       program_assignments: {
-        Row: { id: string; training_id: string; slot_index: number; boat_id: string; notes: string | null };
+        /** `slot_index` identifies the session; `starts_at`/`ends_at` are ITS OWN times (every boat has its own schedule). */
+        Row: { id: string; training_id: string; slot_index: number; boat_id: string; notes: string | null; starts_at: string; ends_at: string };
         Insert: never;
         Update: never;
         Relationships: [];
@@ -210,6 +220,9 @@ export type Database = {
           note: string | null;
           recorded_by: string;
           recorded_at: string;
+          /** The time of the session this record is about (what actually happened). */
+          starts_at: string;
+          ends_at: string;
         };
         // Read-only for clients: written only through save_attendance().
         Insert: never;

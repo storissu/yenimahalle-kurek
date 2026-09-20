@@ -3,21 +3,20 @@ import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { tr } from '@/strings/tr';
 import type { RosterMemberInfo } from './CrewPickerDialog';
-import { memberSlots, type Analysis, type ProgramDraft } from './model';
+import { memberSessions, type Analysis, type ProgramDraft } from './model';
 
 interface ParticipantSummaryProps {
   draft: ProgramDraft;
   roster: RosterMemberInfo[];
   analysis: Analysis;
   boatName: (boatId: string) => string;
-  slotTime: (slot: number) => string;
 }
 
 /**
  * Checklist for the coach: everyone who said "attending" with the hours they row and their note,
  * so nobody is forgotten and "assign me after 9" requests are visible while planning.
  */
-export function ParticipantSummary({ draft, roster, analysis, boatName, slotTime }: ParticipantSummaryProps) {
+export function ParticipantSummary({ draft, roster, analysis, boatName }: ParticipantSummaryProps) {
   const attending = roster.filter((m) => m.answer === 'attending');
   const mismatched = roster.filter((m) => analysis.assignedNotAttending.includes(m.id) || analysis.assignedNoAnswer.includes(m.id));
 
@@ -33,7 +32,7 @@ export function ParticipantSummary({ draft, roster, analysis, boatName, slotTime
       <Card className="divide-y divide-border px-3 py-1">
         {attending.length === 0 && <p className="py-3 text-sm text-muted">{tr.responses.nobody}</p>}
         {attending.map((m) => {
-          const slots = memberSlots(draft, m.id);
+          const slots = memberSessions(draft, m.id);
           return (
             <div key={m.id} className="py-2.5">
               <div className="flex items-start justify-between gap-2">
@@ -47,10 +46,10 @@ export function ParticipantSummary({ draft, roster, analysis, boatName, slotTime
               </div>
               {slots.length > 0 && (
                 <ul className="mt-1 flex flex-wrap gap-1.5">
-                  {slots.map(({ slot, boatId }) => (
-                    <li key={slot}>
+                  {slots.map((s) => (
+                    <li key={s.id}>
                       <Badge tone="primary">
-                        {slotTime(slot)} · {boatName(boatId)}
+                        {s.start} · {boatName(s.boatId)}
                       </Badge>
                     </li>
                   ))}

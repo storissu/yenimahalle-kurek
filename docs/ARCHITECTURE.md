@@ -7,7 +7,8 @@ later phases, risks) was agreed with the club before implementation started.
 
 - Turkish-only UI; members log in with a coach-assigned **username** (no emails).
 - **Budget 0, no App Store / Google Play** → an installable **PWA** (Android + iPhone), Web Push for notifications.
-- Open-sea training site 41.285318, 31.407823; boats Mavi (2), Turuncu (2), C4X (4); sessions are 1-hour slots.
+- Open-sea training site 41.285318, 31.407823; boats Mavi (2), Turuncu (2), C4X (4); every boat has its OWN sequence of sessions
+  (own start/end, one hour by default, any length possible).
 - Leaderboard visible to all members, resets monthly; attendance and stats count **per 1-hour session**.
 
 ## Stack
@@ -23,12 +24,16 @@ later phases, risks) was agreed with the club before implementation started.
 
 ## Trainings and RSVP (Phase 2)
 
-- A **training** is one event of 1–12 consecutive **1-hour sessions** (`slot_count`). The coach does **not** choose the
-  number up front: a new training has `slot_count = 0` ("not planned yet", shown as just its start time) and the
-  count is derived — `save_program()` sets it to the last session that has a crew, `save_attendance()` extends it to
-  what was actually recorded. Clients cannot write the column. Sessions are indexed, not stored,
-  so editing the start time shifts them consistently. Times are stored as UTC instants; forms use Istanbul wall-clock
-  and convert with `web/src/lib/time.ts` (Intl only, no date library).
+- A **training** is one event whose length comes from its program. **Every boat has its own schedule**: each boat session
+  (`program_assignments`) has its own `starts_at` / `ends_at` (minute precision, one hour by default) and its own number,
+  `slot_index`, which stays the session's IDENTITY — attendance, history, weather and statistics keep joining on it. A new
+  training has `slot_count = 0` ("not planned yet", shown as just its start time); `save_program()` derives `slot_count`
+  (highest session number + 1, at most 30) and `trainings.ends_at` (the end of the last session), `save_attendance()`
+  extends the count to what was recorded. Clients cannot write either column. Moving the training's start shifts its whole
+  schedule (trigger). Older data and payloads without times keep the old grid (start + `slot_index` hours; defaults in
+  triggers). Rules: a boat's sessions never overlap, nobody rows two boats at overlapping times, a session lasts at most
+  8 hours and does not start before the training. `attendance_records` carry their session's time (what actually happened).
+  Times are stored as UTC instants; forms use Istanbul wall-clock and convert with `web/src/lib/time.ts` (Intl only).
 - **RSVP is per training** (`training_responses`) with an optional note (≤ 200 chars). *Attending* means "I will be
   there that day, whichever hour you assign me". No row = no answer yet.
 - **Nobody writes `training_responses` directly.** Members use `set_rsvp()` (allowed while `now() < rsvp_deadline` and
@@ -73,9 +78,11 @@ later phases, risks) was agreed with the club before implementation started.
   contrast-checked — with a row per session (time range + crew, joined by " – "). Rows the reader rows in are
   highlighted (tint, bar, "Siz" badge, screen-reader text) and the "Sizin programınız" card stays on top.
 - Editor logic lives in `web/src/features/program/model.ts` (pure functions, mirrors the database rules; unit-tested):
-  toggle a member into a boat (refuses "full" / "already in another boat that hour"), copy/clear an hour, compare
-  drafts, add/remove sessions, and pre-publish checks (attendees in no hour; people placed against their RSVP; boats
-  that must be full). `view.ts` groups the program by boat and picks out "my boat" lines for members.
+  a draft is a flat list of sessions (boat, "HH:MM" start/end, crew); adding a session starts it where the boat's last one
+  ended, changing a boat's FIRST start moves the whole boat, changing an END moves that boat's later sessions, swapping
+  teams keeps the times; toggling a member refuses "full" / "already in another boat at that time"; time problems
+  (order, length, overlaps) and the pre-publish checks (attendees in no session; people placed against their RSVP; boats
+  that must be full) are computed here. `view.ts` groups the program by boat and picks out "my boat" lines for members.
 - Leaving the editor with unsaved changes is guarded (in-app navigation and browser unload); the editor stays mounted
   while the coach looks at other tabs.
 - `save_program(training, payload, publish, notify)`: `notify=false` gives the coach a silent correction (Phase 5).
@@ -90,7 +97,7 @@ later phases, risks) was agreed with the club before implementation started.
   be corrected. Completing needs at least one record.
 - The editor starts from the **plan**: the program's crew per session, or — with no program — everyone who said
   "attending". The coach only fixes exceptions (mark "Gelmedi", add walk-ins). Logic: `features/attendance/model.ts`.
-- **Statistics count PRESENT sessions (hours)**: rowing 2 hours counts 2; "training days" (distinct trainings) is a
+- **Statistics count PRESENT sessions** (a boat session of any length is one): rowing 2 sessions counts 2; "training days" (distinct trainings) is a
   secondary figure. Only **completed** trainings count, only **active** members appear, and a training belongs to the
   calendar month of its start in **Europe/Istanbul** (a 23:00 session on the 31st is that month; 00:00 local on the 1st
   is the next). The leaderboard "resets" because it is month-bucketed — there is no reset job — and past months stay
@@ -131,12 +138,12 @@ later phases, risks) was agreed with the club before implementation started.
   fallback (no gusts / waves). Parsers and merging are pure functions with fixtures of real responses
   (`supabase/tests/fixtures`). The result is cached in `weather_snapshots`, one row per training session; members
   and coaches read the cache, so a provider outage never breaks a page.
-- A session's value is its **start hour**; gust, wave and rain take the **maximum of that hour and the next**
-  (a session lasts an hour). Refreshed when a coach saves a training, every 3 hours by cron for upcoming trainings,
+- A session's value is the hour its **own start** falls in (boats start at different times, so there is one row per session
+  number); gust, wave and rain take the **maximum of that hour and the next**. Refreshed when a coach saves a training, every 3 hours by cron for upcoming trainings,
   and on demand (*Yenile*). Forecasts beyond ~16 days do not exist yet ("henüz alınmadı").
 - **Advisories are coach-only and never automatic.** Thresholds (`wind_gust_warn_kmh`, `wave_warn_m`) are chosen by the
   coaches in *Kulüp ayarları* and empty by default; crossing one shows a warning to coaches on the training page and
-  in the program editor under that hour. Nothing is cancelled or announced to members by the app.
+  (the strip lists each forecast hour once, the editor repeats none of it). Nothing is cancelled or announced to members by the app.
 - Open-Meteo asks for attribution; it is shown under every forecast, with a note that waves are an offshore model.
 
 ## Phone numbers

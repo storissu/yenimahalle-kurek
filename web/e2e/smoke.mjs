@@ -59,6 +59,19 @@ const makeTraining = (over) => ({
   updated_at: iso(Date.now()),
   ...over,
 });
+// Every boat session has its OWN start and end. Older test data has none: like the database, the old hourly grid fills in.
+const withTimes = (a, t) => (a.starts_at ? a : { ...a, starts_at: iso(Date.parse(t.starts_at) + a.slot_index * HOUR), ends_at: iso(Date.parse(t.starts_at) + (a.slot_index + 1) * HOUR) });
+// the training's end: the end of its last session; without one, start + one hour per session (what the database's default gives)
+const withEnds = (t) => ({ ...t, ends_at: t.ends_at ?? (t.slot_count > 0 ? iso(Date.parse(t.starts_at) + t.slot_count * HOUR) : null) });
+// the window of a session number: the program's, or the hourly grid
+const windowOf = (t, slot) => {
+  if (!t) return { starts_at: iso(0), ends_at: iso(HOUR) }; // a record of a training that is not in this scenario
+  const own = (db.programs[t.id]?.assignments ?? []).filter((a) => a.slot_index === slot).map((a) => withTimes(a, t));
+  if (own.length > 0) return { starts_at: own.map((a) => a.starts_at).sort()[0], ends_at: own.map((a) => a.ends_at).sort().at(-1) };
+  const start = Date.parse(t.starts_at) + slot * HOUR;
+  return { starts_at: iso(start), ends_at: iso(start + HOUR) };
+};
+const hhmm = (ms) => new Intl.DateTimeFormat('tr-TR', { timeZone: 'Europe/Istanbul', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ms);
 // Who is calling? Read the user id out of the bearer token (two people can be signed in at once).
 const callerOf = (req) => {
   try {
@@ -240,8 +253,13 @@ async function newPage(scheme = 'light') {
       if (callerOf(req)?.role !== 'coach') return json(route, { error: 'Yetkiniz yok' }, 403);
       db.weatherRefreshes.push(b.training_id);
       const t = db.trainings.find((x) => x.id === b.training_id);
-      if (t && !db.weather[t.id]) db.weather[t.id] = Array.from({ length: t.slot_count }, (_, i) => weatherRow(t.id, i, Date.parse(t.starts_at)));
-      return json(route, { updated: t?.slot_count ?? 0 });
+      if (t && !db.weather[t.id]) {
+        const planned = (db.programs[t.id]?.assignments ?? []).map((a) => withTimes(a, t));
+        db.weather[t.id] = planned.length > 0
+          ? [...new Map(planned.map((a) => [a.slot_index, a])).values()].map((a) => weatherRow(t.id, a.slot_index, 0, { forecast_for: iso(Math.floor(Date.parse(a.starts_at) / HOUR) * HOUR) }))
+          : Array.from({ length: t.slot_count }, (_, i) => weatherRow(t.id, i, Date.parse(t.starts_at)));
+      }
+      return json(route, { updated: db.weather[t?.id]?.length ?? 0 });
     }
 
     if (path === '/rest/v1/trainings') {
@@ -252,7 +270,7 @@ async function newPage(scheme = 'light') {
         const bounds = url.searchParams.getAll('starts_at');
         const lo = bounds.find((b) => b.startsWith('gte.'))?.slice(4);
         const hi = bounds.find((b) => b.startsWith('lt.'))?.slice(3);
-        return json(route, db.trainings.filter((t) => (!id || t.id === id) && (!idList || idList.includes(t.id)) && (!lo || t.starts_at >= lo) && (!hi || t.starts_at < hi)));
+        return json(route, db.trainings.filter((t) => (!id || t.id === id) && (!idList || idList.includes(t.id)) && (!lo || t.starts_at >= lo) && (!hi || t.starts_at < hi)).map(withEnds));
       }
       if (req.method() === 'POST') {
         const t = makeTraining({ slot_count: 0, ...body() }); // the coach no longer picks a length: 0 = not planned yet
@@ -262,8 +280,15 @@ async function newPage(scheme = 'light') {
       if (req.method() === 'PATCH') {
         const t = db.trainings.find((x) => x.id === eqParam('id'));
         if (!t || t.status !== 'scheduled') return dbError(route, 'PGRST116', 'no rows', 406);
+        const before = Date.parse(t.starts_at);
         Object.assign(t, body(), { updated_at: iso(Date.now()) });
-        return json(route, wantsObject ? t : [t]);
+        // like the database: moving the training moves its whole schedule with it
+        const shift = Date.parse(t.starts_at) - before;
+        if (shift !== 0) {
+          if (t.ends_at) t.ends_at = iso(Date.parse(t.ends_at) + shift);
+          for (const a of db.programs[t.id]?.assignments ?? []) if (a.starts_at) Object.assign(a, { starts_at: iso(Date.parse(a.starts_at) + shift), ends_at: iso(Date.parse(a.ends_at) + shift) });
+        }
+        return json(route, wantsObject ? withEnds(t) : [withEnds(t)]);
       }
     }
     if (path === '/rest/v1/rpc/cancel_training') {
@@ -314,7 +339,10 @@ async function newPage(scheme = 'light') {
       }
       return json(route, [visibleProgram(eqParam('training_id'))?.program].filter(Boolean));
     }
-    if (path === '/rest/v1/program_assignments') return json(route, visibleProgram(eqParam('training_id'))?.assignments ?? []);
+    if (path === '/rest/v1/program_assignments') {
+      const t = db.trainings.find((x) => x.id === eqParam('training_id'));
+      return json(route, (visibleProgram(eqParam('training_id'))?.assignments ?? []).map((a) => withTimes(a, t)));
+    }
     if (path === '/rest/v1/program_crew') return json(route, visibleProgram(eqParam('training_id'))?.crew ?? []);
     if (path === '/rest/v1/rpc/save_program') {
       if (callerOf(req)?.role !== 'coach') return dbError(route, '42501', 'permission denied for function save_program');
@@ -327,12 +355,17 @@ async function newPage(scheme = 'light') {
       for (const a of b.p_payload.assignments) {
         if (a.crew.length === 0) continue;
         const boat = db.boats.find((x) => x.id === a.boat_id);
+        const starts_at = a.starts_at ?? iso(Date.parse(t.starts_at) + a.slot_index * HOUR);
+        const ends_at = a.ends_at ?? iso(Date.parse(starts_at) + HOUR);
+        const range = `${hhmm(Date.parse(starts_at))}–${hhmm(Date.parse(ends_at))}`;
+        if (Date.parse(ends_at) <= Date.parse(starts_at)) return dbError(route, 'P0001', `Seansın bitişi başlangıcından sonra olmalı (${hhmm(Date.parse(starts_at))})`);
+        if (Date.parse(starts_at) < Date.parse(t.starts_at)) return dbError(route, 'P0001', `Seans, antrenmanın başlangıcından (${hhmm(Date.parse(t.starts_at))}) önce başlayamaz. Önce antrenman saatini düzenleyin.`);
         if (b.p_publish && boat.requires_full_crew && a.crew.length !== boat.capacity) {
-          return dbError(route, 'P0001', `${boat.name} teknesinde tam ${boat.capacity} kişi olmalı (${a.slot_index + 1}. seansta ${a.crew.length} kişi var). Eksik veya fazla ekiple yayınlanamaz.`);
+          return dbError(route, 'P0001', `${boat.name} teknesinde tam ${boat.capacity} kişi olmalı (${range} seansında ${a.crew.length} kişi var). Eksik veya fazla ekiple yayınlanamaz.`);
         }
         if (a.crew.length > boat.capacity) return dbError(route, 'P0001', `${boat.name} teknesine en fazla ${boat.capacity} kişi atanabilir`);
         const id = `as-${db.seq++}`;
-        assignments.push({ id, training_id: t.id, slot_index: a.slot_index, boat_id: a.boat_id, notes: a.notes ?? null });
+        assignments.push({ id, training_id: t.id, slot_index: a.slot_index, boat_id: a.boat_id, notes: a.notes ?? null, starts_at, ends_at });
         for (const [i, memberId] of a.crew.entries()) {
           const key = `${a.slot_index}:${memberId}`;
           if (seen.has(key)) return dbError(route, 'P0001', 'Aynı seansta iki teknede olamaz');
@@ -340,10 +373,23 @@ async function newPage(scheme = 'light') {
           crew.push({ assignment_id: id, training_id: t.id, slot_index: a.slot_index, member_id: memberId, seat: i + 1 });
         }
       }
+      // like the database: one boat is never on the water twice at once, and nobody rows two boats at once
+      const overlap = (x, y) => Date.parse(x.starts_at) < Date.parse(y.ends_at) && Date.parse(y.starts_at) < Date.parse(x.ends_at);
+      for (const [i, x] of assignments.entries()) {
+        for (const y of assignments.slice(i + 1)) {
+          if (!overlap(x, y)) continue;
+          if (x.boat_id === y.boat_id) return dbError(route, 'P0001', `${db.boats.find((q) => q.id === x.boat_id).name} teknesinin seansları çakışıyor`);
+          const shared = crew.find((c) => c.assignment_id === x.id && crew.some((d) => d.assignment_id === y.id && d.member_id === c.member_id));
+          if (shared) return dbError(route, 'P0001', `${roster.find((p) => p.id === shared.member_id)?.full_name ?? 'Üye'} aynı saatte iki teknede olamaz`);
+        }
+      }
       if (b.p_publish && assignments.length === 0) return dbError(route, 'P0001', 'Yayınlamak için en az bir tekneye ekip atayın');
       const previous = db.programs[t.id]?.program;
       // like the database: the training is as long as the last session that has a crew
-      if (assignments.length > 0) t.slot_count = Math.max(...assignments.map((a) => a.slot_index)) + 1;
+      if (assignments.length > 0) {
+        t.slot_count = Math.max(...assignments.map((a) => a.slot_index)) + 1;
+        t.ends_at = assignments.map((a) => a.ends_at).sort().at(-1); // the training lasts until its last session ends
+      }
       db.saves.push(b.p_payload);
       db.saveNotify = [...(db.saveNotify ?? []), b.p_notify];
       db.programs[t.id] = {
@@ -389,7 +435,9 @@ async function newPage(scheme = 'light') {
       const trainingId = eqParam('training_id');
       return json(
         route,
-        db.attendance.filter((a) => (caller?.role === 'coach' || a.member_id === caller?.id) && (!memberId || a.member_id === memberId) && (!trainingId || a.training_id === trainingId)),
+        db.attendance
+          .filter((a) => (caller?.role === 'coach' || a.member_id === caller?.id) && (!memberId || a.member_id === memberId) && (!trainingId || a.training_id === trainingId))
+          .map((a) => (a.starts_at ? a : { ...a, ...windowOf(db.trainings.find((x) => x.id === a.training_id), a.slot_index) })),
       );
     }
     if (path === '/rest/v1/rpc/save_attendance') {
@@ -404,7 +452,7 @@ async function newPage(scheme = 'light') {
       const needed = b.p_rows.length ? Math.max(...b.p_rows.map((r) => r.slot_index)) + 1 : 0;
       if (needed > t.slot_count) t.slot_count = needed;
       db.attendance = db.attendance.filter((a) => a.training_id !== t.id);
-      for (const r of b.p_rows) db.attendance.push({ training_id: t.id, slot_index: r.slot_index, member_id: r.member_id, status: r.status, note: r.note ?? null, recorded_by: caller.id, recorded_at: iso(Date.now()) });
+      for (const r of b.p_rows) db.attendance.push({ training_id: t.id, slot_index: r.slot_index, member_id: r.member_id, status: r.status, note: r.note ?? null, recorded_by: caller.id, recorded_at: iso(Date.now()), ...windowOf(t, r.slot_index) });
       db.attendanceSaves.push({ trainingId: t.id, complete: Boolean(b.p_complete), rows: b.p_rows });
       if (b.p_complete && t.status === 'scheduled') t.status = 'completed';
       return route.fulfill({ status: 204, headers: cors });
@@ -424,7 +472,8 @@ async function newPage(scheme = 'light') {
           const crew = entry.crew.filter((c) => c.assignment_id === a.id).map((c) => c.member_id);
           const present = (m) => db.attendance.some((x) => x.training_id === trainingId && x.slot_index === a.slot_index && x.member_id === m && x.status === 'present');
           if (crew.includes(caller.id) && crew.includes(other.id) && present(caller.id) && present(other.id)) {
-            rows.push({ training_id: trainingId, starts_at: t.starts_at, title: t.title, slot_index: a.slot_index, boat_id: a.boat_id, boat_name: db.boats.find((b) => b.id === a.boat_id)?.name ?? '?' });
+            const own = withTimes(a, t);
+            rows.push({ training_id: trainingId, starts_at: t.starts_at, title: t.title, slot_index: a.slot_index, boat_id: a.boat_id, boat_name: db.boats.find((b) => b.id === a.boat_id)?.name ?? '?', session_starts_at: own.starts_at, session_ends_at: own.ends_at });
           }
         }
       }
@@ -443,7 +492,8 @@ async function newPage(scheme = 'light') {
         const entry = db.programs[t.id];
         const assignment = entry?.program.status === 'published' ? entry.assignments.find((x) => x.slot_index === a.slot_index && entry.crew.some((c) => c.assignment_id === x.id && c.member_id === other.id)) : undefined;
         const boat = assignment ? db.boats.find((b) => b.id === assignment.boat_id) : undefined;
-        rows.push({ training_id: t.id, starts_at: t.starts_at, title: t.title, slot_index: a.slot_index, boat_id: boat?.id ?? null, boat_name: boat?.name ?? null });
+        const win = a.starts_at ? a : windowOf(t, a.slot_index);
+        rows.push({ training_id: t.id, starts_at: t.starts_at, title: t.title, slot_index: a.slot_index, boat_id: boat?.id ?? null, boat_name: boat?.name ?? null, session_starts_at: win.starts_at, session_ends_at: win.ends_at });
       }
       return json(route, rows.sort((a, b) => b.starts_at.localeCompare(a.starts_at) || a.slot_index - b.slot_index));
     }
@@ -462,7 +512,7 @@ async function newPage(scheme = 'light') {
       const out = db.attendance
         .map((a) => ({ a, t: db.trainings.find((x) => x.id === a.training_id), p: roster.find((x) => x.id === a.member_id) }))
         .filter(({ t }) => t && t.status === 'completed' && monthOfTraining(t) === monthKey)
-        .map(({ a, t, p }) => ({ training_id: t.id, starts_at: t.starts_at, slot_index: a.slot_index, member_id: a.member_id, full_name: p.full_name, status: a.status, note: a.note }))
+        .map(({ a, t, p }) => ({ training_id: t.id, starts_at: t.starts_at, slot_index: a.slot_index, member_id: a.member_id, full_name: p.full_name, status: a.status, note: a.note, session_starts_at: (a.starts_at ?? windowOf(t, a.slot_index).starts_at), session_ends_at: (a.ends_at ?? windowOf(t, a.slot_index).ends_at) }))
         .sort((x, y) => x.starts_at.localeCompare(y.starts_at) || x.slot_index - y.slot_index || x.full_name.localeCompare(y.full_name, 'tr'));
       return json(route, out);
     }
@@ -736,6 +786,7 @@ const shot = async (page, name, fullPage = false) => {
     const t = db.trainings[0];
     return t && new Date(t.starts_at).getUTCHours() === 5 && Date.parse(t.starts_at) - Date.parse(t.rsvp_deadline) === 24 * HOUR && t.slot_count === 0 && !('slotCount' in t);
   })());
+  await page.getByRole('region', { name: 'Yanıt yok (2)' }).waitFor(); // the roster loads after the page does
   check('roster of active members is unanswered (2 members; deactivated one excluded)', await page.getByRole('region', { name: 'Yanıt yok (2)' }).isVisible());
   await shot(page, '14-coach-training-detail');
 
@@ -948,23 +999,22 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('tab', { name: 'Program' }).click();
   await page.getByText('Taslak — üyeler görmüyor').waitFor();
 
-  const slotTabs = page.getByRole('tablist', { name: 'Seanslar' }).getByRole('tab');
-  // each tab is the hour plus how many people are placed in it ("Boş" while nobody is)
-  check('one tab per one-hour session (08:00, 09:00), each showing it is still empty', (await slotTabs.count()) === 2 && (await slotTabs.allTextContents()).join(',') === '08:00Boş,09:00Boş');
-  const banner = page.locator('[role="tabpanel"]:not([hidden]) .sticky').first();
-  check('the hour being edited is a big banner: "1. seans", 08:00–09:00, 0 people placed', (await banner.innerText()).replace(/\s+/g, ' ') === '1. seans 08:00–09:00 0 kişi');
+  // every boat has its OWN sequence of sessions: each starts with one empty session at the training's start, an hour long
   const boat = (name) => page.getByRole('group', { name, exact: true });
-  check('active boats are offered (Mavi, Turuncu, C4X, Yeşil)', (await boat('Mavi').isVisible()) && (await boat('Turuncu').isVisible()) && (await boat('C4X').isVisible()));
+  const session = (name, range) => page.getByRole('group', { name: `${name}, ${range}`, exact: true });
+  check('no hour tabs and no shared banner any more: the schedule belongs to each boat', (await page.getByRole('tablist', { name: 'Seanslar' }).count()) === 0);
+  check('active boats are offered, each with one empty session 08:00–09:00 (Mavi, Turuncu, C4X, Yeşil)', (await boat('Mavi').isVisible()) && (await boat('Turuncu').isVisible()) && (await boat('C4X').isVisible()) && (await session('Mavi', '08:00–09:00').isVisible()) && (await session('Turuncu', '08:00–09:00').isVisible()) && (await session('C4X', '08:00–09:00').isVisible()));
+  check('a session shows its own start and end as editable times, and its length (1 sa)', ((await session('Mavi', '08:00–09:00').getByLabel('Başlangıç').inputValue()) === '08:00') && ((await session('Mavi', '08:00–09:00').getByLabel('Bitiş').inputValue()) === '09:00') && (await session('Mavi', '08:00–09:00').getByText('1 sa', { exact: true }).isVisible()));
   await shot(page, '22-program-editor-empty');
 
-  const openPicker = async (name) => {
-    await boat(name).getByRole('button', { name: /Ekip seç|Ekibi düzenle/ }).click();
+  const openPicker = async (name, range) => {
+    await session(name, range).getByRole('button', { name: /Ekip seç|Ekibi düzenle/ }).click();
     return page.getByRole('dialog');
   };
 
-  // hour 1 (08:00): Mavi = Alex + Ashley ; Turuncu = Ali + John
-  let d = await openPicker('Mavi');
-  check('picker is titled with boat and hour', await d.getByRole('heading', { name: 'Mavi · 08:00–09:00' }).isVisible());
+  // Mavi 08:00–09:00 = Alex + Ashley ; Turuncu 08:00–09:00 = Ali + John
+  let d = await openPicker('Mavi', '08:00–09:00');
+  check('picker is titled with the boat and THAT session\'s time', await d.getByRole('heading', { name: 'Mavi · 08:00–09:00' }).isVisible());
   check("a member's note is shown while choosing the crew", await d.getByText("9'dan sonraya yazar mısınız?").isVisible());
   check('members who said "not attending" are tucked away, not offered first', !(await d.getByRole('checkbox', { name: /Çağla/ }).isVisible()));
   await d.getByRole('checkbox', { name: /Alex/ }).click();
@@ -972,35 +1022,40 @@ const shot = async (page, name, fullPage = false) => {
   check('a full boat refuses a third person', (await d.getByRole('checkbox', { name: /John/ }).getAttribute('aria-disabled')) === 'true' && (await d.getByText('Tekne dolu').first().isVisible()));
   await shot(page, '23-crew-picker');
   await d.getByRole('button', { name: 'Tamam' }).click();
-  check('Mavi shows its crew and 2/2', (await boat('Mavi').getByText('Alex').isVisible()) && (await boat('Mavi').getByText('2/2').isVisible()));
+  check('Mavi shows its crew and 2/2', (await session('Mavi', '08:00–09:00').getByText('Alex').isVisible()) && (await session('Mavi', '08:00–09:00').getByText('2/2').isVisible()));
 
-  d = await openPicker('Turuncu');
+  d = await openPicker('Turuncu', '08:00–09:00');
   await d.getByRole('checkbox', { name: /Ali Kaya/ }).click();
   await d.getByRole('checkbox', { name: /John/ }).click();
   await d.getByRole('button', { name: 'Tamam' }).click();
-  check('the tab and the banner count the people placed in the hour (4 kişi)', ((await slotTabs.first().innerText()).replace(/\s+/g, ' ') === '08:00 4 kişi') && (await banner.innerText()).includes('4 kişi'));
-  check('every boat card repeats the hour it is being edited for, in the boat\'s colour', (await boat('Mavi').getByText('08:00', { exact: true }).isVisible()) && (await boat('C4X').getByText('08:00', { exact: true }).isVisible()));
+  check('the boat header summarises ITS schedule (08:00–09:00 · 1 seans)', await boat('Mavi').getByText('08:00–09:00 · 1 seans').isVisible());
 
-  d = await openPicker('C4X');
-  check('a member already in another boat that hour cannot be picked again', (await d.getByRole('checkbox', { name: /Ali Kaya/ }).getAttribute('aria-disabled')) === 'true' && (await d.getByText('Bu seansta Turuncu teknesinde').first().isVisible()));
+  d = await openPicker('C4X', '08:00–09:00');
+  check('somebody already in another boat at that time cannot be picked, and the picker says where', (await d.getByRole('checkbox', { name: /Ali Kaya/ }).getAttribute('aria-disabled')) === 'true' && (await d.getByText('Bu saatte Turuncu teknesinde (08:00–09:00)').first().isVisible()));
   await d.getByRole('button', { name: 'Tamam' }).click();
 
-  await boat('Mavi').getByLabel('Tekne notu (isteğe bağlı)').fill('teknik çalışma');
+  await session('Mavi', '08:00–09:00').getByLabel('Tekne notu (isteğe bağlı)').fill('teknik çalışma');
 
-  // hour 2 (09:00): copy, then clear (with confirmation), then a different crew on the same boat
-  await slotTabs.nth(1).click();
-  await page.getByRole('button', { name: 'Önceki seansı kopyala' }).click();
-  check('copying the previous hour brings boats, crews and notes along', (await boat('Mavi').getByText('Alex').isVisible()) && (await boat('Turuncu').getByText('John').isVisible()));
-  await page.getByRole('button', { name: 'Seansı temizle' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Evet, temizle' }).click();
-  check('clearing an hour asks first, then empties it', (await boat('Mavi').getByRole('button', { name: 'Ekip seç' }).isVisible()) && (await boat('Turuncu').getByRole('button', { name: 'Ekip seç' }).isVisible()));
-  d = await openPicker('Mavi');
-  await d.getByRole('checkbox', { name: /John/ }).click();
+  // "Seans ekle" starts the next session right where the boat's previous one ended — for each boat separately
+  await boat('Mavi').getByRole('button', { name: /Seans ekle/ }).click();
+  await boat('Turuncu').getByRole('button', { name: /Seans ekle/ }).click();
+  check('"Seans ekle" continues where the last session ended: 09:00–10:00 on Mavi and on Turuncu', (await session('Mavi', '09:00–10:00').isVisible()) && (await session('Turuncu', '09:00–10:00').isVisible()));
+  check('the button then offers the next start (10:00), and C4X is untouched (still 08:00–09:00)', ((await boat('Mavi').getByRole('button', { name: /Seans ekle/ }).innerText()).includes('10:00')) && (await session('C4X', '08:00–09:00').isVisible()));
+  d = await openPicker('Mavi', '09:00–10:00');
+  await d.getByRole('checkbox', { name: /John/ }).click(); // John left Turuncu at 09:00 and joins Mavi at 09:00: allowed
   await d.getByRole('button', { name: 'Tamam' }).click();
-  d = await openPicker('Turuncu');
-  await d.getByRole('checkbox', { name: /Ali Kaya/ }).click();
+  d = await openPicker('Turuncu', '09:00–10:00');
+  await d.getByRole('checkbox', { name: /Ali Kaya/ }).click(); // Ali rows the same boat twice, one after the other
   await d.getByRole('button', { name: 'Tamam' }).click();
-  check('the same boat can carry a different crew in the next hour', (await boat('Mavi').getByText('John').isVisible()) && !(await boat('Mavi').getByText('Alex').isVisible()));
+  check('the same boat can carry a different crew in its next session', (await session('Mavi', '09:00–10:00').getByText('John').isVisible()) && !(await session('Mavi', '09:00–10:00').getByText('Alex').isVisible()));
+
+  // times are checked as the coach types: an overlap with the boat's own earlier session is flagged and blocks saving
+  await session('Turuncu', '09:00–10:00').getByLabel('Başlangıç').fill('08:45');
+  const clashing = session('Turuncu', '08:45–10:00');
+  check('a session that overlaps the boat\'s previous one is flagged in words and saving is blocked', (await clashing.getByText('Bu teknenin 08:00–09:00 seansıyla çakışıyor.').isVisible()) && (await page.getByRole('button', { name: 'Taslağı kaydet' }).isDisabled()) && (await page.getByRole('button', { name: 'Yayınla' }).isDisabled()));
+  await shot(page, '22b-program-time-problem');
+  await clashing.getByLabel('Başlangıç').fill('09:00');
+  check('correcting the time removes the warning and allows saving again', ((await session('Turuncu', '09:00–10:00').getByRole('alert').count()) === 0) && !(await page.getByRole('button', { name: 'Yayınla' }).isDisabled()));
 
   await page.getByLabel('Hava durumu notu').fill('Rüzgâr batıdan 15 km/s');
   await page.getByLabel('Antrenman notu').fill('Isınma 10 dk');
@@ -1015,7 +1070,7 @@ const shot = async (page, name, fullPage = false) => {
   await warn.getByRole('button', { name: 'Düzenlemeye dön' }).click();
   check('the summary shows who still has no hour', await page.getByText('Hiç seansta yok').isVisible());
 
-  d = await openPicker('Mavi');
+  d = await openPicker('Mavi', '09:00–10:00');
   await d.getByRole('checkbox', { name: /Jamie/ }).click();
   await d.getByRole('button', { name: 'Tamam' }).click();
 
@@ -1085,7 +1140,7 @@ const shot = async (page, name, fullPage = false) => {
     const liveCard = live.getByRole('link');
     await liveCard.getByText(/tekne/).waitFor();
     const liveText = (await liveCard.innerText()).replace(/\s+/g, ' ');
-    check('coach dashboard: the live program is ONE compact card — date, time range, "Yayında", size', (await liveCard.count()) === 1 && liveText.includes('08:00–10:00') && liveText.includes('Yayında') && /2 seans · \d tekne · \d kişi/.test(liveText), liveText);
+    check('coach dashboard: the live program is ONE compact card — date, time range, "Yayında", size', (await liveCard.count()) === 1 && liveText.includes('08:00–10:00') && liveText.includes('Yayında') && /\d seans · \d tekne · \d kişi/.test(liveText), liveText);
     check('coach dashboard: the card opens the Program tab', ((await liveCard.getAttribute('href')) ?? '').endsWith('?sekme=program'));
     check('coach dashboard: no "Üyeleri yönet" card any more — members live only in the bottom bar', (await cp.getByText('Üyeleri yönet').count()) === 0 && (await cp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).count()) === 1);
     await shot(cp, '50-coach-dashboard-published');
@@ -1102,8 +1157,6 @@ const shot = async (page, name, fullPage = false) => {
     await cp.evaluate(() => window.scrollTo(0, 900));
     await cp.waitForTimeout(150);
     check('coach training page: the switch stays in reach after scrolling down', (await y(tablist)) < 24, String(await y(tablist)));
-    const bannerBox = await cp.locator('[role="tabpanel"]:not([hidden]) .sticky').first().boundingBox();
-    check('program editor: its hour banner sits BELOW the sticky tab bar, not under it', bannerBox.y >= (await y(tablist)) + tabBox.height, `${bannerBox.y} vs ${await y(tablist)}`);
     await cp.evaluate(() => window.scrollTo(0, 0));
     await shot(cp, '51-coach-training-tabs-top');
     const weatherStrip = cp.getByRole('region', { name: 'Hava durumu' });
@@ -1258,7 +1311,9 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('tab', { name: 'Yoklama', selected: true }).waitFor();
   check('dashboard lists trainings waiting for attendance and opens the Yoklama tab directly', true);
 
-  const section = (n) => page.getByRole('region', { name: new RegExp(`^${n}\\. seans`) });
+  // one block per boat session, headed by the boat and THAT session's own time (this program is on the hourly grid: Mavi, hour by hour)
+  const rangeOf = (i) => `${hhmm(Date.parse(tA.starts_at) + i * HOUR)}–${hhmm(Date.parse(tA.starts_at) + (i + 1) * HOUR)}`;
+  const section = (n) => page.getByRole('region', { name: `Mavi · ${rangeOf(n - 1)}`, exact: true });
   const mark = (s, name, label) => s.getByRole('radiogroup', { name: `${name} için durum` }).getByRole('radio', { name: label });
   await section(1).getByText('Alex').waitFor();
   check('the sheet starts from the program: hour 1 Alex + Ashley (Mavi), hour 2 John', (await section(1).getByText('Ashley').isVisible()) && (await section(1).getByText('Mavi').first().isVisible()) && (await section(2).getByText('John').isVisible()) && !(await section(2).getByText('Alex').isVisible()));
@@ -1452,10 +1507,10 @@ const shot = async (page, name, fullPage = false) => {
   await page.goto(BASE + `/antrenor/antrenmanlar/${t.id}`);
   const strip = page.getByRole('region', { name: 'Hava durumu' });
   await strip.waitFor();
-  check('coach detail: forecast per hour with wind, gust and waves', (await strip.getByText('08:00–09:00', { exact: true }).isVisible()) && (await strip.getByText('09:00–10:00', { exact: true }).isVisible()) && (await strip.getByText(/hamle 24 km\/s/).isVisible()) && (await strip.getByText(/dalga 0,6 m/).isVisible()));
+  check('coach detail: forecast per hour with wind, gust and waves', (await strip.getByText('08:00', { exact: true }).isVisible()) && (await strip.getByText('09:00', { exact: true }).isVisible()) && (await strip.getByText(/hamle 24 km\/s/).isVisible()) && (await strip.getByText(/dalga 0,6 m/).isVisible()));
   check('coach detail: attribution and forecast time', (await strip.getByRole('link', { name: 'Open-Meteo' }).isVisible()) && (await strip.getByText(/Tahmin: \d\d:\d\d/).isVisible()));
   const advisory = strip.getByRole('alert');
-  check('coach detail: only the gusty hour warns (thresholds are coach-set, nothing is cancelled)', (await advisory.getByText(/09:00–10:00: Rüzgâr hamlesi 38 km\/s \(eşik 30\)/).isVisible()) && (await advisory.getByText(/09:00–10:00: Dalga 1,4 m \(eşik 1\)/).isVisible()) && !(await advisory.getByText('08:00–09:00').isVisible()));
+  check('coach detail: only the gusty hour warns (thresholds are coach-set, nothing is cancelled)', (await advisory.getByText(/09:00: Rüzgâr hamlesi 38 km\/s \(eşik 30\)/).isVisible()) && (await advisory.getByText(/09:00: Dalga 1,4 m \(eşik 1\)/).isVisible()) && !(await advisory.getByText(/08:00:/).isVisible()));
   await shot(page, '35-coach-weather-advisory');
   await strip.getByRole('button', { name: 'Yenile' }).click();
   await page.getByText('Hava durumu güncellendi.').waitFor();
@@ -1464,12 +1519,7 @@ const shot = async (page, name, fullPage = false) => {
   // the weather has ONE place on the coach's page (the strip above, with its warnings): the editor repeats none of it
   await page.getByRole('tab', { name: 'Program' }).click();
   await page.getByText('Yayında (sürüm 1)').waitFor();
-  const slotTabs = page.getByRole('tablist', { name: 'Seanslar' }).getByRole('tab');
-  const alerts = () => page.getByRole('alert').count();
-  const beforeSecond = await alerts();
-  await slotTabs.nth(1).click();
-  check('program editor: switching to the gusty hour adds no second warning or forecast (the strip above says it once)', (await alerts()) === beforeSecond && (await page.getByRole('tabpanel').getByText(/hamle \d+ km\/s/).count()) === 0);
-  await slotTabs.nth(0).click();
+  check('program editor: it repeats none of the weather — no forecast and no warning inside the editor (the strip above says it once)', (await page.getByRole('tabpanel').getByText(/hamle \d+ km\/s/).count()) === 0 && (await page.getByRole('tabpanel').getByText('uyarı eşiği aşıldı').count()) === 0);
 
   // "notify" choice travels with the save
   const notifyBox = page.getByRole('checkbox', { name: /Üyelere bildirim gönder/ });
@@ -1589,57 +1639,59 @@ const shot = async (page, name, fullPage = false) => {
   await page.goto(BASE + `/antrenor/antrenmanlar/${t.id}`);
   await page.getByRole('tab', { name: 'Program' }).click();
   await page.getByText('Taslak — üyeler görmüyor').waitFor();
-  const tabs = page.getByRole('tablist', { name: 'Seanslar' }).getByRole('tab');
-  check('a new training starts with one session, and the editor explains that sessions are added here', (await tabs.count()) === 1 && (await page.getByRole('button', { name: 'Seans ekle' }).isVisible()));
-  await page.getByRole('button', { name: 'Seans ekle' }).click();
-  await page.getByRole('button', { name: 'Seans ekle' }).click();
-  const banner2 = page.locator('[role="tabpanel"]:not([hidden]) .sticky').first();
-  check('"Seans ekle" adds sessions one by one (08:00, 09:00, 10:00) and jumps to the new one', (await tabs.allTextContents()).map((s) => s.slice(0, 5)).join(',') === '08:00,09:00,10:00' && (await page.getByRole('tab', { name: '10:00', selected: true }).isVisible()) && (await banner2.innerText()).includes('3. seans'));
+  const boat = (name) => page.getByRole('group', { name, exact: true });
+  const session = (name, range) => page.getByRole('group', { name: `${name}, ${range}`, exact: true });
+  check('a new training starts with one empty session per boat at its start (08:00–09:00): nothing to choose up front, no hour tabs', (await session('Mavi', '08:00–09:00').isVisible()) && (await session('C4X', '08:00–09:00').isVisible()) && (await page.getByRole('tablist', { name: 'Seanslar' }).count()) === 0);
+
+  // ---- every boat has ITS OWN schedule: the C4X goes out at 08:30, Mavi keeps its own sequence ----
+  await session('C4X', '08:00–09:00').getByLabel('Başlangıç').fill('08:30');
+  check('setting the C4X\'s first start moves that session to 08:30–09:30 (an hour long) and leaves the other boats at 08:00', (await session('C4X', '08:30–09:30').isVisible()) && (await session('Mavi', '08:00–09:00').isVisible()) && (await session('Turuncu', '08:00–09:00').isVisible()));
+  await boat('Mavi').getByRole('button', { name: /Seans ekle/ }).click();
+  await boat('Mavi').getByRole('button', { name: /Seans ekle/ }).click();
+  check('Mavi\'s "Seans ekle" continues Mavi\'s own sequence (09:00, then 10:00), independent of the C4X', (await session('Mavi', '09:00–10:00').isVisible()) && (await session('Mavi', '10:00–11:00').isVisible()) && (await session('C4X', '08:30–09:30').isVisible()));
   await shot(page, '38-program-add-sessions');
 
   // ---- the C4X must have exactly four people ----
-  await tabs.nth(0).click();
-  const boat = (name) => page.getByRole('group', { name, exact: true });
-  const openPicker = async (name) => {
-    await boat(name).getByRole('button', { name: /Ekip seç|Ekibi düzenle/ }).click();
+  const openPicker = async (name, range) => {
+    await session(name, range).getByRole('button', { name: /Ekip seç|Ekibi düzenle/ }).click();
     return page.getByRole('dialog');
   };
   check('the C4X card says it needs exactly four people', await boat('C4X').getByText('Tam 4 kişi gerekli').isVisible());
-  let d = await openPicker('C4X');
+  let d = await openPicker('C4X', '08:30–09:30');
   for (const name of [/Alex/, /Ashley/, /John/]) await d.getByRole('checkbox', { name }).click();
   await d.getByRole('button', { name: 'Tamam' }).click();
   const publishButton = page.getByRole('button', { name: 'Yayınla', exact: true });
   await page.getByText('Yayınlanamıyor: eksik veya fazla ekip').waitFor();
-  check('a C4X with three people cannot be published: the warning names boat, hour and head count, and the button is disabled', (await page.getByText('C4X, 1. seans: 3/4 kişi — tam 4 kişi olmalı.').isVisible()) && (await publishButton.isDisabled()));
+  check('a C4X with three people cannot be published: the warning names the boat, THAT session\'s time and the head count, and the button is disabled', (await page.getByText('C4X, 08:30–09:30: 3/4 kişi — tam 4 kişi olmalı.').isVisible()) && (await publishButton.isDisabled()));
   await shot(page, '39-c4x-needs-four');
 
   await page.getByRole('button', { name: 'Taslağı kaydet' }).click();
   await page.getByText('Taslak kaydedildi.').waitFor();
-  check('an incomplete C4X can still be saved as a draft; the empty sessions at the end do not count (the training is 1 session)', db.programs[t.id].program.status === 'draft' && t.slot_count === 1, `slot_count=${t.slot_count}`);
+  check('an incomplete C4X can still be saved as a draft; empty sessions do not count — the training lasts until the C4X session ends (09:30)', db.programs[t.id].program.status === 'draft' && hhmm(Date.parse(t.ends_at)) === '09:30', `ends_at=${t.ends_at}`);
 
-  d = await openPicker('C4X');
+  d = await openPicker('C4X', '08:30–09:30');
   await d.getByRole('checkbox', { name: /Jamie/ }).click();
   await d.getByRole('button', { name: 'Tamam' }).click();
   check('with the fourth person the warning is gone and publishing is allowed', (await page.getByText('Yayınlanamıyor: eksik veya fazla ekip').count()) === 0 && (await publishButton.isEnabled()));
 
-  // hour 2: Mavi = Ali + Ashley; hour 3 gets a crew, then the coach takes the last session back
-  await tabs.nth(1).click();
-  d = await openPicker('Mavi');
+  // Mavi 09:00–10:00: Ali. Ashley rows the C4X until 09:30, so she cannot be in Mavi at 09:00 — the picker says so.
+  d = await openPicker('Mavi', '09:00–10:00');
   await d.getByRole('checkbox', { name: /Ali Kaya/ }).click();
+  check('somebody who is on another boat at that time is refused, with the boat and the time named (Ashley: C4X 08:30–09:30)', ((await d.getByRole('checkbox', { name: /Ashley/ }).getAttribute('aria-disabled')) === 'true') && (await d.getByText('Bu saatte C4X teknesinde (08:30–09:30)').first().isVisible()));
+  await d.getByRole('button', { name: 'Tamam' }).click();
+  // Mavi 10:00–11:00: Ashley (the C4X is over by then) — and then the coach takes that session back
+  d = await openPicker('Mavi', '10:00–11:00');
   await d.getByRole('checkbox', { name: /Ashley/ }).click();
   await d.getByRole('button', { name: 'Tamam' }).click();
-  await tabs.nth(2).click();
-  d = await openPicker('Turuncu');
-  await d.getByRole('checkbox', { name: /Ashley/ }).click();
-  await d.getByRole('button', { name: 'Tamam' }).click();
-  await page.getByRole('button', { name: 'Son seansı kaldır' }).click();
-  await page.getByRole('dialog').getByRole('heading', { name: 'Son seans kaldırılsın mı?' }).waitFor();
+  await session('Mavi', '10:00–11:00').getByRole('button', { name: 'Seansı kaldır' }).click();
+  await page.getByRole('dialog').getByRole('heading', { name: 'Seans kaldırılsın mı?' }).waitFor();
   await page.getByRole('dialog').getByRole('button', { name: 'Evet, kaldır' }).click();
-  check('removing a session that has a crew asks first; the session (and its crew) is gone afterwards', (await tabs.count()) === 2);
+  check('removing a session that has a crew asks first; the session (and its crew) is gone afterwards, the others keep their times', ((await session('Mavi', '10:00–11:00').count()) === 0) && (await session('Mavi', '09:00–10:00').isVisible()) && (await session('C4X', '08:30–09:30').isVisible()));
 
   await publishButton.click(); // everybody who answered is placed, so no "are you sure?" is needed
   await page.getByText('Program yayınlandı.').waitFor();
-  check('published: the training is exactly 2 sessions long — derived from the program, not chosen up front', t.slot_count === 2 && db.programs[t.id].program.status === 'published', `slot_count=${t.slot_count}`);
+  check('published: the training lasts until its last session ends (10:00) — derived from the program, not chosen up front', hhmm(Date.parse(t.ends_at)) === '10:00' && db.programs[t.id].program.status === 'published', `ends_at=${t.ends_at}`);
+  check('what was saved carries each session\'s own time: Mavi 09:00–10:00 and C4X 08:30–09:30, nothing for the empty ones', db.saves.at(-1).assignments.length === 2 && db.saves.at(-1).assignments.every((a) => a.starts_at && a.ends_at) && db.saves.at(-1).assignments.some((a) => hhmm(Date.parse(a.starts_at)) === '08:30' && hhmm(Date.parse(a.ends_at)) === '09:30'));
 
   // ---- the member who still has the old page open is refused; the screen then locks ----
   await mp.getByRole('radio', { name: 'Katılmıyorum' }).click();
@@ -1650,7 +1702,8 @@ const shot = async (page, name, fullPage = false) => {
   const mavi = mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ });
   await c4x.waitFor();
   check('the member sees every boat with its whole crew: the C4X has four names', (await Promise.all(['Alex', 'Ashley', 'John', 'Jamie'].map((n) => c4x.getByText(n).isVisible()))).every(Boolean));
-  check('the length is known now: 08:00–10:00 · 2 seans', await mp.getByText('08:00–10:00 · 2 seans').first().isVisible());
+  check('the length is known now: 08:00–10:00 (the end of the last session)', await mp.getByText('08:00–10:00').first().isVisible());
+  check('each boat shows ITS OWN times: the C4X starts at 08:30, Mavi at 09:00 — and neither shows the other\'s', (await c4x.getByText('08:30', { exact: true }).isVisible()) && (await c4x.getByText('09:00', { exact: true }).count()) === 0 && (await mavi.getByText('09:00', { exact: true }).isVisible()) && (await mavi.getByText('08:30', { exact: true }).count()) === 0);
   check('only my own session (Mavi, 09:00–10:00) is highlighted', (await mavi.getByText('Sizin seansınız').count()) === 1 && (await c4x.getByText('Sizin seansınız').count()) === 0 && (await mavi.getByText('09:00', { exact: true }).isVisible()));
   check('the boat I row in (Mavi) is listed before the C4X, tagged "Sizin tekneniz"', (await mavi.boundingBox()).y < (await c4x.boundingBox()).y && (await mavi.getByText('Sizin tekneniz').isVisible()) && (await c4x.getByText('Sizin tekneniz').count()) === 0);
   check('the C4X shows the four-seat icon and Mavi the two-seat icon', (await c4x.locator('svg[data-boat="quad"]').count()) === 1 && (await mavi.locator('svg[data-boat="double"]').count()) === 1);
@@ -1723,6 +1776,95 @@ const shot = async (page, name, fullPage = false) => {
   check('coach feedback round: no unexpected errors (member)', member.problems.length === 0, member.problems.join(' | '));
   await ctx.close();
   await member.ctx.close();
+}
+
+// ---------- 10b. independent schedules per boat: the coach's workflow, session by session ----------
+{
+  const now = Date.now();
+  const at8 = (days) => Date.parse(`${istanbulDate(now + days * 24 * HOUR)}T08:00:00+03:00`);
+  db.trainings = [];
+  db.responses = [];
+  db.programs = {};
+  db.weather = {};
+  db.attendance = [];
+  const who = (username) => roster.find((p) => p.username === username);
+  const [ali, alex, ashley, john, jamie] = ['ali', 'alex', 'ashley', 'john', 'jamie'].map(who);
+  const t = makeTraining({ title: 'Bağımsız saatler', starts_at: iso(at8(5)), slot_count: 0, rsvp_deadline: iso(at8(4)) });
+  db.trainings.push(t);
+  for (const m of [ali, alex, ashley, john, jamie]) db.responses.push({ training_id: t.id, member_id: m.id, response: 'attending', note: null, responded_at: iso(now), set_by_coach: false });
+
+  const { page, ctx, problems } = await newPage();
+  await page.goto(BASE + '/giris');
+  await page.getByLabel('Kullanıcı adı').fill('ayse');
+  await page.getByLabel('Şifre').fill('Coach1234');
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await page.waitForURL('**/antrenor');
+  await page.goto(BASE + `/antrenor/antrenmanlar/${t.id}`);
+  await page.getByRole('tab', { name: 'Program' }).click();
+  await page.getByText('Taslak — üyeler görmüyor').waitFor();
+  const boat = (name) => page.getByRole('group', { name, exact: true });
+  const session = (name, range) => page.getByRole('group', { name: `${name}, ${range}`, exact: true });
+  const openPicker = async (name, range) => {
+    await session(name, range).getByRole('button', { name: /Ekip seç|Ekibi düzenle/ }).click();
+    return page.getByRole('dialog');
+  };
+  const pick = async (name, range, people) => {
+    const d = await openPicker(name, range);
+    for (const p of people) await d.getByRole('checkbox', { name: p }).click();
+    await d.getByRole('button', { name: 'Tamam' }).click();
+  };
+
+  // Turuncu goes out a quarter of an hour after the training's start, without touching Mavi
+  await session('Turuncu', '08:00–09:00').getByLabel('Başlangıç').fill('08:15');
+  check('Turuncu: setting only the first start gives 08:15–09:15 (an hour by default); Mavi stays at 08:00–09:00', (await session('Turuncu', '08:15–09:15').isVisible()) && (await session('Mavi', '08:00–09:00').isVisible()));
+
+  // Mavi: Ali + John, then "Seans ekle" starts the next one where this one ends
+  await pick('Mavi', '08:00–09:00', [/Ali Kaya/, /John/]);
+  await boat('Mavi').getByRole('button', { name: /Seans ekle/ }).click();
+  check('Mavi: "Seans ekle" appends 09:00–10:00 automatically', await session('Mavi', '09:00–10:00').isVisible());
+  await pick('Mavi', '09:00–10:00', [/Alex/, /Ashley/]);
+
+  // an exceptional length: Mavi's first session runs 15 minutes longer — the boat's next session follows the new end
+  await session('Mavi', '08:00–09:00').getByLabel('Bitiş').fill('09:15');
+  check('Mavi: making the first session end 09:15 shifts Mavi\'s next session to 09:15–10:15 (its own length kept) and shows the custom length', (await session('Mavi', '08:00–09:15').isVisible()) && (await session('Mavi', '09:15–10:15').isVisible()) && (await session('Mavi', '08:00–09:15').getByText('1 sa 15 dk', { exact: true }).isVisible()));
+  check('...while Turuncu (08:15) is untouched: schedules never affect each other', await session('Turuncu', '08:15–09:15').isVisible());
+
+  // Turuncu: Jamie in the first session; the second session follows Turuncu's own end (09:15)
+  await pick('Turuncu', '08:15–09:15', [/Jamie/]);
+  await boat('Turuncu').getByRole('button', { name: /Seans ekle/ }).click();
+  check('Turuncu: "Seans ekle" starts at Turuncu\'s own end: 09:15–10:15', await session('Turuncu', '09:15–10:15').isVisible());
+  await shot(page, '55-independent-schedules');
+
+  // teams can trade places within a boat while the times stay
+  await session('Mavi', '09:15–10:15').getByRole('button', { name: '09:15–10:15 ekibini önceki seansla değiştir' }).click();
+  check('Mavi: "swap with the previous session" trades the teams and keeps the times (Alex + Ashley now row first, 08:00–09:15)', (await session('Mavi', '08:00–09:15').getByText('Alex').isVisible()) && (await session('Mavi', '09:15–10:15').getByText('John').isVisible()) && (await session('Mavi', '08:00–09:15').getByText('John').count()) === 0);
+
+  await page.getByRole('button', { name: 'Yayınla' }).click();
+  await page.getByText('Program yayınlandı.').waitFor();
+  const saved = db.saves.at(-1).assignments.map((a) => `${db.boats.find((b) => b.id === a.boat_id).name} ${hhmm(Date.parse(a.starts_at))}–${hhmm(Date.parse(a.ends_at))}`).sort();
+  check('published: exactly the boats\' own schedules were sent — nothing for the empty sessions', JSON.stringify(saved) === JSON.stringify(['Mavi 08:00–09:15', 'Mavi 09:15–10:15', 'Turuncu 08:15–09:15']), saved.join(' | '));
+  check('the training lasts until its last session ends: 10:15', hhmm(Date.parse(t.ends_at)) === '10:15', t.ends_at);
+  const published = page.getByRole('region', { name: 'Yayınlanan program' });
+  await published.waitFor();
+  check('coach: the published view shows each boat with its own times (Mavi 08:00, Turuncu 08:15) and the range 08:00–10:15', (await published.getByRole('region', { name: 'Mavi' }).getByText('08:00', { exact: true }).isVisible()) && (await published.getByRole('region', { name: 'Turuncu' }).getByText('08:15', { exact: true }).isVisible()) && (await page.getByText('08:00–10:15').first().isVisible()));
+
+  // a member sees only their own boat's times
+  {
+    const { page: mp, ctx: mc, problems: mprob } = await newPage('dark');
+    await mp.goto(BASE + '/giris');
+    await mp.getByLabel('Kullanıcı adı').fill('ali');
+    await mp.getByLabel('Şifre').fill('Kurek2026x');
+    await mp.getByRole('button', { name: 'Giriş yap' }).click();
+    await mp.waitForURL('**/uye');
+    const mine = mp.getByRole('region', { name: 'Sizin programınız' });
+    await mine.waitFor();
+    check('member (Ali, Mavi second session now): "Sizin programınız" shows Mavi at 09:15 with John, not the first session\'s time', (await mine.getByText('09:15', { exact: true }).isVisible()) && (await mine.getByText('John ile').isVisible()) && (await mine.getByText('08:00', { exact: true }).count()) === 0);
+    check('...and the whole program lists Turuncu at 08:15 separately from Mavi at 08:00', (await mp.getByRole('region', { name: /^Turuncu/ }).getByText('08:15', { exact: true }).isVisible()) && (await mp.getByRole('region', { name: /^Mavi/ }).getByText('08:00', { exact: true }).isVisible()));
+    check('independent schedules: no unexpected errors (member)', mprob.length === 0, mprob.join(' | '));
+    await mc.close();
+  }
+  check('independent schedules: no unexpected errors (coach)', problems.length === 0, problems.join(' | '));
+  await ctx.close();
 }
 
 // ---------- 11. audit log, keyboard / screen-reader support, going offline ----------

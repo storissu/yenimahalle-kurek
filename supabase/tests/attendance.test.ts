@@ -149,10 +149,10 @@ describe('save_attendance: who and when', () => {
 });
 
 describe('save_attendance: validation (all-or-nothing)', () => {
-  it('rejects negative sessions and more than 12 sessions', async () => {
+  it('rejects negative sessions and more than 30 session numbers', async () => {
     const t = await training('-1 hour', 2);
     await expect(asCoach(t, [{ slot_index: -1, member_id: ids.member1, status: 'present' }])).rejects.toThrow(/Geçersiz seans/);
-    await expect(asCoach(t, [{ slot_index: 12, member_id: ids.member1, status: 'present' }])).rejects.toThrow(/en fazla 12 seans/);
+    await expect(asCoach(t, [{ slot_index: 30, member_id: ids.member1, status: 'present' }])).rejects.toThrow(/en fazla 30 seans/);
   });
 
   it('grows a training that was planned shorter (or not at all) to the sessions actually recorded', async () => {

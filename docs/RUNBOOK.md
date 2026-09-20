@@ -278,6 +278,12 @@ in Cloudflare (a WhatsApp link like `https://wa.me/905XXXXXXXXX`, or a form) to 
 then deploy the website as usual. Until the push, the profile page shows "Birlikte kürek çekme geçmişi yüklenemedi" and the
 leaderboard still hides members without sessions; nothing else is affected.
 
+**9.6 After updating to the "independent boat schedules" release** — in this order: (1) `npx supabase db push` (migration
+`20260924100000_boat_schedules`: session times, `trainings.ends_at`, time-aware history/export; existing programs are converted
+to their old hourly times automatically), (2) `npx supabase functions deploy` (`refresh-weather` now forecasts each session at
+its own start), (3) deploy the website. The migration is safe to apply before the new website: an older website keeps working
+(it sends no times, the old hourly grid applies) but cannot use the new editor.
+
 **9.5 After updating to the "Üyeler tab / member deletion" release** — three steps, in this order:
 1. `npx supabase db push` (migration `20260923100000_member_history_and_delete`: a `deleted_at` column, `member_training_history()` for
    the profile's "Tüm antrenmanlar" tab, and `delete_member()`).

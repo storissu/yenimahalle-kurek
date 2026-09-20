@@ -20,18 +20,18 @@ describe('summaryCsvRows', () => {
 });
 
 describe('detailCsvRows', () => {
-  const base: ExportRow = { training_id: 't', starts_at: '2026-09-22T05:00:00Z', slot_index: 1, member_id: 'a', full_name: 'Ali Yılmaz', status: 'present', note: null };
+  const base: ExportRow = { training_id: 't', starts_at: '2026-09-22T05:00:00Z', slot_index: 1, member_id: 'a', full_name: 'Ali Yılmaz', status: 'present', note: null, session_starts_at: '2026-09-22T06:15:00Z', session_ends_at: '2026-09-22T07:30:00Z' };
 
   it('writes the club-time date, the hour of the session, and Geldi / Gelmedi', () => {
     expect(detailCsvRows([base, { ...base, status: 'absent', note: 'hasta', full_name: 'Becca Kaya' }])).toEqual([
       ['Tarih', 'Seans saati', 'Ad Soyad', 'Durum', 'Not'],
-      ['2026-09-22', '09:00–10:00', 'Ali Yılmaz', 'Geldi', ''],
-      ['2026-09-22', '09:00–10:00', 'Becca Kaya', 'Gelmedi', 'hasta'],
+      ['2026-09-22', '09:15–10:30', 'Ali Yılmaz', 'Geldi', ''], // the session's own time, not the hour grid
+      ['2026-09-22', '09:15–10:30', 'Becca Kaya', 'Gelmedi', 'hasta'],
     ]);
   });
 
   it('uses the Istanbul date even when UTC is still the previous day', () => {
-    expect(detailCsvRows([{ ...base, starts_at: '2026-08-31T21:30:00Z', slot_index: 0 }])[1]).toEqual(['2026-09-01', '00:30–01:30', 'Ali Yılmaz', 'Geldi', '']);
+    expect(detailCsvRows([{ ...base, starts_at: '2026-08-31T21:30:00Z', slot_index: 0, session_starts_at: '2026-08-31T21:30:00Z', session_ends_at: '2026-08-31T22:30:00Z' }])[1]).toEqual(['2026-09-01', '00:30–01:30', 'Ali Yılmaz', 'Geldi', '']);
   });
 });
 

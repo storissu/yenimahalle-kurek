@@ -181,6 +181,21 @@ export interface MySessions {
   absent: number[];
 }
 
+export interface TimedSession {
+  slot: number;
+  present: boolean;
+  /** The session's own time (ISO), as recorded with the attendance. */
+  startsAt: string;
+  endsAt: string;
+}
+
+/** A member's sessions in one training with THEIR OWN times, earliest first (each boat has its own schedule). */
+export function myTimedSessions(records: Array<{ slot_index: number; status: Mark; starts_at: string; ends_at: string }>): TimedSession[] {
+  return records
+    .map((r) => ({ slot: r.slot_index, present: r.status === 'present', startsAt: r.starts_at, endsAt: r.ends_at }))
+    .sort((a, b) => a.startsAt.localeCompare(b.startsAt) || a.slot - b.slot);
+}
+
 /** Sessions (0-based) a member was present / absent in for one training. */
 export function mySessions(records: Array<{ slot_index: number; status: Mark }>): MySessions {
   const sorted = [...records].sort((a, b) => a.slot_index - b.slot_index);

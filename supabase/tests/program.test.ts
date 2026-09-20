@@ -204,9 +204,9 @@ describe('save_program: validation (all-or-nothing)', () => {
     ).rejects.toThrow(/Mavi teknesi aynı seansta iki kez/);
   });
 
-  it('rejects negative hours and more than 12 hours', async () => {
+  it('rejects negative session numbers and more than 30 of them', async () => {
     const t = await newTraining(2);
-    await expect(asCoach(t, payload([{ slot_index: 12, boat_id: boat.mavi, crew: [extra.alex] }]))).rejects.toThrow(/en fazla 12 seans/);
+    await expect(asCoach(t, payload([{ slot_index: 30, boat_id: boat.mavi, crew: [extra.alex] }]))).rejects.toThrow(/en fazla 30 seans/);
     await expect(asCoach(t, payload([{ slot_index: -1, boat_id: boat.mavi, crew: [extra.alex] }]))).rejects.toThrow(/Geçersiz seans/);
   });
 
@@ -420,9 +420,9 @@ describe('the program decides how many sessions a training has', () => {
     await expect(db.query(`update public.trainings set slot_count = 1 where id = $1`, [t])).rejects.toThrow(/3 numaralı seansta programda ekip veya yoklama kaydı var/);
   });
 
-  it('refuses more than 12 sessions and does not touch the length when a save fails', async () => {
+  it('refuses more than 30 session numbers and does not touch the length when a save fails', async () => {
     const t = await newTraining(2);
-    await expect(asCoach(t, payload([{ slot_index: 12, boat_id: boat.mavi, crew: [extra.alex] }]))).rejects.toThrow(/en fazla 12/);
+    await expect(asCoach(t, payload([{ slot_index: 30, boat_id: boat.mavi, crew: [extra.alex] }]))).rejects.toThrow(/en fazla 30/);
     await expect(asCoach(t, payload([{ slot_index: 5, boat_id: boat.mavi, crew: ['zzz'] }]))).rejects.toThrow(/Geçersiz üye/);
     expect(await slotCountOf(t)).toBe(2);
   });
@@ -460,7 +460,7 @@ describe('boats that must be full (C4X = exactly 4)', () => {
   ])('refuses to publish a C4X with %s people, naming the boat, the hour and the number', async (_l, crew, n) => {
     const t = await newTraining(0);
     await expect(asCoach(t, payload([{ slot_index: 1, boat_id: boat.c4x, crew }]), true)).rejects.toThrow(
-      new RegExp(`C4X teknesinde tam 4 kişi olmalı \\(2\\. seansta ${n} kişi var\\)`),
+      new RegExp(`C4X teknesinde tam 4 kişi olmalı \\(\\d\\d:\\d\\d–\\d\\d:\\d\\d seansında ${n} kişi var\\)`),
     );
     expect(await programOf(t)).toBeUndefined(); // all-or-nothing
   });
@@ -469,7 +469,7 @@ describe('boats that must be full (C4X = exactly 4)', () => {
     const t = await newTraining(0);
     await expect(
       asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four }, { slot_index: 1, boat_id: boat.c4x, crew: [extra.alex, extra.ashley] }]), true),
-    ).rejects.toThrow(/2\. seansta 2 kişi var/);
+    ).rejects.toThrow(/seansında 2 kişi var/);
   });
 
   it('cannot hold more than four either (capacity), and other boats may run short-handed', async () => {

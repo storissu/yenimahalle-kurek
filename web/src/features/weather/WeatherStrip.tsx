@@ -8,7 +8,6 @@ import { formatTime } from '@/lib/time';
 import { tr } from '@/strings/tr';
 import type { Training, WeatherSnapshot } from '@/types/database';
 import { useClubSettings } from '../settings/api';
-import { sessionRangeLabel } from '../trainings/schedule';
 import { useRefreshWeather, useWeather } from './hooks';
 import { beaufort, compassFrom, compassShort, describeWeather, evaluateAdvisory, formatNumber, FORECAST_HORIZON_MS, type Thresholds } from './format';
 import { SourceLink } from './SessionWeather';
@@ -74,11 +73,13 @@ export function WeatherStrip({ training, coach = false }: WeatherStripProps) {
   if (training.status === 'cancelled') return null;
   if (weather.isPending) return <Skeleton className="h-24" />;
 
-  const rows = weather.data ?? [];
+  // Boats start at different times, so there can be a row per boat session: list each forecast HOUR once.
+  const seenHours = new Set<string>();
+  const rows = (weather.data ?? []).filter((row) => (seenHours.has(row.forecast_for) ? false : Boolean(seenHours.add(row.forecast_for))));
   const tooFar = Date.parse(training.starts_at) - now.getTime() > FORECAST_HORIZON_MS;
   const thresholds: Thresholds | null = settings.data ?? null;
   const newest = rows.reduce<string | null>((latest, r) => (latest === null || r.fetched_at > latest ? r.fetched_at : latest), null);
-  const advisories = coach ? rows.flatMap((r) => evaluateAdvisory(r, thresholds).map((a) => ({ ...a, slot: r.slot_index }))) : [];
+  const advisories = coach ? rows.flatMap((r) => evaluateAdvisory(r, thresholds).map((a) => ({ ...a, slot: r.slot_index, hour: r.forecast_for }))) : [];
 
   return (
     <Card className="flex flex-col gap-3" role="region" aria-labelledby={`weather-heading-${training.id}`}>
@@ -109,7 +110,7 @@ export function WeatherStrip({ training, coach = false }: WeatherStripProps) {
         <ul className="flex flex-col divide-y divide-border">
           {rows.map((row) => (
             <li key={row.slot_index} className="flex gap-3 py-2 first:pt-0 last:pb-0">
-              {training.slot_count > 1 && <span className="w-24 shrink-0 text-sm font-bold">{sessionRangeLabel(training, row.slot_index)}</span>}
+              {rows.length > 1 && <span className="w-24 shrink-0 text-sm font-bold tabular-nums">{formatTime(row.forecast_for)}</span>}
               <WeatherLine snapshot={row} />
             </li>
           ))}
@@ -125,7 +126,7 @@ export function WeatherStrip({ training, coach = false }: WeatherStripProps) {
           <ul className="list-disc pl-5">
             {advisories.map((a) => (
               <li key={`${a.slot}-${a.kind}`}>
-                {training.slot_count > 1 && <span className="font-semibold">{sessionRangeLabel(training, a.slot)}: </span>}
+                {rows.length > 1 && <span className="font-semibold tabular-nums">{formatTime(a.hour)}: </span>}
                 {a.kind === 'gust'
                   ? tr.weather.advisoryGust(formatNumber(a.value, 0), formatNumber(a.threshold, 0))
                   : tr.weather.advisoryWave(formatNumber(a.value, 1), formatNumber(a.threshold, 1))}

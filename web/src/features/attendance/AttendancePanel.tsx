@@ -20,7 +20,7 @@ import type { AttendanceRecord, Profile, Training } from '@/types/database';
 import { useBoats, useProgram } from '../program/hooks';
 import { fetchMembers, membersKey } from '../members/api';
 import { useTrainingResponses } from '../trainings/hooks';
-import { sessionRangeLabel } from '../trainings/schedule';
+import { sessionTimes } from '../trainings/schedule';
 import { useSaveAttendance, useTrainingAttendance } from './hooks';
 import {
   addSession,
@@ -41,9 +41,20 @@ import {
 } from './model';
 import { WalkInDialog } from './WalkInDialog';
 
+/** One block of the sheet: a boat session (or, without a program, an hour of the training) with its own time. */
+interface SheetSession {
+  /** The session number (`slot_index`), which the attendance rows use. */
+  slot: number;
+  heading: string;
+  /** "08:15–09:15" for the walk-in dialog. */
+  range: string;
+  startMs: number;
+}
+
 interface EditorProps {
   training: Training;
   planned: Planned;
+  sessions: SheetSession[];
   planSource: 'program' | 'rsvp';
   saved: AttendanceRecord[];
   activeMembers: Array<Pick<Profile, 'id' | 'full_name'>>;
@@ -81,7 +92,7 @@ function MarkToggle({ name, value, onChange }: { name: string; value: Mark; onCh
   );
 }
 
-function AttendanceEditor({ training, planned, planSource, saved, activeMembers, nameOf, boatOf }: EditorProps) {
+function AttendanceEditor({ training, planned, sessions, planSource, saved, activeMembers, nameOf, boatOf }: EditorProps) {
   const toast = useToast();
   const save = useSaveAttendance(training.id);
 
@@ -122,6 +133,15 @@ function AttendanceEditor({ training, planned, planSource, saved, activeMembers,
   const candidates = activeMembers.filter((m) => !listed.has(m.id)).map((m) => ({ id: m.id, name: m.full_name }));
   const noRows = !hasAnyRow(draft);
 
+  // Sessions added in this sitting (only possible without a program) continue the old hourly grid.
+  const extra: SheetSession[] = Array.from({ length: Math.max(0, draft.slots.length - baseline.slots.length) }, (_, i) => {
+    const slot = baseline.slots.length + i;
+    const { start, end } = sessionTimes(training, slot);
+    return { slot, heading: tr.program.slotHeading(slot + 1, `${start}–${end}`), range: `${start}–${end}`, startMs: Date.parse(training.starts_at) + slot * 3_600_000 };
+  });
+  const shown = [...sessions, ...extra];
+  const rangeOf = (slot: number) => shown.find((s) => s.slot === slot)?.range ?? '';
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-2">
@@ -133,8 +153,8 @@ function AttendanceEditor({ training, planned, planSource, saved, activeMembers,
 
       {!hasSaved && <p className="text-sm text-muted">{planSource === 'program' ? tr.attendance.planFromProgram : tr.attendance.planFromRsvp}</p>}
 
-      {draft.slots.map((rows, slot) => {
-        const heading = tr.program.slotHeading(slot + 1, sessionRangeLabel(training, slot));
+      {shown.map(({ slot, heading }) => {
+        const rows = draft.slots[slot] ?? [];
         const sorted = [...rows].sort((a, b) => nameOf(a.memberId).localeCompare(nameOf(b.memberId), 'tr'));
         return (
           <section key={slot} aria-label={heading} className="flex flex-col gap-2">
@@ -183,21 +203,24 @@ function AttendanceEditor({ training, planned, planSource, saved, activeMembers,
         );
       })}
 
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" disabled={!canAddSession(draft)} onClick={() => change(addSession(draft))}>
-            <Plus aria-hidden="true" size={16} />
-            {tr.attendance.addSession}
-          </Button>
-          {draft.slots.length > baseline.slots.length && (
-            <Button variant="ghost" onClick={() => change(removeLastSession(draft, baseline.slots.length))}>
-              <Trash2 aria-hidden="true" size={16} />
-              {tr.attendance.removeSession}
+      {/* With a program the sessions ARE the program's (add one there); without one, the coach may add hours here. */}
+      {planSource === 'rsvp' && (
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" disabled={!canAddSession(draft)} onClick={() => change(addSession(draft))}>
+              <Plus aria-hidden="true" size={16} />
+              {tr.attendance.addSession}
             </Button>
-          )}
+            {draft.slots.length > baseline.slots.length && (
+              <Button variant="ghost" onClick={() => change(removeLastSession(draft, baseline.slots.length))}>
+                <Trash2 aria-hidden="true" size={16} />
+                {tr.attendance.removeSession}
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted">{tr.attendance.sessionHint}</p>
         </div>
-        <p className="text-xs text-muted">{tr.attendance.sessionHint}</p>
-      </div>
+      )}
 
       <div className="sticky bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 -mx-1 flex flex-col gap-2 rounded-2xl border border-border bg-surface p-3 shadow-lg">
         <p className="text-center text-sm font-semibold" aria-live="polite">
@@ -227,7 +250,7 @@ function AttendanceEditor({ training, planned, planSource, saved, activeMembers,
 
       <WalkInDialog
         open={picker !== null}
-        rangeLabel={picker === null ? '' : sessionRangeLabel(training, picker)}
+        rangeLabel={picker === null ? '' : rangeOf(picker)}
         candidates={candidates}
         onPick={(memberId) => picker !== null && change(addWalkIn(draft, picker, memberId))}
         onClose={() => setPicker(null)}
@@ -327,7 +350,7 @@ function EditorLoader({
   const names = useMemo(() => new Map(profiles.map((p) => [p.id, p.full_name])), [profiles]);
   const activeMembers = useMemo(() => profiles.filter((p) => p.role === 'member' && p.is_active), [profiles]);
 
-  const { planned, planSource, boatBySlot } = useMemo(() => {
+  const { planned, planSource, boatBySlot, sessions } = useMemo(() => {
     // a training whose length was never planned (0 sessions) is still shown as one session
     const sessions = Math.max(1, training.slot_count);
     const crewBySlot: string[][] = Array.from({ length: sessions }, () => []);
@@ -342,14 +365,34 @@ function EditorLoader({
     const attendingIds = responses.filter((r) => r.response === 'attending').map((r) => r.member_id);
     const planned = plannedFrom(sessions, crewBySlot, attendingIds.filter((id) => activeMembers.some((m) => m.id === id)));
     const hasProgram = crewBySlot.some((crew) => crew.length > 0);
-    return { planned, planSource: (hasProgram ? 'program' : 'rsvp') as 'program' | 'rsvp', boatBySlot };
-  }, [training.slot_count, programData, responses, boatName, activeMembers]);
+
+    // One block per boat session, at ITS OWN time (a session number may only be shared by several boats in older programs).
+    const bySlot = new Map<number, typeof programData.assignments>();
+    for (const a of programData.assignments) if (a.slot_index < sessions) bySlot.set(a.slot_index, [...(bySlot.get(a.slot_index) ?? []), a]);
+    const ids = new Set<number>([...bySlot.keys(), ...saved.map((r) => r.slot_index).filter((slot) => slot < sessions)]);
+    if (!hasProgram) for (let slot = 0; slot < sessions; slot++) ids.add(slot);
+    const list: SheetSession[] = [...ids].map((slot) => {
+      const own = bySlot.get(slot) ?? [];
+      if (own.length === 0) {
+        const { start, end } = sessionTimes(training, slot);
+        return { slot, heading: tr.program.slotHeading(slot + 1, `${start}–${end}`), range: `${start}–${end}`, startMs: Date.parse(training.starts_at) + slot * 3_600_000 };
+      }
+      const startMs = Math.min(...own.map((a) => Date.parse(a.starts_at)));
+      const endMs = Math.max(...own.map((a) => Date.parse(a.ends_at)));
+      const range = `${formatTime(new Date(startMs))}–${formatTime(new Date(endMs))}`;
+      const boatsIn = [...new Set(own.map((a) => boatName.get(a.boat_id) ?? ''))].filter(Boolean);
+      return { slot, heading: boatsIn.length === 1 ? `${boatsIn[0]} · ${range}` : range, range, startMs };
+    });
+    list.sort((a, b) => a.startMs - b.startMs || a.slot - b.slot);
+    return { planned, planSource: (hasProgram ? 'program' : 'rsvp') as 'program' | 'rsvp', boatBySlot, sessions: list };
+  }, [training, programData, responses, boatName, activeMembers, saved]);
 
   return (
     <AttendanceEditor
       key={`${training.id}:${training.slot_count}`}
       training={training}
       planned={planned}
+      sessions={sessions}
       planSource={planSource}
       saved={saved}
       activeMembers={activeMembers}

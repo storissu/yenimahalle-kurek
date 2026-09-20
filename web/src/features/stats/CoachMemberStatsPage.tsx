@@ -14,10 +14,10 @@ import { currentMonthKey, monthKeyOf, type MonthKey } from '@/lib/months';
 import { formatDayMonth } from '@/lib/time';
 import { tr } from '@/strings/tr';
 import { useCoachMonthTable, useMemberAttendance } from '../attendance/hooks';
-import { mySessions } from '../attendance/model';
+import { myTimedSessions } from '../attendance/model';
 import { fetchMembers, membersKey } from '../members/api';
 import { fetchTrainingsByIds } from '../trainings/api';
-import { sessionRangeLabel } from '../trainings/schedule';
+import { spanLabel } from '../trainings/schedule';
 import { MonthPicker } from './MonthPicker';
 
 /** Coach: one member's attendance history, month by month. */
@@ -101,7 +101,7 @@ export function CoachMemberStatsPage() {
             ) : (
               <ul className="flex flex-col gap-3">
                 {inMonth.map((t) => {
-                  const sessions = mySessions((records.data ?? []).filter((r) => r.training_id === t.id));
+                  const sessions = myTimedSessions((records.data ?? []).filter((r) => r.training_id === t.id));
                   return (
                     <li key={t.id}>
                       <Card className="flex flex-col gap-2">
@@ -110,20 +110,19 @@ export function CoachMemberStatsPage() {
                           {t.title && <span className="font-medium text-muted"> · {t.title}</span>}
                         </p>
                         <ul className="flex flex-wrap gap-1.5">
-                          {sessions.present.map((slot) => (
-                            <li key={`p${slot}`}>
-                              <Badge tone="success">
-                                <CircleCheck aria-hidden="true" size={13} />
-                                {sessionRangeLabel(t, slot)}
-                              </Badge>
-                            </li>
-                          ))}
-                          {sessions.absent.map((slot) => (
-                            <li key={`a${slot}`}>
-                              <Badge>
-                                <CircleX aria-hidden="true" size={13} />
-                                {sessionRangeLabel(t, slot)} · {tr.stats.hoursAbsent}
-                              </Badge>
+                          {sessions.map((s) => (
+                            <li key={s.slot}>
+                              {s.present ? (
+                                <Badge tone="success">
+                                  <CircleCheck aria-hidden="true" size={13} />
+                                  {spanLabel(s.startsAt, s.endsAt)}
+                                </Badge>
+                              ) : (
+                                <Badge>
+                                  <CircleX aria-hidden="true" size={13} />
+                                  {spanLabel(s.startsAt, s.endsAt)} · {tr.stats.hoursAbsent}
+                                </Badge>
+                              )}
                             </li>
                           ))}
                         </ul>

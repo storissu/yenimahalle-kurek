@@ -3,7 +3,7 @@ import { Fragment, useId, useMemo, useState } from 'react';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { cn } from '@/lib/cn';
 import { tr } from '@/strings/tr';
-import type { Boat, Training } from '@/types/database';
+import type { Boat } from '@/types/database';
 import type { DirectoryEntry } from '../members/api';
 import { ContactDialog, type Contact } from '../members/ContactDialog';
 import { boatPositions, boatStyle } from './boatStyle';
@@ -13,7 +13,6 @@ import { buildByBoat, isMineSession } from './view';
 
 interface ProgramByBoatProps {
   data: ProgramData;
-  training: Pick<Training, 'starts_at'>;
   boats: ReadonlyArray<Pick<Boat, 'id' | 'name' | 'sort_order' | 'capacity'>>;
   /** The reader: their own sessions stand out, and the boats they row in come first. Omit for a neutral (coach) view. */
   meId?: string;
@@ -36,19 +35,19 @@ function MePill() {
 }
 
 /**
- * The whole published program, grouped by boat:
+ * The whole published program, grouped by boat — every boat with its OWN schedule:
  *
- *   Turuncu    08:00   Ahmet – Gülden
- *              –09:00
- *              09:00   Öykü – Çiğdem
- *   Mavi       07:00   Ahmet – Gülden  …
+ *   Turuncu    08:15   Ahmet – Gülden
+ *              –09:15
+ *              09:15   Öykü – Çiğdem
+ *   Mavi       08:00   Ahmet – Gülden  …
  *
- * Every boat has its own colour, icon AND name. Every session is a row with the start hour big on the left (the first
+ * Every boat has its own colour, icon AND name. Every session is a row with its start big on the left (the first
  * thing the eye lands on), a thin divider, then the crew. The reader's own sessions are a solid blue block and the boats
  * they row in come first, so "where am I?" is answered at a glance. Weather is NOT repeated here: it has one place
  * of its own (see MemberWeather).
  */
-export function ProgramByBoat({ data, training, boats, meId, nameOf, contactOf, profileLinks = true }: ProgramByBoatProps) {
+export function ProgramByBoat({ data, boats, meId, nameOf, contactOf, profileLinks = true }: ProgramByBoatProps) {
   const headingPrefix = useId();
   const [contact, setContact] = useState<Contact | null>(null);
 
@@ -89,8 +88,8 @@ export function ProgramByBoat({ data, training, boats, meId, nameOf, contactOf, 
                   return (
                     <li key={session.slotIndex} data-mine={mine ? 'true' : undefined} className={cn('flex items-center gap-3 px-4 py-3', mine && 'bg-primary py-4 text-primary-fg')}>
                       <SessionTime
-                        training={training}
-                        index={session.slotIndex}
+                        startsAt={session.startsAt}
+                        endsAt={session.endsAt}
                         onPrimary={mine}
                         className={cn('w-[4.75rem] self-stretch border-r pr-3', mine ? 'border-primary-fg/40' : 'border-border')}
                       />

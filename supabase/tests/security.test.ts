@@ -46,7 +46,7 @@ const AUTHENTICATED_TABLE_PRIVILEGES: Record<string, string> = {
 /** Column-level INSERT / UPDATE / SELECT of `authenticated`. Anything not listed is server-only. */
 const AUTHENTICATED_COLUMN_PRIVILEGES: Record<string, Record<string, string>> = {
   attendance_records: {
-    SELECT: 'member_id,note,recorded_at,recorded_by,slot_index,status,training_id',
+    SELECT: 'ends_at,member_id,note,recorded_at,recorded_by,slot_index,starts_at,status,training_id',
   },
   audit_log: {
     SELECT: 'action,actor_id,actor_name,at,category,detail,entity,entity_id,id,summary,tx',
@@ -72,7 +72,7 @@ const AUTHENTICATED_COLUMN_PRIVILEGES: Record<string, Record<string, string>> = 
     UPDATE: 'full_name,phone',
   },
   program_assignments: {
-    SELECT: 'boat_id,id,notes,slot_index,training_id',
+    SELECT: 'boat_id,ends_at,id,notes,slot_index,starts_at,training_id',
   },
   program_crew: {
     SELECT: 'assignment_id,member_id,seat,slot_index,training_id',
@@ -88,7 +88,7 @@ const AUTHENTICATED_COLUMN_PRIVILEGES: Record<string, Record<string, string>> = 
   },
   trainings: {
     INSERT: 'notes,rsvp_deadline,rsvp_deadline_rule,starts_at,title',
-    SELECT: 'cancel_reason,created_at,created_by,deadline_reminder_sent_at,deadline_summary_sent_at,id,notes,rsvp_deadline,rsvp_deadline_rule,slot_count,starts_at,status,title,updated_at',
+    SELECT: 'cancel_reason,created_at,created_by,deadline_reminder_sent_at,deadline_summary_sent_at,ends_at,id,notes,rsvp_deadline,rsvp_deadline_rule,slot_count,starts_at,status,title,updated_at',
     UPDATE: 'notes,rsvp_deadline,rsvp_deadline_rule,starts_at,title',
   },
   weather_snapshots: {

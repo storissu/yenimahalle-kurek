@@ -5,8 +5,14 @@ import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatDate } from '@/lib/time';
 import { tr } from '@/strings/tr';
-import { sessionRangeLabel } from '../trainings/schedule';
+import { sessionWindow } from '../trainings/schedule';
 import { groupByTraining, summarizeHistory, type HistoryRow } from './history';
+
+/** "08:15–09:15": the session's own time, or (older data) the hourly grid from the training's start. */
+function windowLabel(trainingStart: string, s: { slotIndex: number; startsAt: string | null; endsAt: string | null }): string {
+  const { start, end } = sessionWindow({ starts_at: trainingStart }, s.slotIndex, { starts_at: s.startsAt, ends_at: s.endsAt });
+  return `${start}–${end}`;
+}
 
 interface HistoryListProps {
   rows: HistoryRow[];
@@ -48,7 +54,7 @@ export function HistoryList({ rows, capacityOf, limit, empty }: HistoryListProps
             <ul className="mt-2 flex flex-col gap-1.5">
               {day.sessions.map((s) => (
                 <li key={s.slotIndex} className="flex flex-wrap items-center gap-x-3 text-[15px]">
-                  <span className="w-28 shrink-0 font-semibold tabular-nums">{sessionRangeLabel({ starts_at: day.startsAt }, s.slotIndex)}</span>
+                  <span className="w-28 shrink-0 font-semibold tabular-nums">{windowLabel(day.startsAt, s)}</span>
                   {s.boatName && s.boatId && (
                     <span className="inline-flex items-center gap-1.5">
                       <BoatIcon capacity={capacityOf(s.boatId)} size={18} className="text-muted" />

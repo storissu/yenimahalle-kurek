@@ -13,11 +13,11 @@ import { summarizeProgram } from './view';
  * is live, and how big it is. The whole card opens the training's Program tab. The counts appear once the program has
  * loaded; until then (or if it fails) the card simply shows the date and time.
  */
-export function PublishedProgramCard({ training }: { training: Pick<Training, 'id' | 'starts_at' | 'slot_count'> }) {
+export function PublishedProgramCard({ training }: { training: Pick<Training, 'id' | 'starts_at' | 'slot_count' | 'ends_at'> }) {
   const program = useProgram(training.id);
   const summary = program.data ? summarizeProgram(program.data) : null;
   const details = [
-    training.slot_count > 0 ? sessionCountLabel(training.slot_count) : null,
+    summary ? sessionCountLabel(summary.sessions) : null,
     summary ? tr.program.boatCount(summary.boats) : null,
     summary ? tr.program.peopleCount(summary.people) : null,
   ].filter(Boolean);

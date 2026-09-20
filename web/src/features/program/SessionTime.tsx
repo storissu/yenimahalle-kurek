@@ -1,11 +1,11 @@
 import { cn } from '@/lib/cn';
-import type { Training } from '@/types/database';
-import { sessionRangeLabel, sessionTimes } from '../trainings/schedule';
+import { formatTime } from '@/lib/time';
+import { spanLabel } from '../trainings/schedule';
 
 interface SessionTimeProps {
-  training: Pick<Training, 'starts_at'>;
-  /** 0-based session index. */
-  index: number;
+  /** THIS session's own start and end (ISO instants): every boat has its own schedule. */
+  startsAt: string;
+  endsAt: string;
   /** `lg` for the reader's own session. */
   size?: 'md' | 'lg';
   /** On a solid primary background (the reader's own row). */
@@ -14,17 +14,16 @@ interface SessionTimeProps {
 }
 
 /**
- * The time of one session, the first thing a row shows: the start hour big and bold, the end hour small beneath it.
- * Screen readers get the whole range as one piece of text ("08:00–09:00").
+ * The time of one session, the first thing a row shows: the start big and bold, the end small beneath it.
+ * Screen readers get the whole range as one piece of text ("08:15–09:15").
  */
-export function SessionTime({ training, index, size = 'md', onPrimary = false, className }: SessionTimeProps) {
-  const { start, end } = sessionTimes(training, index);
+export function SessionTime({ startsAt, endsAt, size = 'md', onPrimary = false, className }: SessionTimeProps) {
   return (
     <div className={cn('shrink-0 tabular-nums leading-none', className)}>
-      <span className="sr-only">{sessionRangeLabel(training, index)}</span>
+      <span className="sr-only">{spanLabel(startsAt, endsAt)}</span>
       <div aria-hidden="true">
-        <span className={cn('block font-extrabold', size === 'lg' ? 'text-3xl' : 'text-2xl')}>{start}</span>
-        <span className={cn('mt-1 block text-xs font-semibold', onPrimary ? 'text-primary-fg' : 'text-muted')}>–{end}</span>
+        <span className={cn('block font-extrabold', size === 'lg' ? 'text-3xl' : 'text-2xl')}>{formatTime(startsAt)}</span>
+        <span className={cn('mt-1 block text-xs font-semibold', onPrimary ? 'text-primary-fg' : 'text-muted')}>–{formatTime(endsAt)}</span>
       </div>
     </div>
   );
