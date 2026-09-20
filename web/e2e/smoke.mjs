@@ -1204,6 +1204,10 @@ const shot = async (page, name, fullPage = false) => {
     const pageBg = await solid(mp.locator('body'));
     const mineRows = mp.locator('li[data-mine="true"]');
     check('home: my sessions are SOLID blocks (own background, not the page background) — one per session of mine', (await mineRows.count()) === 2 && (await solid(mineRows.first())) !== pageBg && (await solid(mineRows.first())) === (await solid(mineRows.last())));
+    const rgbOf = (css) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number); // "rgb(253, 232, 212)" -> [253, 232, 212]
+    const [tr_, , tb] = rgbOf(await solid(mineRows.first()));
+    check('home: my Turuncu sessions wear the ORANGE tint (red above blue), and the Mavi rows carry no tint', tr_ > tb + 20 && (await mavi.locator('li').evaluateAll((lis) => lis.every((li) => getComputedStyle(li).backgroundColor === 'rgba(0, 0, 0, 0)'))));
+    check('home: the "Sizin programınız" card wears the same orange (its border is not the blue of the app)', await mp.getByRole('region', { name: 'Sizin programınız' }).evaluate((el) => getComputedStyle(el).borderTopColor).then((css) => { const [r, , b] = rgbOf(css); return r > b + 20; }));
     check('home: the boat I row in comes first and is tagged "Sizin tekneniz"', (await above(turuncu, mavi)) && (await turuncu.getByText('Sizin tekneniz').isVisible()) && (await mavi.getByText('Sizin tekneniz').count()) === 0);
     check('home: each boat carries its icon (drawn, decorative)', (await mp.locator('section svg[data-boat]').count()) >= 2);
     // the forecast lives in ONE small card right under my boat card (one row per hour I row in), not inside every session

@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { tr } from '@/strings/tr';
 import { MyBoatCard, TrainingNote, WeatherNote } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
+import { boatStyle } from './boatStyle';
 import { myAssignments } from './view';
 import type { ProgramData } from './model';
 
@@ -45,6 +46,26 @@ describe('MyBoatCard', () => {
     render(<MyBoatCard assignments={myAssignments(data, 'jamie')} nameOf={nameOf} boatName={boatName} capacityOf={(id) => capacities[id] ?? 4} />);
     const icon = screen.getByRole('region', { name: tr.program.yours }).querySelector('svg[data-boat]') as SVGElement;
     expect(icon).toHaveAttribute('data-boat', 'double');
+  });
+
+  it("wears the colour of the boat the member rows in: the card, the time, the boat icon (Turuncu = orange, boat-2)", () => {
+    render(<MyBoatCard assignments={myAssignments(data, 'becca')} nameOf={nameOf} boatName={boatName} styleOf={(id) => boatStyle(id === 'turuncu' ? 1 : 0)} />);
+    const card = screen.getByRole('region', { name: tr.program.yours });
+    expect(card.className).toContain('border-boat-2');
+    expect(card.className).toContain('bg-boat-2-soft');
+    expect(card.className).not.toContain('bg-primary-soft');
+    expect(screen.getByRole('heading', { name: tr.program.yours }).className).toContain('text-boat-2');
+    expect(within(card).getByText('08:15–09:15').parentElement?.className).toContain('text-boat-2');
+    expect((card.querySelector('svg[data-boat]') as SVGElement).getAttribute('class')).toContain('text-boat-2');
+  });
+
+  it("keeps the card itself blue when the member rows in more than one boat, each row still in its own boat's colour", () => {
+    const both: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'jamie', seat: 3 }] };
+    render(<MyBoatCard assignments={myAssignments(both, 'jamie')} nameOf={nameOf} boatName={boatName} styleOf={(id) => boatStyle(id === 'turuncu' ? 1 : 0)} />);
+    const card = screen.getByRole('region', { name: tr.program.yours });
+    expect(card.className).toContain('bg-primary-soft');
+    expect(within(card).getByText('09:00–10:00').parentElement?.className).toContain('text-boat-1');
+    expect(within(card).getByText('08:15–09:15').parentElement?.className).toContain('text-boat-2');
   });
 
   it('leads with the start hour, big, and the end hour small beneath it (read out as one range)', () => {
@@ -124,17 +145,19 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(screen.queryByText(tr.program.yourSession, { exact: false })).not.toBeInTheDocument();
   });
 
-  it("makes the reader's own session a solid block — and only that one — while the others stay plain and readable", () => {
+  it("tints the reader's own session in THEIR boat's colour — and only that one — while the others stay plain and readable", () => {
     show('jamie');
     const mavi = boatSection('Mavi');
     const rows = within(mavi).getAllByRole('listitem');
     expect(rows[0]).not.toHaveAttribute('data-mine'); // Alex + Ashley
     expect(rows[1]).toHaveAttribute('data-mine', 'true'); // John + Jamie
-    // solid blue with the "text on blue" colour, larger and bolder than the other rows
-    expect(rows[1]?.className).toContain('bg-primary');
-    expect(rows[1]?.className).toContain('text-primary-fg');
+    // Mavi is the club's first boat, so its accent is boat-1 (blue): a soft tint and a bar in that colour, a little taller than the other rows
+    expect(rows[1]?.className).toContain('bg-boat-1-soft');
+    expect(rows[1]?.className).toContain('border-boat-1');
     expect(rows[1]?.className).toContain('py-4');
-    expect(rows[0]?.className).not.toContain('bg-primary');
+    expect(rows[1]?.className).not.toContain('bg-primary');
+    expect(rows[0]?.className).not.toContain('boat-1');
+    expect(rows[0]?.className).toContain('border-transparent'); // ... and the same left inset, so the names still line up
     // the crew are compact chips of ONE size everywhere; only my own chip is inverse (white on blue) and says whose session it is
     const chip = (row: HTMLElement | undefined, name: string) => within(row as HTMLElement).getByText(name, { exact: false }).closest('span,button') as HTMLElement;
     for (const [row, name] of [[rows[0], 'Ashley'], [rows[1], 'John'], [rows[1], 'Jamie']] as const) {
@@ -142,8 +165,9 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
       expect(chip(row, name).className).toContain('min-h-9');
       expect(chip(row, name).className).not.toContain('text-lg');
     }
-    expect(chip(rows[1], 'Jamie').className).toContain('bg-primary-fg'); // me: inverse chip
-    expect(chip(rows[1], 'John').className).toContain('border-primary-fg/50'); // the others on my row: outlined
+    expect(chip(rows[1], 'Jamie').className).toContain('bg-boat-1'); // me: the boat's colour itself ...
+    expect(chip(rows[1], 'Jamie').className).toContain('text-surface'); // ... with text that reads on it in both themes
+    expect(chip(rows[1], 'John').className).toContain('border-boat-1/40'); // the others on my row: white chips with a soft edge in the boat's colour
     expect(chip(rows[0], 'Ashley').className).toContain('bg-surface-2'); // other rows: soft chip
     expect(within(rows[1] as HTMLElement).getByText(`— ${tr.program.yourSession}`, { exact: false })).toBeInTheDocument();
     expect(screen.getAllByText(tr.program.yourSession, { exact: false })).toHaveLength(1);
@@ -172,18 +196,38 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['MaviSizin tekneniz', 'TuruncuSizin tekneniz']);
   });
 
-  it('gives each boat its icon by capacity, and the highlight does not depend on the boat colour', () => {
+  it('gives each boat its icon by capacity, and the highlight takes the colour of the boat I row in', () => {
     const withQuad = [...boats, { id: 'c4x', name: 'C4X', sort_order: 3, capacity: 4 }];
     const quad: ProgramData = { ...data, assignments: [...data.assignments, asg('a4', 5, 'c4x', '05:30', '06:30', null)], crew: [...data.crew, { assignment_id: 'a4', training_id: 't', slot_index: 5, member_id: 'jamie', seat: 1 }] };
     render(<ProgramByBoat data={quad} boats={withQuad} meId="jamie" nameOf={nameOf} />);
     expect(boatSection('C4X').querySelector('svg[data-boat]')).toHaveAttribute('data-boat', 'quad');
     expect(boatSection('Mavi').querySelector('svg[data-boat]')).toHaveAttribute('data-boat', 'double');
-    // "me" is drawn with the same solid block in every boat, whatever the boat's accent colour
-    for (const name of ['C4X', 'Mavi']) {
-      const mine = boatSection(name).querySelector('li[data-mine="true"]') as HTMLElement;
-      expect(mine.className).toContain('bg-primary');
-      expect(mine.className).not.toMatch(/boat-\d/);
-    }
+    // each of my sessions wears ITS boat's colour: Mavi blue (boat-1), the C4X purple (boat-3) — never the other's
+    const mavi = boatSection('Mavi').querySelector('li[data-mine="true"]') as HTMLElement;
+    const c4x = boatSection('C4X').querySelector('li[data-mine="true"]') as HTMLElement;
+    expect(mavi.className).toContain('bg-boat-1-soft');
+    expect(mavi.className).not.toContain('boat-3');
+    expect(c4x.className).toContain('bg-boat-3-soft');
+    expect(c4x.className).toContain('border-boat-3');
+    expect(c4x.className).not.toContain('boat-1');
+    // the "Sizin tekneniz" tags carry the same colours
+    expect(within(boatSection('C4X')).getByText(tr.program.yourBoat).className).toContain('bg-boat-3');
+    expect(within(boatSection('Mavi')).getByText(tr.program.yourBoat).className).toContain('bg-boat-1');
+  });
+
+  it("Turuncu members get the orange theme, and nobody else's rows (or boats) are tinted", () => {
+    show('becca'); // Becca rows in Turuncu only
+    const own = boatSection('Turuncu').querySelector('li[data-mine="true"]') as HTMLElement;
+    expect(own.className).toContain('bg-boat-2-soft');
+    expect(own.className).toContain('border-boat-2');
+    const tinted = Array.from(document.querySelectorAll('li')).filter((li) => /-soft(?: |$)/.test(li.className));
+    expect(tinted).toEqual([own]); // no other session carries a tint
+    expect(within(boatSection('Mavi')).queryByText(tr.program.yourBoat)).not.toBeInTheDocument();
+  });
+
+  it('a neutral view (no reader) tints nothing at all', () => {
+    show();
+    expect(Array.from(document.querySelectorAll('li')).filter((li) => /-soft(?: |$)/.test(li.className))).toHaveLength(0);
   });
 
   it('puts the time first in every row: start hour big and bold, end hour small, a divider before the crew', () => {

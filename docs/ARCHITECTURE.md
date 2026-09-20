@@ -78,9 +78,10 @@ later phases, risks) was agreed with the club before implementation started.
   contrast-checked — with a row per session: the time (big start, small end) on the left, then the crew as compact
   name chips — one size and shape for everybody (`text-sm`, `min-h-9`), flowing side by side for one or two names and
   in an even two-column grid for three or four (the C4X), so rows stay tidy whatever the crew size. A name opens the
-  contact card. Rows the reader rows in are a solid blue block: the others' chips are outlined, the reader's own chip is
-  inverse with a pin and carries the screen-reader text "Sizin seansınız" (there is no separate "Siz" badge). The
-  "Sizin programınız" card stays on top.
+  contact card. Rows the reader rows in wear THEIR boat's colour (a light tint, a bar on the left, the time and the "Sizin tekneniz"
+  tag in that colour — Mavi blue, Turuncu orange, C4X purple; nothing else is tinted): the others' chips are white with a
+  soft edge in that colour, the reader's own chip is the colour itself with a pin and carries the screen-reader text "Sizin seansınız" (there is no separate "Siz" badge). The
+  "Sizin programınız" card stays on top, in the same colour when the reader rows in a single boat (blue when in several).
 - Editor logic lives in `web/src/features/program/model.ts` (pure functions, mirrors the database rules; unit-tested):
   a draft is a flat list of sessions (boat, "HH:MM" start/end, crew); adding a session starts it where the boat's last one
   ended, changing a boat's FIRST start moves the whole boat, changing an END moves that boat's later sessions, swapping

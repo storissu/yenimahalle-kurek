@@ -44,7 +44,7 @@ Kulübün antrenman uygulaması: antrenmana katılıp katılmayacağınızı bil
 Antrenör programı yayınlayınca:
 - **Ana Sayfa**'nın üstünde **"Sizin programınız"** kutusunda **saatiniz (en büyük yazıyla)**, tekneniz ve ekip arkadaşlarınız görünür. Hemen altında **o saatin hava tahmini** küçük bir kartta yer alır.
 - Altında **tüm program tekne tekne** listelenir. Her teknenin kendi rengi, adı ve **küçük bir tekne çizimi** vardır (tek, çift, dörtlü); her satırda solda **saat (büyük)**, yanında ekip yazar.
-- **Sizin seanslarınız dolu mavi bir kutuyla öne çıkar**, adınız beyaz bir etiketle işaretlenir; ekip arkadaşlarınızın adları da aynı boyutta küçük etiketlerdir. Kürek çektiğiniz **tekneler listenin en üstünde** gelir ve "Sizin tekneniz" yazar.
+- **Sizin seanslarınız, bindiğiniz teknenin renginde hafif bir zemin ve çizgiyle öne çıkar** (Mavi mavi, Turuncu turuncu, C4X mor); adınız o renkte bir etiketle işaretlenir; ekip arkadaşlarınızın adları da aynı boyutta küçük etiketlerdir. Kürek çektiğiniz **tekneler listenin en üstünde** gelir ve "Sizin tekneniz" yazar.
 - Program değişirse yalnızca ilgili kişilere bildirim gelir.
 
 **Açık / koyu görünüm:** Profil sayfasındaki **Görünüm** kutusundan **Sistem** (telefonunuzun ayarı), **Açık** veya **Koyu**'yu seçin; seçiminiz bu telefonda hatırlanır. Antrenörler için aynı kutu **Diğer** sayfasındadır.

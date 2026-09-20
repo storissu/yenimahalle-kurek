@@ -8,6 +8,7 @@ import { tr } from '@/strings/tr';
 import type { Training } from '@/types/database';
 import { useProfile } from '../auth/AuthProvider';
 import { useMyResponses } from '../trainings/hooks';
+import { boatPositions, boatStyle } from './boatStyle';
 import { useBoats, useMemberNames, useProgram } from './hooks';
 import { MyBoatCard, TrainingNote, WeatherNote } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
@@ -33,6 +34,8 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
   const boatById = useMemo(() => new Map((boats.data ?? []).map((b) => [b.id, b])), [boats.data]);
   const boatName = (id: string) => boatById.get(id)?.name ?? '?';
   const capacityOf = (id: string) => boatById.get(id)?.capacity ?? 2;
+  const positions = useMemo(() => boatPositions(boats.data ?? []), [boats.data]);
+  const styleOf = (id: string) => (positions.has(id) ? boatStyle(positions.get(id) ?? 0) : undefined);
 
   if (program.isPending || boats.isPending || namesQuery.isPending) return <Skeleton className={variant === 'mine' ? 'h-32' : 'h-48'} />;
   if (program.isError || boats.isError || namesQuery.isError) {
@@ -60,7 +63,7 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
 
   const yours =
     mine.length > 0 ? (
-      <MyBoatCard assignments={mine} nameOf={nameOf} boatName={boatName} capacityOf={capacityOf} />
+      <MyBoatCard assignments={mine} nameOf={nameOf} boatName={boatName} capacityOf={capacityOf} styleOf={styleOf} />
     ) : attending ? (
       <Card className="border-warning bg-warning-soft text-sm font-medium text-warning">{tr.program.yourNoneAttending}</Card>
     ) : null;

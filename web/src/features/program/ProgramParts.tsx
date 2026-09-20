@@ -1,7 +1,9 @@
 import { CloudSun, NotebookText, Ship } from 'lucide-react';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Card } from '@/components/ui/Card';
+import { cn } from '@/lib/cn';
 import { tr } from '@/strings/tr';
+import type { BoatStyle } from './boatStyle';
 import { SessionTime } from './SessionTime';
 import { matesLabel, type MyAssignment } from './view';
 
@@ -14,35 +16,55 @@ interface MyBoatCardProps extends NamesProps {
   assignments: MyAssignment[];
   /** Seats of a boat, for its icon (defaults to a double). */
   capacityOf?: (boatId: string) => number;
+  /** The colours of a boat (the same ones its block in the full program uses). Without it the card stays in the app's blue. */
+  styleOf?: (boatId: string) => BoatStyle | undefined;
 }
 
 /**
  * The signed-in member's own part of the program, big and first: WHEN (the start hour, largest), which boat, with whom.
  * The forecast for that hour sits right below this card (MemberWeather), once — not inside every session.
+ * It wears the colour of the boat the member rows in (a subtle tint and edge; the time, the boat icon and the divider in
+ * every row carry it too). When they row in more than one boat the card itself stays blue and each row keeps its own boat's colour.
  */
-export function MyBoatCard({ assignments, nameOf, boatName, capacityOf }: MyBoatCardProps) {
+export function MyBoatCard({ assignments, nameOf, boatName, capacityOf, styleOf }: MyBoatCardProps) {
+  const styles = assignments.map((a) => styleOf?.(a.boatId));
+  const first = styles[0];
+  const card = first && styles.every((st) => st === first) ? first : undefined; // one boat only
   return (
-    <Card className="flex flex-col gap-3 border-2 border-primary bg-primary-soft" aria-labelledby="my-program-heading" role="region">
-      <h2 id="my-program-heading" className="flex items-center gap-2 text-sm font-bold text-primary">
+    // a plain div, not <Card>: Card brings its own border/background classes, which would fight the boat colours
+    <div
+      className={cn('flex flex-col gap-3 rounded-2xl border-2 p-4', card ? cn(card.border, card.soft) : 'border-primary bg-primary-soft')}
+      aria-labelledby="my-program-heading"
+      role="region"
+    >
+      <h2 id="my-program-heading" className={cn('flex items-center gap-2 text-sm font-bold', card ? card.text : 'text-primary')}>
         <Ship aria-hidden="true" size={18} />
         {tr.program.yours}
       </h2>
       <ul className="flex flex-col gap-3">
-        {assignments.map((a) => (
-          <li key={a.slotIndex} className="flex items-center gap-4 rounded-xl bg-surface p-3">
-            <SessionTime startsAt={a.startsAt} endsAt={a.endsAt} size="lg" className="w-[6.5rem] self-stretch border-r border-border pr-4 text-primary" />
-            <div className="min-w-0 flex-1">
-              <p className="flex items-center gap-2 text-xl font-extrabold text-fg">
-                <BoatIcon capacity={capacityOf?.(a.boatId) ?? 2} size={24} className="shrink-0 text-primary" />
-                {boatName(a.boatId)}
-              </p>
-              <p className="text-base text-fg">{matesLabel(a.mates.map(nameOf))}</p>
-              {a.notes && <p className="mt-1 text-sm text-muted">{a.notes}</p>}
-            </div>
-          </li>
-        ))}
+        {assignments.map((a, i) => {
+          const style = styles[i];
+          return (
+            <li key={a.slotIndex} className="flex items-center gap-4 rounded-xl bg-surface p-3">
+              <SessionTime
+                startsAt={a.startsAt}
+                endsAt={a.endsAt}
+                size="lg"
+                className={cn('w-[6.5rem] self-stretch border-r pr-4', style ? cn(style.text, style.outline) : 'border-border text-primary')}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="flex items-center gap-2 text-xl font-extrabold text-fg">
+                  <BoatIcon capacity={capacityOf?.(a.boatId) ?? 2} size={24} className={cn('shrink-0', style ? style.text : 'text-primary')} />
+                  {boatName(a.boatId)}
+                </p>
+                <p className="text-base text-fg">{matesLabel(a.mates.map(nameOf))}</p>
+                {a.notes && <p className="mt-1 text-sm text-muted">{a.notes}</p>}
+              </div>
+            </li>
+          );
+        })}
       </ul>
-    </Card>
+    </div>
   );
 }
 
