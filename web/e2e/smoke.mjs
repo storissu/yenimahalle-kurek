@@ -36,9 +36,9 @@ const db = {
   trainings: [],
   responses: [], // { training_id, member_id, response, note, responded_at, set_by_coach }
   boats: [
-    { id: 'boat-1', name: 'Mavi', capacity: 2, is_active: true, sort_order: 1, requires_full_crew: false },
-    { id: 'boat-2', name: 'Turuncu', capacity: 2, is_active: true, sort_order: 2, requires_full_crew: false },
-    { id: 'boat-3', name: 'C4X', capacity: 4, is_active: true, sort_order: 3, requires_full_crew: true },
+    { id: 'boat-1', name: 'Mavi', capacity: 2, is_active: true, sort_order: 1, requires_full_crew: false, has_coxswain: false },
+    { id: 'boat-2', name: 'Turuncu', capacity: 2, is_active: true, sort_order: 2, requires_full_crew: false, has_coxswain: false },
+    { id: 'boat-3', name: 'C4X', capacity: 4, is_active: true, sort_order: 3, requires_full_crew: true, has_coxswain: true },
   ],
   serverSkewMs: 0, // server clock minus phone clock
   rejectRsvp: null, // when set, set_rsvp answers with this business-rule error
@@ -343,6 +343,10 @@ async function newPage(scheme = 'light') {
     if (path === '/rest/v1/member_directory') {
       return json(route, roster.filter((p) => p.role === 'member' && p.is_active).map((p) => ({ id: p.id, full_name: p.full_name, phone: p.phone })));
     }
+    if (path === '/rest/v1/coach_directory') {
+      // names only: a coach can be the dümenci, and members read who that is
+      return json(route, roster.filter((p) => p.role === 'coach' && p.is_active).map((p) => ({ id: p.id, full_name: p.full_name })));
+    }
     if (path === '/rest/v1/training_programs') {
       if (!eqParam('training_id')) {
         return json(route, Object.entries(db.programs).filter(([, e]) => e.program.status === 'published').map(([id]) => ({ training_id: id })));
@@ -374,13 +378,26 @@ async function newPage(scheme = 'light') {
           return dbError(route, 'P0001', `${boat.name} teknesinde tam ${boat.capacity} kişi olmalı (${range} seansında ${a.crew.length} kişi var). Eksik veya fazla ekiple yayınlanamaz.`);
         }
         if (a.crew.length > boat.capacity) return dbError(route, 'P0001', `${boat.name} teknesine en fazla ${boat.capacity} kişi atanabilir`);
+        // the dümenci: only on boats that have one, not a rower of the same session, and required to publish
+        if (a.cox) {
+          if (!boat.has_coxswain) return dbError(route, 'P0001', `${boat.name} teknesinde dümenci olmaz`);
+          if (a.crew.includes(a.cox)) return dbError(route, 'P0001', `Dümenci aynı seansta kürekçi olamaz (${range})`);
+        } else if (b.p_publish && boat.has_coxswain) {
+          return dbError(route, 'P0001', `${boat.name} teknesinde dümenci olmalı (${range} seansı). Dümencisiz yayınlanamaz.`);
+        }
         const id = `as-${db.seq++}`;
         assignments.push({ id, training_id: t.id, slot_index: a.slot_index, boat_id: a.boat_id, notes: a.notes ?? null, starts_at, ends_at });
         for (const [i, memberId] of a.crew.entries()) {
           const key = `${a.slot_index}:${memberId}`;
           if (seen.has(key)) return dbError(route, 'P0001', 'Aynı seansta iki teknede olamaz');
           seen.add(key);
-          crew.push({ assignment_id: id, training_id: t.id, slot_index: a.slot_index, member_id: memberId, seat: i + 1 });
+          crew.push({ assignment_id: id, training_id: t.id, slot_index: a.slot_index, member_id: memberId, seat: i + 1, is_cox: false });
+        }
+        if (a.cox) {
+          const key = `${a.slot_index}:${a.cox}`;
+          if (seen.has(key)) return dbError(route, 'P0001', 'Aynı seansta iki teknede olamaz');
+          seen.add(key);
+          crew.push({ assignment_id: id, training_id: t.id, slot_index: a.slot_index, member_id: a.cox, seat: null, is_cox: true });
         }
       }
       // like the database: one boat is never on the water twice at once, and nobody rows two boats at once
@@ -1742,7 +1759,29 @@ const shot = async (page, name, fullPage = false) => {
   d = await openPicker('C4X', '08:30–09:30');
   await d.getByRole('checkbox', { name: /Jamie/ }).click();
   await d.getByRole('button', { name: 'Tamam' }).click();
-  check('with the fourth person the warning is gone and publishing is allowed', (await page.getByText('Yayınlanamıyor: eksik veya fazla ekip').count()) === 0 && (await publishButton.isEnabled()));
+  check('with the fourth person the head-count warning is gone, but the C4X still needs its dümenci: publishing stays blocked and says so', (await page.getByText('C4X, 08:30–09:30: 3/4 kişi').count()) === 0 && (await page.getByText('C4X, 08:30–09:30: dümenci seçilmeli.').isVisible()) && (await publishButton.isDisabled()));
+  const coxGroup = boat('C4X').getByRole('group', { name: 'Dümenci' });
+  check('the C4X card has its own Dümenci section — the rowers stay 4/4, the dümenci is not a fifth seat', (await coxGroup.isVisible()) && (await boat('C4X').getByText('4/4').isVisible()) && (await coxGroup.getByText('Dümenci seçilmedi').isVisible()));
+
+  // the order of the rowers is the seating order and only the coach changes it
+  const c4xNames = async () => (await session('C4X', '08:30–09:30').getByRole('list').first().getByRole('listitem').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim());
+  const before = await c4xNames();
+  check('the rowers are numbered in the order they were added (1 = first seat), not sorted by name', before.length === 4 && before.every((t, i) => t.startsWith(String(i + 1))) && /Alex/.test(before[0]) && /Jamie/.test(before[3]), before.join(' | '));
+  await session('C4X', '08:30–09:30').getByRole('button', { name: /Jamie.* bir sıra öne al/ }).click();
+  const moved = await c4xNames();
+  check('"bir sıra öne al" moves Jamie from 4th to 3rd (and John to 4th); the first rower cannot go earlier', /Jamie/.test(moved[2]) && /John/.test(moved[3]) && (await session('C4X', '08:30–09:30').getByRole('button', { name: /Alex.* bir sıra öne al/ }).isDisabled()), moved.join(' | '));
+  await session('C4X', '08:30–09:30').getByRole('button', { name: /Jamie.* bir sıra geriye al/ }).click();
+
+  // the dümenci: the coach can steer themselves
+  await coxGroup.getByRole('button', { name: 'Dümenci seç' }).click();
+  d = page.getByRole('dialog');
+  check('the dümenci sheet offers "Kendim (antrenör)" and the members; a rower of that session cannot be chosen', (await d.getByRole('checkbox', { name: /^Kendim/ }).isVisible()) && (await d.getByRole('checkbox', { name: /^Alex/ }).getAttribute('aria-disabled')) === 'true' && (await d.getByText('Bu seansta kürekçi').count()) === 4);
+  await shot(page, '41-c4x-dumenci-picker');
+  await d.getByRole('checkbox', { name: /^Kendim/ }).click();
+  await d.waitFor({ state: 'hidden' });
+  check('choosing themselves closes the sheet; the card names the coach as the dümenci, tagged Antrenör', (await coxGroup.getByText('Ayşe Yılmaz').isVisible()) && (await coxGroup.getByText('Antrenör').isVisible()) && (await coxGroup.getByText('Dümenci seçilmedi').count()) === 0);
+  check('with the dümenci the warning is gone and publishing is allowed', (await page.getByText('Yayınlanamıyor: eksik veya fazla ekip').count()) === 0 && (await publishButton.isEnabled()));
+  await shot(page, '42-c4x-with-dumenci');
 
   // Mavi 09:00–10:00: Ali. Ashley rows the C4X until 09:30, so she cannot be in Mavi at 09:00 — the picker says so.
   d = await openPicker('Mavi', '09:00–10:00');
@@ -1772,6 +1811,8 @@ const shot = async (page, name, fullPage = false) => {
   const mavi = mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ });
   await c4x.waitFor();
   check('the member sees every boat with its whole crew: the C4X has four names', (await Promise.all(['Alex', 'Ashley', 'John', 'Jamie'].map((n) => c4x.getByText(n).isVisible()))).every(Boolean));
+  check('the C4X shows who steers on a line of its own — "Dümenci: Ayşe Yılmaz" (the coach) — and the four rowers keep the seat numbers 1–4', (await c4x.getByText('Dümenci', { exact: true }).isVisible()) && (await c4x.getByText('Ayşe Yılmaz').isVisible()) && (await c4x.getByText('4', { exact: true }).count()) === 1 && (await c4x.getByText('5', { exact: true }).count()) === 0);
+  check('the rowers appear in the order the coach set (Alex first … Jamie fourth), and it was saved that way', ((await c4x.getByRole('listitem').first().innerText()).replace(/\s+/g, ' ').indexOf('Alex') < (await c4x.getByRole('listitem').first().innerText()).replace(/\s+/g, ' ').indexOf('Jamie')) && db.saves.at(-1).assignments.find((a) => a.boat_id === 'boat-3').crew.length === 4 && db.saves.at(-1).assignments.find((a) => a.boat_id === 'boat-3').cox === people.coach.id);
   check('the length is known now: 08:00–10:00 (the end of the last session)', await mp.getByText('08:00–10:00').first().isVisible());
   check('each boat shows ITS OWN times: the C4X starts at 08:30, Mavi at 09:00 — and neither shows the other\'s', (await c4x.getByText('08:30', { exact: true }).isVisible()) && (await c4x.getByText('09:00', { exact: true }).count()) === 0 && (await mavi.getByText('09:00', { exact: true }).isVisible()) && (await mavi.getByText('08:30', { exact: true }).count()) === 0);
   check('only my own session (Mavi, 09:00–10:00) is highlighted', (await mavi.getByText('Sizin seansınız').count()) === 1 && (await c4x.getByText('Sizin seansınız').count()) === 0 && (await mavi.getByText('09:00', { exact: true }).isVisible()));
@@ -1817,7 +1858,7 @@ const shot = async (page, name, fullPage = false) => {
   // ---- boats: the "must be full" switch ----
   await page.goto(BASE + '/antrenor/diger/tekneler');
   await page.getByText('4 kişilik · Tam kadro').waitFor();
-  check('the boat list marks the C4X as "Tam kadro"', (await page.getByText('2 kişilik · Tam kadro').count()) === 0);
+  check('the boat list marks the C4X as "Tam kadro" and as having a dümenci', ((await page.getByText('2 kişilik · Tam kadro').count()) === 0) && (await page.getByText('4 kişilik · Tam kadro · Dümenci').isVisible()));
   await page.getByRole('button', { name: /Mavi/ }).click();
   const boatDialog = page.getByRole('dialog');
   check('the boat form has the switch, off for Mavi', (await boatDialog.getByLabel('Tam kadro zorunlu').isChecked()) === false);

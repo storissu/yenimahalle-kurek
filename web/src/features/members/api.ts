@@ -54,6 +54,7 @@ export async function updateMyPhone(phone: string): Promise<void> {
 export const deleteMember = (userId: string) => invokeFunction<{ ok: true; history_kept: boolean }>('admin-delete-member', { user_id: userId });
 
 export const memberNamesKey = ['member-directory'] as const;
+export const coachNamesKey = ['coach-directory'] as const;
 
 /** What every signed-in user may see of an active member: name and phone number — no username, role or status. */
 export interface DirectoryEntry {
@@ -64,6 +65,13 @@ export interface DirectoryEntry {
 
 export async function fetchMemberNames(): Promise<DirectoryEntry[]> {
   const { data, error } = await supabase.from('member_directory').select('id, full_name, phone');
+  if (error) throw error;
+  return data;
+}
+
+/** The coaches' names (nothing else): a coach can be the dümenci of a boat, and everybody reads who that is. */
+export async function fetchCoachNames(): Promise<Array<{ id: string; full_name: string }>> {
+  const { data, error } = await supabase.from('coach_directory').select('id, full_name');
   if (error) throw error;
   return data;
 }

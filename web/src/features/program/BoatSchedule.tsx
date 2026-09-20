@@ -22,8 +22,12 @@ interface BoatScheduleProps {
   onAdd: () => void;
   onStart: (id: number, time: string) => void;
   onEnd: (id: number, time: string) => void;
+  isCoach?: (memberId: string) => boolean;
   onEdit: (session: SessionDraft) => void;
   onRemoveMember: (id: number, memberId: string) => void;
+  onMoveMember: (id: number, memberId: string, direction: -1 | 1) => void;
+  onPickCox: (session: SessionDraft) => void;
+  onRemoveCox: (id: number) => void;
   onNotes: (id: number, text: string) => void;
   onMove: (id: number, direction: -1 | 1) => void;
   onRemove: (session: SessionDraft) => void;
@@ -34,7 +38,27 @@ interface BoatScheduleProps {
  * the app) and summarises its schedule; each session below carries its own times; "Seans ekle" appends the next one
  * right where the previous ended. Nothing here depends on the other boats' schedules.
  */
-export function BoatSchedule({ boat, position, draft, trainingStart, problems, nameOf, boatName, onAdd, onStart, onEnd, onEdit, onRemoveMember, onNotes, onMove, onRemove }: BoatScheduleProps) {
+export function BoatSchedule({
+  boat,
+  position,
+  draft,
+  trainingStart,
+  problems,
+  nameOf,
+  boatName,
+  isCoach,
+  onAdd,
+  onStart,
+  onEnd,
+  onEdit,
+  onRemoveMember,
+  onMoveMember,
+  onPickCox,
+  onRemoveCox,
+  onNotes,
+  onMove,
+  onRemove,
+}: BoatScheduleProps) {
   const style = boatStyle(position);
   const sessions = sessionsOf(draft, boat.id);
   const used = sessions.filter((s) => s.crew.length > 0);
@@ -70,10 +94,14 @@ export function BoatSchedule({ boat, position, draft, trainingStart, problems, n
             trainingStart={trainingStart}
             nameOf={nameOf}
             boatName={boatName}
+            {...(isCoach ? { isCoach } : {})}
             onStart={(time) => onStart(session.id, time)}
             onEnd={(time) => onEnd(session.id, time)}
             onEdit={() => onEdit(session)}
             onRemoveMember={(memberId) => onRemoveMember(session.id, memberId)}
+            onMoveMember={(memberId, direction) => onMoveMember(session.id, memberId, direction)}
+            onPickCox={() => onPickCox(session)}
+            onRemoveCox={() => onRemoveCox(session.id)}
             onNotes={(text) => onNotes(session.id, text)}
             onMove={(direction) => onMove(session.id, direction)}
             onRemove={() => onRemove(session)}

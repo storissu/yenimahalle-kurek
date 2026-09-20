@@ -31,6 +31,7 @@ const AUTHENTICATED_TABLE_PRIVILEGES: Record<string, string> = {
   audit_log: 'SELECT',
   boats: 'SELECT',
   club_settings: 'SELECT',
+  coach_directory: 'SELECT',
   member_directory: 'SELECT',
   notification_outbox: 'SELECT',
   profiles: 'SELECT',
@@ -52,13 +53,16 @@ const AUTHENTICATED_COLUMN_PRIVILEGES: Record<string, Record<string, string>> = 
     SELECT: 'action,actor_id,actor_name,at,category,detail,entity,entity_id,id,summary,tx',
   },
   boats: {
-    INSERT: 'capacity,is_active,name,requires_full_crew,sort_order',
-    SELECT: 'capacity,created_at,id,is_active,name,requires_full_crew,sort_order,updated_at',
-    UPDATE: 'capacity,is_active,name,requires_full_crew,sort_order',
+    INSERT: 'capacity,has_coxswain,is_active,name,requires_full_crew,sort_order',
+    SELECT: 'capacity,created_at,has_coxswain,id,is_active,name,requires_full_crew,sort_order,updated_at',
+    UPDATE: 'capacity,has_coxswain,is_active,name,requires_full_crew,sort_order',
   },
   club_settings: {
     SELECT: 'club_name,default_rsvp_lead_hours,id,reminder_lead_hours,site_lat,site_lng,site_name,timezone,updated_at,wave_warn_m,wind_gust_warn_kmh',
     UPDATE: 'default_rsvp_lead_hours,reminder_lead_hours,site_lat,site_lng,site_name,wave_warn_m,wind_gust_warn_kmh',
+  },
+  coach_directory: {
+    SELECT: 'full_name,id',
   },
   member_directory: {
     SELECT: 'full_name,id,phone',
@@ -75,7 +79,7 @@ const AUTHENTICATED_COLUMN_PRIVILEGES: Record<string, Record<string, string>> = 
     SELECT: 'boat_id,ends_at,id,notes,slot_index,starts_at,training_id',
   },
   program_crew: {
-    SELECT: 'assignment_id,member_id,seat,slot_index,training_id',
+    SELECT: 'assignment_id,is_cox,member_id,seat,slot_index,training_id',
   },
   push_subscriptions: {
     SELECT: 'auth,created_at,endpoint,id,last_success_at,p256dh,user_agent,user_id',
@@ -127,9 +131,9 @@ describe('row level security', () => {
     expect(tables.filter((t) => t.policies === 0).map((t) => t.name)).toEqual([]);
   });
 
-  it('the only view is member_directory (it filters by itself: signed-in, active members only)', async () => {
+  it('the only views are member_directory and coach_directory (they filter by themselves: signed-in, active people only, names and phones of members / names of coaches)', async () => {
     const views = await rows<{ name: string }>(`select c.relname as name from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'v'`);
-    expect(views.map((v) => v.name)).toEqual(['member_directory']);
+    expect(views.map((v) => v.name).sort()).toEqual(['coach_directory', 'member_directory']);
   });
 });
 

@@ -1,43 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import {
-  addSession,
-  analyzeDraft,
-  canAddSession,
-  conflictFor,
-  draftFromProgram,
-  durationLabel,
-  emptyDraft,
-  fromMinutes,
-  fullCrewProblems,
-  hasAnyCrew,
-  isSameDraft,
-  isTime,
-  moveTeam,
-  nextSessionId,
-  normalize,
-  payloadAsJson,
-  removeMember,
-  removeSession,
-  sessionProblems,
-  sessionsOf,
-  setEnd,
-  setSessionNotes,
-  setStart,
-  suggestedStart,
-  toMinutes,
-  toPayload,
-  toggleMember,
-  withDefaultSessions,
-  type ProgramData,
-  type ProgramDraft,
-  type SessionDraft,
-} from './model';
+import { addSession, analyzeDraft, canAddSession, conflictFor, draftFromProgram, durationLabel, emptyDraft, fromMinutes, fullCrewProblems, hasAnyCrew, isSameDraft, isTime, moveTeam, nextSessionId, normalize, payloadAsJson, removeMember, removeSession, sessionProblems, sessionsOf, setEnd, setSessionNotes, setStart, suggestedStart, toMinutes, toPayload, toggleMember, withDefaultSessions, type ProgramData, type ProgramDraft, type SessionDraft, coxProblems, isInSession, moveMember, peopleOf, setCox, withoutCoxOn, memberSessions, sessionById } from './model';
 
 const MAVI = 'mavi';
 const TURUNCU = 'turuncu';
 const C4X = 'c4x';
 
-const session = (id: number, boatId: string, start: string, end: string, crew: string[] = [], notes = ''): SessionDraft => ({ id, boatId, start, end, crew, notes });
+const session = (id: number, boatId: string, start: string, end: string, crew: string[] = [], notes = '', cox: string | null = null): SessionDraft => ({ id, boatId, start, end, crew, cox, notes });
 const draftOf = (...sessions: SessionDraft[]): ProgramDraft => ({ ...emptyDraft(), sessions });
 const times = (draft: ProgramDraft, boatId: string) => sessionsOf(draft, boatId).map((s) => `${s.start}–${s.end}`);
 
@@ -268,9 +236,9 @@ describe('loading and saving', () => {
       { id: 'a3', training_id: 't', slot_index: 2, boat_id: MAVI, notes: null, starts_at: '2026-09-22T06:15:00Z', ends_at: '2026-09-22T07:15:00Z' }, // nobody in it
     ],
     crew: [
-      { assignment_id: 'a1', training_id: 't', slot_index: 4, member_id: 'z', seat: 2 },
-      { assignment_id: 'a1', training_id: 't', slot_index: 4, member_id: 'y', seat: 1 },
-      { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'x', seat: 1 },
+      { assignment_id: 'a1', training_id: 't', slot_index: 4, member_id: 'z', seat: 2, is_cox: false },
+      { assignment_id: 'a1', training_id: 't', slot_index: 4, member_id: 'y', seat: 1, is_cox: false },
+      { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'x', seat: 1, is_cox: false },
     ],
   };
 
@@ -278,16 +246,16 @@ describe('loading and saving', () => {
     const draft = draftFromProgram(data);
     expect(draft.weatherNote).toBe('rüzgâr');
     expect(draft.sessions).toEqual([
-      { id: 1, boatId: MAVI, start: '08:00', end: '09:15', crew: ['x'], notes: '' },
-      { id: 4, boatId: TURUNCU, start: '08:15', end: '09:15', crew: ['y', 'z'], notes: 'teknik' },
+      { id: 1, boatId: MAVI, start: '08:00', end: '09:15', crew: ['x'], cox: null, notes: '' },
+      { id: 4, boatId: TURUNCU, start: '08:15', end: '09:15', crew: ['y', 'z'], cox: null, notes: 'teknik' },
     ]);
   });
 
   it('makes the save payload: real instants on the training\'s day, the same session numbers, only sessions with a crew', () => {
     const payload = toPayload({ ...draftFromProgram(data), sessions: [...draftFromProgram(data).sessions, session(7, C4X, '08:30', '09:30', [])] }, '2026-09-22');
     expect(payload.assignments).toEqual([
-      { slot_index: 1, boat_id: MAVI, starts_at: '2026-09-22T05:00:00.000Z', ends_at: '2026-09-22T06:15:00.000Z', notes: null, crew: ['x'] },
-      { slot_index: 4, boat_id: TURUNCU, starts_at: '2026-09-22T05:15:00.000Z', ends_at: '2026-09-22T06:15:00.000Z', notes: 'teknik', crew: ['y', 'z'] },
+      { slot_index: 1, boat_id: MAVI, starts_at: '2026-09-22T05:00:00.000Z', ends_at: '2026-09-22T06:15:00.000Z', notes: null, crew: ['x'], cox: null },
+      { slot_index: 4, boat_id: TURUNCU, starts_at: '2026-09-22T05:15:00.000Z', ends_at: '2026-09-22T06:15:00.000Z', notes: 'teknik', crew: ['y', 'z'], cox: null },
     ]);
     expect(payload.weather_note).toBe('rüzgâr');
     expect(payload.training_notes).toBeNull();
@@ -319,5 +287,132 @@ describe('checks before publishing', () => {
   it('lists who was forgotten, who is placed against their answer, and who did not answer', () => {
     const analysis = analyzeDraft(draftOf(session(0, MAVI, '08:00', '09:00', ['ali', 'becca']), session(1, TURUNCU, '08:15', '09:15', ['can'])), roster);
     expect(analysis).toEqual({ unassignedAttending: ['deniz'], assignedNotAttending: ['becca'], assignedNoAnswer: ['can'], peopleAssigned: 3 });
+  });
+});
+
+describe('the dümenci (coxswain) and the order of the crew', () => {
+  const boats = [
+    { id: MAVI, capacity: 2, requires_full_crew: false, has_coxswain: false },
+    { id: C4X, capacity: 4, requires_full_crew: true, has_coxswain: true },
+  ];
+  const four = ['a', 'b', 'c', 'd'];
+
+  describe('order', () => {
+    it('adds rowers at the end and never sorts them', () => {
+      let draft = draftOf(session(0, C4X, '08:30', '09:30'));
+      for (const id of ['z', 'm', 'a']) draft = toggleMember(draft, 0, id, 4).draft;
+      expect(sessionById(draft, 0)?.crew).toEqual(['z', 'm', 'a']);
+      expect(toPayload(draft, '2026-09-22').assignments[0]?.crew).toEqual(['z', 'm', 'a']);
+    });
+
+    it('moves a rower one place towards the front or the back, and stops at the ends', () => {
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four));
+      expect(sessionById(moveMember(draft, 0, 'c', -1), 0)?.crew).toEqual(['a', 'c', 'b', 'd']);
+      expect(sessionById(moveMember(draft, 0, 'b', 1), 0)?.crew).toEqual(['a', 'c', 'b', 'd']);
+      expect(sessionById(moveMember(draft, 0, 'a', -1), 0)?.crew).toEqual(four);
+      expect(sessionById(moveMember(draft, 0, 'd', 1), 0)?.crew).toEqual(four);
+      expect(sessionById(moveMember(draft, 0, 'nobody', 1), 0)?.crew).toEqual(four);
+    });
+
+    it('keeps the order through saving and loading (the seat number is the position)', () => {
+      const draft = draftOf(session(0, MAVI, '08:00', '09:00', ['z', 'a']));
+      const payload = toPayload(draft, '2026-09-22');
+      expect(payload.assignments[0]?.crew).toEqual(['z', 'a']);
+      const reloaded = draftFromProgram({
+        program: null,
+        assignments: [{ id: 'x1', training_id: 't', slot_index: 0, boat_id: MAVI, notes: null, starts_at: '2026-09-22T05:00:00Z', ends_at: '2026-09-22T06:00:00Z' }],
+        crew: [
+          { assignment_id: 'x1', training_id: 't', slot_index: 0, member_id: 'a', seat: 2, is_cox: false },
+          { assignment_id: 'x1', training_id: 't', slot_index: 0, member_id: 'z', seat: 1, is_cox: false },
+        ],
+      });
+      expect(reloaded.sessions[0]?.crew).toEqual(['z', 'a']);
+    });
+
+    it('a swap of teams takes the order and the dümenci along', () => {
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', ['d', 'c', 'b', 'a'], '', 'k1'), session(1, C4X, '09:30', '10:30', ['e', 'f', 'g', 'h'], '', 'k2'));
+      const swapped = moveTeam(draft, 0, 1);
+      expect(sessionById(swapped, 0)?.crew).toEqual(['e', 'f', 'g', 'h']);
+      expect(sessionById(swapped, 0)?.cox).toBe('k2');
+      expect(sessionById(swapped, 1)?.crew).toEqual(['d', 'c', 'b', 'a']);
+      expect(sessionById(swapped, 1)?.cox).toBe('k1');
+    });
+  });
+
+  describe('the dümenci', () => {
+    it('is loaded from the crew row that is flagged, not counted among the rowers', () => {
+      const draft = draftFromProgram({
+        program: null,
+        assignments: [{ id: 'x1', training_id: 't', slot_index: 0, boat_id: C4X, notes: null, starts_at: '2026-09-22T05:30:00Z', ends_at: '2026-09-22T06:30:00Z' }],
+        crew: [
+          { assignment_id: 'x1', training_id: 't', slot_index: 0, member_id: 'k', seat: null, is_cox: true },
+          ...four.map((m, i) => ({ assignment_id: 'x1', training_id: 't', slot_index: 0, member_id: m, seat: i + 1, is_cox: false })),
+        ],
+      });
+      expect(draft.sessions[0]?.crew).toEqual(four);
+      expect(draft.sessions[0]?.cox).toBe('k');
+      expect(peopleOf(draft.sessions[0] as SessionDraft)).toEqual([...four, 'k']);
+    });
+
+    it('is saved as its own field of the assignment', () => {
+      const payload = toPayload(draftOf(session(0, C4X, '08:30', '09:30', four, '', 'k')), '2026-09-22');
+      expect(payload.assignments[0]).toMatchObject({ crew: four, cox: 'k' });
+      expect(toPayload(draftOf(session(0, C4X, '08:30', '09:30', four)), '2026-09-22').assignments[0]?.cox).toBeNull();
+    });
+
+    it('is chosen with setCox (a member or the coach), changed and cleared — and is not a fifth rower', () => {
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four));
+      const chosen = setCox(draft, 0, 'coach').draft;
+      expect(sessionById(chosen, 0)?.cox).toBe('coach');
+      expect(sessionById(chosen, 0)?.crew).toEqual(four); // capacity untouched
+      expect(sessionById(setCox(chosen, 0, 'k').draft, 0)?.cox).toBe('k');
+      expect(sessionById(setCox(chosen, 0, null).draft, 0)?.cox).toBeNull();
+      expect(sessionById(setCox(chosen, 0, 'coach').draft, 0)?.cox).toBeNull(); // choosing the same person again clears it
+      expect(toggleMember(chosen, 0, 'e', 4).error).toBe('full'); // four rowers is still four rowers
+    });
+
+    it('cannot be one of the rowers of the same session, in either direction', () => {
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', ['a', 'b', 'c'], '', 'k'));
+      expect(setCox(draft, 0, 'a').error).toBe('rower');
+      expect(toggleMember(draft, 0, 'k', 4).error).toBe('cox');
+    });
+
+    it('follows the "nobody is in two boats at once" rule (as a rower elsewhere or as another dümenci)', () => {
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four), session(1, MAVI, '09:00', '10:00', ['x', 'y']));
+      const clash = setCox(draft, 0, 'x');
+      expect(clash.error).toBe('elsewhere');
+      expect(clash.conflict?.boatId).toBe(MAVI);
+      expect(toggleMember(setCox(draft, 0, 'k').draft, 1, 'k', 2).error).toBe('elsewhere'); // the dümenci is busy at that time
+      expect(setCox(draft, 0, 'k').error).toBeUndefined();
+      expect(conflictFor(setCox(draft, 0, 'k').draft, session(5, MAVI, '08:45', '09:45'), 'k')?.boatId).toBe(C4X);
+    });
+
+    it('counts as taking part: sessions of a person, the program summary and the schedule problems include the dümenci', () => {
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four, '', 'k'), session(1, MAVI, '09:00', '10:00', ['x', 'k']));
+      expect(memberSessions(draft, 'k').map((x) => x.id)).toEqual([0, 1]);
+      expect(isInSession(draft.sessions[0] as SessionDraft, 'k')).toBe(true);
+      expect(isInSession(draft.sessions[0] as SessionDraft, 'x')).toBe(false);
+      expect(sessionProblems(draft, '08:00').get(0)?.some((p) => p.kind === 'person-overlap' && p.memberId === 'k')).toBe(true);
+      expect(analyzeDraft(draftOf(session(0, C4X, '08:30', '09:30', four, '', 'ali')), [{ id: 'ali', name: 'Ali', answer: 'attending' }]).unassignedAttending).toEqual([]);
+    });
+
+    it('is required on boats that have one before publishing — drafts may be incomplete, other boats need none', () => {
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four), session(1, C4X, '09:30', '10:30', four, '', 'k'), session(2, MAVI, '08:00', '09:00', ['x']), session(3, C4X, '11:00', '12:00'));
+      expect(coxProblems(draft, boats)).toEqual([{ sessionId: 0, boatId: C4X, start: '08:30', end: '09:30' }]);
+      expect(coxProblems(draftOf(session(0, C4X, '08:30', '09:30', four, '', 'k')), boats)).toEqual([]);
+    });
+
+    it('is dropped from boats that no longer have the role (the setting was switched off after saving)', () => {
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four, '', 'k'), session(1, MAVI, '08:00', '09:00', ['x'], '', 'stale'));
+      const cleaned = withoutCoxOn(draft, boats);
+      expect(sessionById(cleaned, 0)?.cox).toBe('k');
+      expect(sessionById(cleaned, 1)?.cox).toBeNull();
+      expect(withoutCoxOn(cleaned, boats)).toBe(cleaned); // nothing to do: the same object
+    });
+
+    it('does not count as a change when only an empty session is involved, but a new dümenci is a change', () => {
+      const saved = draftOf(session(0, C4X, '08:30', '09:30', four));
+      expect(isSameDraft(saved, setCox(saved, 0, 'k').draft)).toBe(false);
+    });
   });
 });

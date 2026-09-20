@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, TriangleAlert, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, ShipWheel, TriangleAlert, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Button } from '@/components/ui/Button';
@@ -24,8 +24,14 @@ interface SessionCardProps {
   boatName: (boatId: string) => string;
   onStart: (time: string) => void;
   onEnd: (time: string) => void;
+  /** Coaches are named as such when they steer (a coach can be the dümenci). */
+  isCoach?: (memberId: string) => boolean;
   onEdit: () => void;
   onRemoveMember: (memberId: string) => void;
+  /** Moves a rower one place towards the front (-1) or the back (+1) of the boat. */
+  onMoveMember: (memberId: string, direction: -1 | 1) => void;
+  onPickCox: () => void;
+  onRemoveCox: () => void;
   onNotes: (text: string) => void;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
@@ -67,10 +73,32 @@ function problemText(problem: SessionProblem, trainingStart: string, nameOf: (id
 }
 
 /**
- * ONE session of ONE boat: its own start and end (an hour by default, freely adjustable), who rows it, a note, and the
- * ways to reorder (swap teams with the neighbouring session) or remove it. The times belong to this boat's schedule only.
+ * ONE session of ONE boat: its own start and end (an hour by default, freely adjustable), who rows it — in seat order, which
+ * the coach can change — and, on boats that have one, its dümenci (a separate role, not a seat); a note, and the ways to reorder
+ * (swap teams with the neighbouring session) or remove it. The times belong to this boat's schedule only.
  */
-export function SessionCard({ session, boat, position, index, count, problems, trainingStart, nameOf, boatName, onStart, onEnd, onEdit, onRemoveMember, onNotes, onMove, onRemove }: SessionCardProps) {
+export function SessionCard({
+  session,
+  boat,
+  position,
+  index,
+  count,
+  problems,
+  trainingStart,
+  nameOf,
+  boatName,
+  isCoach = () => false,
+  onStart,
+  onEnd,
+  onEdit,
+  onRemoveMember,
+  onMoveMember,
+  onPickCox,
+  onRemoveCox,
+  onNotes,
+  onMove,
+  onRemove,
+}: SessionCardProps) {
   const range = `${session.start}–${session.end}`;
   const crew = session.crew;
   const full = crew.length >= boat.capacity;
@@ -115,27 +143,91 @@ export function SessionCard({ session, boat, position, index, count, problems, t
       )}
 
       {crew.length > 0 && (
-        <ul className="flex flex-col gap-1.5">
-          {crew.map((id) => (
-            <li key={id} className="flex min-h-11 items-center justify-between gap-2 rounded-xl bg-surface pl-3">
-              <span className="font-medium">{nameOf(id)}</span>
-              <button
-                type="button"
-                onClick={() => onRemoveMember(id)}
-                aria-label={tr.program.removeFromBoat(nameOf(id))}
-                className="flex h-11 w-11 items-center justify-center rounded-xl text-muted"
-              >
-                <X aria-hidden="true" size={18} />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="flex flex-col gap-1.5">
+          <p className="text-sm font-bold">
+            {tr.program.rowersHeading}
+            {crew.length > 1 && <span className="block text-xs font-normal text-muted">{tr.program.crewOrderHint}</span>}
+          </p>
+          <ul className="flex flex-col gap-1.5">
+            {crew.map((id, i) => (
+              <li key={id} className="flex min-h-11 items-center gap-1 rounded-xl bg-surface pl-2">
+                {crew.length > 1 && (
+                  <span aria-hidden="true" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xs font-bold tabular-nums text-muted">
+                    {i + 1}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1 pl-1 font-medium [overflow-wrap:anywhere]">{nameOf(id)}</span>
+                {crew.length > 1 && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={i === 0}
+                      onClick={() => onMoveMember(id, -1)}
+                      aria-label={tr.program.moveEarlier(nameOf(id))}
+                      className="flex h-11 w-9 shrink-0 items-center justify-center rounded-xl text-muted disabled:opacity-30"
+                    >
+                      <ChevronUp aria-hidden="true" size={20} />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={i === crew.length - 1}
+                      onClick={() => onMoveMember(id, 1)}
+                      aria-label={tr.program.moveLater(nameOf(id))}
+                      className="flex h-11 w-9 shrink-0 items-center justify-center rounded-xl text-muted disabled:opacity-30"
+                    >
+                      <ChevronDown aria-hidden="true" size={20} />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onRemoveMember(id)}
+                  aria-label={tr.program.removeFromBoat(nameOf(id))}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted"
+                >
+                  <X aria-hidden="true" size={18} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <Button variant={crew.length === 0 ? 'primary' : 'secondary'} onClick={onEdit} fullWidth>
         <UserPlus aria-hidden="true" size={18} />
         {crew.length === 0 ? tr.program.pickCrew : tr.program.editCrew}
       </Button>
+
+      {boat.has_coxswain && crew.length > 0 && (
+        <div role="group" aria-label={tr.program.cox} className="flex flex-col gap-1.5">
+          <p className="flex items-center gap-1.5 text-sm font-bold">
+            <ShipWheel aria-hidden="true" size={16} />
+            {tr.program.cox}
+          </p>
+          {session.cox ? (
+            <div className="flex min-h-11 items-center gap-1 rounded-xl bg-surface pl-3">
+              <button type="button" onClick={onPickCox} aria-label={`${tr.program.coxChange}: ${nameOf(session.cox)}`} className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left">
+                <span className="min-w-0 font-medium [overflow-wrap:anywhere]">{nameOf(session.cox)}</span>
+                {isCoach(session.cox) && <Badge tone="primary">{tr.program.coxCoachTag}</Badge>}
+              </button>
+              <button
+                type="button"
+                onClick={onRemoveCox}
+                aria-label={tr.program.coxRemove(nameOf(session.cox))}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-muted"
+              >
+                <X aria-hidden="true" size={18} />
+              </button>
+            </div>
+          ) : (
+            <Button variant="secondary" onClick={onPickCox} fullWidth>
+              <ShipWheel aria-hidden="true" size={18} />
+              {tr.program.coxPick}
+            </Button>
+          )}
+          {!session.cox && <p className="text-sm font-semibold text-warning">{tr.program.coxNone}</p>}
+        </div>
+      )}
 
       {crew.length > 0 && <TextField label={tr.program.boatNoteLabel} value={session.notes} maxLength={200} onChange={(e) => onNotes(e.target.value)} autoComplete="off" />}
 

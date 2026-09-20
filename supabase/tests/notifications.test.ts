@@ -272,7 +272,7 @@ describe('program notifications', () => {
         ? db.query('select public.save_program($1, $2::jsonb, $3)', [t, JSON.stringify({ assignments, ...extras }), publish])
         : db.query('select public.save_program($1, $2::jsonb, $3, $4)', [t, JSON.stringify({ assignments, ...extras }), publish, notify]),
     );
-  const entry = (slot: number, b: string, crew: string[]) => ({ slot_index: slot, boat_id: b, crew });
+  const entry = (slot: number, b: string, crew: string[], cox?: string) => ({ slot_index: slot, boat_id: b, crew, ...(cox ? { cox } : {}) });
   const newProgramTraining = async () => {
     const t = await insertTraining({ startsAt: new Date(Date.now() + 3 * 86_400_000).toISOString().replace(/T.*/, 'T05:00:00Z'), deadline: new Date(Date.now() + 2 * 86_400_000).toISOString(), slots: 2 });
     await cleanOutbox();
@@ -296,9 +296,23 @@ describe('program notifications', () => {
 
   it('lists three crew mates as "A, B ve C ile"', async () => {
     const t = await newProgramTraining();
-    await save(t, [entry(0, boat.c4x, [ids.member1, ids.member2, x.john, x.jamie])], true);
+    await save(t, [entry(0, boat.c4x, [ids.member1, ids.member2, x.john, x.jamie], ids.coach1)], true);
     const rows = byUser(await notifsFor(t));
-    expect(rows[ids.member1]?.body.split('\n')[1]).toBe('08:00–09:00 · C4X · Becca Kaya, John ve Jamie ile');
+    expect(rows[ids.member1]?.body.split('\n')[1]).toBe('08:00–09:00 · C4X · dümenci: Ayşe Antrenör · Becca Kaya, John ve Jamie ile');
+  });
+
+  it('names the dümenci in the rowers\' message (the other rowers stay in seat order), tells a member dümenci so, and never messages a coach dümenci', async () => {
+    const t = await newProgramTraining();
+    await save(t, [entry(0, boat.c4x, [x.jamie, x.john, ids.member2, x.ashley], ids.member1)], true);
+    let rows = byUser(await notifsFor(t));
+    // the order of the boat: Jamie, John, Becca, Ashley
+    expect(rows[x.john]?.body.split('\n')[1]).toBe('08:00–09:00 · C4X · dümenci: Ali Yılmaz · Jamie, Becca Kaya ve Ashley ile');
+    expect(rows[ids.member1]?.body.split('\n')[1]).toBe('08:00–09:00 · C4X · dümenci · Jamie, John, Becca Kaya ve Ashley ile');
+    await cleanOutbox();
+    await save(t, [entry(0, boat.c4x, [x.jamie, x.john, ids.member2, x.ashley], ids.coach1)], true);
+    rows = byUser(await notifsFor(t));
+    expect(rows[ids.coach1]).toBeUndefined(); // a coach steering is not a member: no personal message
+    expect(rows[x.jamie]).toBeDefined();
   });
 
   it('draft saves and unpublishing notify nobody', async () => {

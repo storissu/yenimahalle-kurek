@@ -6,12 +6,23 @@ import { BoatSchedule } from './BoatSchedule';
 import type { ProgramDraft, SessionDraft, SessionProblem } from './model';
 import { SessionCard } from './SessionCard';
 
-const boat = (over: Partial<Boat> = {}): Boat => ({ id: 'mavi', name: 'Mavi', capacity: 2, is_active: true, sort_order: 1, requires_full_crew: false, created_at: '', updated_at: '', ...over }) as Boat;
-const nameOf = (id: string) => ({ a: 'Alex', b: 'Ashley' })[id as 'a' | 'b'] ?? '?';
+const boat = (over: Partial<Boat> = {}): Boat => ({ id: 'mavi', name: 'Mavi', capacity: 2, is_active: true, sort_order: 1, requires_full_crew: false, has_coxswain: false, created_at: '', updated_at: '', ...over }) as Boat;
+const nameOf = (id: string) => ({ a: 'Alex', b: 'Ashley', c: 'Can', d: 'Deniz', k: 'Ayşe Antrenör' })[id as 'a' | 'b' | 'c' | 'd' | 'k'] ?? '?';
 const boatName = (id: string) => ({ mavi: 'Mavi', turuncu: 'Turuncu' })[id as 'mavi' | 'turuncu'] ?? '?';
-const session = (over: Partial<SessionDraft> = {}): SessionDraft => ({ id: 0, boatId: 'mavi', start: '08:15', end: '09:15', crew: [], notes: '', ...over });
+const session = (over: Partial<SessionDraft> = {}): SessionDraft => ({ id: 0, boatId: 'mavi', start: '08:15', end: '09:15', crew: [], cox: null, notes: '', ...over });
 
-const handlers = () => ({ onStart: vi.fn(), onEnd: vi.fn(), onEdit: vi.fn(), onRemoveMember: vi.fn(), onNotes: vi.fn(), onMove: vi.fn(), onRemove: vi.fn() });
+const handlers = () => ({
+  onStart: vi.fn(),
+  onEnd: vi.fn(),
+  onEdit: vi.fn(),
+  onRemoveMember: vi.fn(),
+  onMoveMember: vi.fn(),
+  onPickCox: vi.fn(),
+  onRemoveCox: vi.fn(),
+  onNotes: vi.fn(),
+  onMove: vi.fn(),
+  onRemove: vi.fn(),
+});
 const showCard = (props: Partial<Parameters<typeof SessionCard>[0]> = {}) => {
   const h = handlers();
   render(<SessionCard session={session()} boat={boat()} position={0} index={0} count={1} problems={[]} trainingStart="08:00" nameOf={nameOf} boatName={boatName} {...h} {...props} />);
@@ -94,6 +105,59 @@ describe('SessionCard (one session of one boat)', () => {
   });
 });
 
+describe('SessionCard: crew order and the dümenci', () => {
+  const c4x = () => boat({ id: 'c4x', name: 'C4X', capacity: 4, requires_full_crew: true, has_coxswain: true });
+
+  it('lists the rowers in their seat order with a number, and lets the coach move each one earlier or later', () => {
+    const h = showCard({ boat: c4x(), session: session({ boatId: 'c4x', crew: ['c', 'a', 'd', 'b'] }) });
+    const items = within(screen.getByRole('list')).getAllByRole('listitem');
+    expect(items.map((li) => li.textContent)).toEqual(['1Can', '2Alex', '3Deniz', '4Ashley'].map((t) => expect.stringContaining(t)));
+    fireEvent.click(screen.getByRole('button', { name: tr.program.moveEarlier('Deniz') }));
+    expect(h.onMoveMember).toHaveBeenCalledWith('d', -1);
+    fireEvent.click(screen.getByRole('button', { name: tr.program.moveLater('Alex') }));
+    expect(h.onMoveMember).toHaveBeenCalledWith('a', 1);
+  });
+
+  it('cannot move the first rower earlier or the last one later', () => {
+    showCard({ session: session({ crew: ['a', 'b'] }) });
+    expect(screen.getByRole('button', { name: tr.program.moveEarlier('Alex') })).toBeDisabled();
+    expect(screen.getByRole('button', { name: tr.program.moveLater('Ashley') })).toBeDisabled();
+    expect(screen.getByRole('button', { name: tr.program.moveLater('Alex') })).toBeEnabled();
+  });
+
+  it('shows no numbers or arrows for a single rower', () => {
+    showCard({ session: session({ crew: ['a'] }) });
+    expect(screen.queryByRole('button', { name: tr.program.moveEarlier('Alex') })).not.toBeInTheDocument();
+    expect(screen.queryByText(tr.program.crewOrderHint)).not.toBeInTheDocument();
+  });
+
+  it('has a Dümenci section on a boat with one — apart from the rowers and not counted among them', () => {
+    const h = showCard({ boat: c4x(), session: session({ boatId: 'c4x', crew: ['a', 'b', 'c', 'd'] }) });
+    const group = screen.getByRole('group', { name: tr.program.cox });
+    expect(within(group).getByText(tr.program.coxNone)).toBeInTheDocument();
+    expect(screen.getByText('4/4')).toBeInTheDocument(); // rowers only
+    fireEvent.click(within(group).getByRole('button', { name: tr.program.coxPick }));
+    expect(h.onPickCox).toHaveBeenCalled();
+  });
+
+  it('shows the chosen dümenci, marks a coach as such, and can change or remove them', () => {
+    const h = showCard({ boat: c4x(), session: session({ boatId: 'c4x', crew: ['a', 'b', 'c', 'd'], cox: 'k' }), isCoach: (id) => id === 'k' });
+    const group = screen.getByRole('group', { name: tr.program.cox });
+    expect(within(group).getByText('Ayşe Antrenör')).toBeInTheDocument();
+    expect(within(group).getByText(tr.program.coxCoachTag)).toBeInTheDocument();
+    expect(within(group).queryByText(tr.program.coxNone)).not.toBeInTheDocument();
+    fireEvent.click(within(group).getByRole('button', { name: `${tr.program.coxChange}: Ayşe Antrenör` }));
+    expect(h.onPickCox).toHaveBeenCalled();
+    fireEvent.click(within(group).getByRole('button', { name: tr.program.coxRemove('Ayşe Antrenör') }));
+    expect(h.onRemoveCox).toHaveBeenCalled();
+  });
+
+  it('has no Dümenci section on a boat without one, or while nobody rows yet', () => {
+    showCard({ session: session({ crew: ['a', 'b'] }) });
+    expect(screen.queryByRole('group', { name: tr.program.cox })).not.toBeInTheDocument();
+  });
+});
+
 describe('BoatSchedule (one boat and its own sequence)', () => {
   const draft: ProgramDraft = {
     weatherNote: '',
@@ -120,6 +184,9 @@ describe('BoatSchedule (one boat and its own sequence)', () => {
         onEnd={vi.fn()}
         onEdit={vi.fn()}
         onRemoveMember={vi.fn()}
+        onMoveMember={vi.fn()}
+        onPickCox={vi.fn()}
+        onRemoveCox={vi.fn()}
         onNotes={vi.fn()}
         onMove={vi.fn()}
         onRemove={vi.fn()}

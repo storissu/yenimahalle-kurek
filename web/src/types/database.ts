@@ -108,11 +108,13 @@ export type Database = {
           sort_order: number;
           /** Must be rowed with exactly `capacity` people (C4X = 4); enforced when a program is published. */
           requires_full_crew: boolean;
+          /** Rowed with a dümenci (coxswain) in addition to the rowers (C4X); a program cannot be published without one. */
+          has_coxswain: boolean;
           created_at: string;
           updated_at: string;
         };
-        Insert: { name: string; capacity: number; is_active?: boolean; sort_order?: number; requires_full_crew?: boolean };
-        Update: { name?: string; capacity?: number; is_active?: boolean; sort_order?: number; requires_full_crew?: boolean };
+        Insert: { name: string; capacity: number; is_active?: boolean; sort_order?: number; requires_full_crew?: boolean; has_coxswain?: boolean };
+        Update: { name?: string; capacity?: number; is_active?: boolean; sort_order?: number; requires_full_crew?: boolean; has_coxswain?: boolean };
         Relationships: [];
       };
       club_settings: {
@@ -206,7 +208,8 @@ export type Database = {
         Relationships: [];
       };
       program_crew: {
-        Row: { assignment_id: string; training_id: string; slot_index: number; member_id: string; seat: number | null };
+        // `seat` = the rower's place in the boat (1 = first); the dümenci has no seat and `is_cox` set.
+        Row: { assignment_id: string; training_id: string; slot_index: number; member_id: string; seat: number | null; is_cox: boolean };
         Insert: never;
         Update: never;
         Relationships: [];
@@ -311,6 +314,11 @@ export type Database = {
       };
     };
     Views: {
+      // The coaches' names only: a coach can be the dümenci, and members must be able to read who that is.
+      coach_directory: {
+        Row: { id: string; full_name: string };
+        Relationships: [];
+      };
       member_directory: {
         Row: { id: string; full_name: string; phone: string | null };
         Relationships: [];

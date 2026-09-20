@@ -1,4 +1,4 @@
-import { CloudSun, NotebookText, Ship } from 'lucide-react';
+import { CloudSun, NotebookText, Ship, ShipWheel } from 'lucide-react';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Card } from '@/components/ui/Card';
 import { cn } from '@/lib/cn';
@@ -58,6 +58,22 @@ export function MyBoatCard({ assignments, nameOf, boatName, capacityOf, styleOf 
                   {boatName(a.boatId)}
                 </p>
                 <p className="text-base text-fg">{matesLabel(a.mates.map(nameOf))}</p>
+                {a.iAmCox ? (
+                  <p className="mt-0.5 flex items-center gap-1.5 text-sm font-bold text-fg">
+                    <ShipWheel aria-hidden="true" size={16} className="shrink-0" />
+                    {tr.program.coxSteers}
+                  </p>
+                ) : (
+                  a.cox && (
+                    <p className="mt-0.5 flex items-center gap-1.5 text-sm text-fg">
+                      <ShipWheel aria-hidden="true" size={16} className="shrink-0" />
+                      <span>
+                        {tr.program.cox}: <span className="font-semibold">{nameOf(a.cox)}</span>
+                      </span>
+                    </p>
+                  )
+                )}
+                {a.seat !== null && a.mates.length > 0 && <p className="text-sm text-muted">{tr.program.yourSeat(a.seat)}</p>}
                 {a.notes && <p className="mt-1 text-sm text-muted">{a.notes}</p>}
               </div>
             </li>

@@ -40,7 +40,7 @@ async function newTraining(slots = 3, status: 'scheduled' | 'cancelled' = 'sched
   return (res.rows[0] as { id: string }).id;
 }
 
-type Entry = { slot_index: number; boat_id: string; crew: string[]; notes?: string };
+type Entry = { slot_index: number; boat_id: string; crew: string[]; cox?: string | null; notes?: string };
 const payload = (assignments: Entry[], extras: Record<string, unknown> = {}) => ({ assignments, ...extras });
 
 const save = (training: string, body: unknown, publish = false) =>
@@ -439,18 +439,18 @@ describe('the program decides how many sessions a training has', () => {
 describe('boats that must be full (C4X = exactly 4)', () => {
   const four = [extra.alex, extra.ashley, extra.john, extra.jamie];
 
-  it('is set up for the C4X only, out of the box', async () => {
-    const rows = (await db.query<{ name: string; requires_full_crew: boolean }>('select name, requires_full_crew from public.boats order by name')).rows;
+  it('is set up for the C4X only, out of the box (four rowers + a dümenci)', async () => {
+    const rows = (await db.query<{ name: string; requires_full_crew: boolean; has_coxswain: boolean }>('select name, requires_full_crew, has_coxswain from public.boats order by name')).rows;
     expect(rows).toEqual([
-      { name: 'C4X', requires_full_crew: true },
-      { name: 'Mavi', requires_full_crew: false },
-      { name: 'Turuncu', requires_full_crew: false },
+      { name: 'C4X', requires_full_crew: true, has_coxswain: true },
+      { name: 'Mavi', requires_full_crew: false, has_coxswain: false },
+      { name: 'Turuncu', requires_full_crew: false, has_coxswain: false },
     ]);
   });
 
-  it('publishes a C4X with exactly four people', async () => {
+  it('publishes a C4X with exactly four rowers and its dümenci', async () => {
     const t = await newTraining(0);
-    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four }]), true);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach1 }]), true);
     expect((await programOf(t))?.status).toBe('published');
   });
 
@@ -468,7 +468,7 @@ describe('boats that must be full (C4X = exactly 4)', () => {
   it('refuses when a later session is short-handed, even if the first one is fine', async () => {
     const t = await newTraining(0);
     await expect(
-      asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four }, { slot_index: 1, boat_id: boat.c4x, crew: [extra.alex, extra.ashley] }]), true),
+      asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach1 }, { slot_index: 1, boat_id: boat.c4x, crew: [extra.alex, extra.ashley] }]), true),
     ).rejects.toThrow(/seansında 2 kişi var/);
   });
 
@@ -483,9 +483,9 @@ describe('boats that must be full (C4X = exactly 4)', () => {
     const t = await newTraining(0);
     await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: [extra.alex, extra.ashley] }]), false);
     expect((await programOf(t))?.status).toBe('draft');
-    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four }]), true);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach1 }]), true);
     await expect(asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: [extra.alex, extra.ashley] }]), true)).rejects.toThrow(/tam 4 kişi/);
-    expect((await crewOf(t)).filter((r) => r.boat === 'C4X')).toHaveLength(4); // the published program is untouched
+    expect((await crewOf(t)).filter((r) => r.boat === 'C4X')).toHaveLength(5); // the published program is untouched (four rowers + the dümenci)
   });
 
   it('can be switched per boat by coaches (and only by coaches)', async () => {
@@ -494,9 +494,135 @@ describe('boats that must be full (C4X = exactly 4)', () => {
     await expect(asCoach(t, payload([{ slot_index: 0, boat_id: boat.mavi, crew: [extra.alex] }]), true)).rejects.toThrow(/Mavi teknesinde tam 2 kişi/);
     await as(db, ids.coach1, () => db.query(`update public.boats set requires_full_crew = false where id = $1`, [boat.mavi]));
     await as(db, ids.coach1, () => db.query(`update public.boats set requires_full_crew = false where id = $1`, [boat.c4x]));
-    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: [extra.alex] }]), true);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: [extra.alex], cox: ids.coach1 }]), true);
     await db.query(`update public.boats set requires_full_crew = true where id = $1`, [boat.c4x]);
     const byMember = await as(db, ids.member1, () => db.query(`update public.boats set requires_full_crew = false where id = $1`, [boat.c4x]));
+    expect(byMember.affectedRows).toBe(0);
+  });
+});
+
+describe('the dümenci (coxswain) of a C4X and the order of the crew', () => {
+  const four = [extra.alex, extra.ashley, extra.john, extra.jamie];
+  const coxRows = async (t: string) =>
+    (
+      await db.query<{ member_id: string; seat: number | null; is_cox: boolean }>(
+        `select c.member_id, c.seat, c.is_cox from public.program_crew c where c.training_id = $1 order by c.is_cox, c.seat`,
+        [t],
+      )
+    ).rows;
+
+  it('is stored as its own row (is_cox, no seat) next to the four rowers — it is not a fifth rowing seat', async () => {
+    const t = await newTraining(0);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.member1 }]), true);
+    const rows = await coxRows(t);
+    expect(rows).toHaveLength(5);
+    expect(rows.filter((r) => !r.is_cox).map((r) => r.seat)).toEqual([1, 2, 3, 4]);
+    expect(rows.filter((r) => r.is_cox)).toEqual([{ member_id: ids.member1, seat: null, is_cox: true }]);
+  });
+
+  it('keeps the rowers in exactly the order the coach gave (never sorted), for the C4X and for any other boat', async () => {
+    const t = await newTraining(0);
+    const backwards = [extra.jamie, extra.john, extra.ashley, extra.alex];
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: backwards, cox: ids.coach1 }, { slot_index: 1, boat_id: boat.mavi, crew: [extra.john, extra.alex] }]));
+    const bySeat = (await crewOf(t)).filter((r) => r.boat === 'C4X' && r.seat !== null);
+    expect(bySeat.map((r) => r.member_id)).toEqual(backwards);
+    expect((await crewOf(t)).filter((r) => r.boat === 'Mavi').map((r) => r.member_id)).toEqual([extra.john, extra.alex]);
+    // and a second save with another order replaces it
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.mavi, crew: [extra.alex, extra.john] }]));
+    expect((await crewOf(t)).map((r) => r.member_id)).toEqual([extra.alex, extra.john]);
+  });
+
+  it('can be a member or the coach themselves', async () => {
+    const byMember = await newTraining(0);
+    await asCoach(byMember, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.member1 }]), true);
+    const byCoach = await newTraining(0);
+    await asCoach(byCoach, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach1 }]), true);
+    expect((await coxRows(byCoach)).find((r) => r.is_cox)?.member_id).toBe(ids.coach1);
+    const anotherCoach = await newTraining(0);
+    await asCoach(anotherCoach, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach2 }]), true);
+    expect((await coxRows(anotherCoach)).find((r) => r.is_cox)?.member_id).toBe(ids.coach2);
+  });
+
+  it('is required to PUBLISH a C4X (it is part of the crew), but a draft may be incomplete', async () => {
+    const t = await newTraining(0);
+    await expect(asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four }]), true)).rejects.toThrow(/C4X teknesinde dümenci olmalı/);
+    expect(await programOf(t)).toBeUndefined(); // all-or-nothing
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four }]), false);
+    expect((await programOf(t))?.status).toBe('draft');
+    expect(await coxRows(t)).toHaveLength(4);
+  });
+
+  it('is only for boats that have one (the database refuses it too)', async () => {
+    const t = await newTraining(0);
+    await expect(asCoach(t, payload([{ slot_index: 0, boat_id: boat.mavi, crew: [extra.alex, extra.ashley], cox: ids.coach1 }]))).rejects.toThrow(/Mavi teknesinde dümenci olmaz/);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.mavi, crew: [extra.alex, extra.ashley] }]));
+    await expect(
+      db.query(
+        `insert into public.program_crew (assignment_id, training_id, slot_index, member_id, seat, is_cox)
+         select a.id, a.training_id, a.slot_index, $2, null, true from public.program_assignments a where a.training_id = $1`,
+        [t, ids.coach1],
+      ),
+    ).rejects.toThrow(/Mavi teknesinde dümenci olmaz/);
+  });
+
+  it('is not one of the rowers: the same person cannot be both in a session', async () => {
+    const t = await newTraining(0);
+    await expect(asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: extra.alex }]))).rejects.toThrow(/Dümenci aynı seansta kürekçi olamaz/);
+  });
+
+  it('does not add to the capacity: four rowers + a dümenci fit, a fifth rower does not', async () => {
+    const t = await newTraining(0);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.member1 }]));
+    await expect(asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: [...four, ids.member2], cox: ids.member1 }]))).rejects.toThrow(/tam 4 kişi olmalı|en fazla 4 kişi/);
+  });
+
+  it('follows the "nobody is in two boats at once" rule like a rower does', async () => {
+    const t = await newTraining(0);
+    // a member who steers the C4X cannot also row another boat at that time
+    await expect(
+      asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.member1 }, { slot_index: 0, boat_id: boat.mavi, crew: [ids.member1, ids.member2] }])),
+    ).rejects.toThrow(/iki teknede/);
+    await expect(
+      asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach1 }, { slot_index: 0, boat_id: boat.turuncu, crew: [ids.member1, ids.member2] }, { slot_index: 0, boat_id: boat.mavi, crew: [extra.alex] }])),
+    ).rejects.toThrow(/iki teknede/); // Alex is in the C4X and in Mavi at once
+  });
+
+  it('members see the dümenci of a published program (and the coaches\' names); a draft stays hidden', async () => {
+    const t = await newTraining(0);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach1 }]), false);
+    const draft = await as(db, ids.member1, () => db.query('select * from public.program_crew where training_id = $1', [t]));
+    expect(draft.rows).toHaveLength(0);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach1 }]), true);
+    const seen = await as(db, ids.member1, () => db.query<{ member_id: string; is_cox: boolean }>('select member_id, is_cox from public.program_crew where training_id = $1 and is_cox', [t]));
+    expect(seen.rows).toEqual([{ member_id: ids.coach1, is_cox: true }]);
+    const names = await as(db, ids.member1, () => db.query<{ id: string; full_name: string }>('select id, full_name from public.coach_directory order by full_name'));
+    expect(names.rows.map((r) => r.id).sort()).toEqual([ids.coach1, ids.coach2].sort());
+    const columns = await as(db, ids.member1, () => db.query('select * from public.coach_directory limit 1'));
+    expect(Object.keys(columns.rows[0] ?? {}).sort()).toEqual(['full_name', 'id']); // names only
+    await expect(as(db, 'anon', () => db.query('select * from public.coach_directory'))).rejects.toThrow(/permission denied/);
+  });
+
+  it('allows one dümenci per session, in the database too', async () => {
+    const t = await newTraining(0);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.c4x, crew: four, cox: ids.coach1 }]));
+    await expect(
+      db.query(
+        `insert into public.program_crew (assignment_id, training_id, slot_index, member_id, seat, is_cox)
+         select a.id, a.training_id, a.slot_index, $2, null, true from public.program_assignments a where a.training_id = $1`,
+        [t, ids.member1],
+      ),
+    ).rejects.toThrow(/program_crew_one_cox_per_session|duplicate key/);
+  });
+
+  it('only a coach can say which boats have a dümenci (and the change is written to the settings log)', async () => {
+    await as(db, ids.coach1, () => db.query(`update public.boats set has_coxswain = true where id = $1`, [boat.mavi]));
+    const t = await newTraining(0);
+    await expect(asCoach(t, payload([{ slot_index: 0, boat_id: boat.mavi, crew: [extra.alex] }]), true)).rejects.toThrow(/Mavi teknesinde dümenci olmalı/);
+    await asCoach(t, payload([{ slot_index: 0, boat_id: boat.mavi, crew: [extra.alex], cox: ids.coach1 }]), true);
+    const log = await db.query<{ detail: { fields: string[] } }>(`select detail from public.audit_log where action = 'boat.update' order by at desc limit 1`);
+    expect(log.rows[0]?.detail.fields).toContain('has_coxswain');
+    await as(db, ids.coach1, () => db.query(`update public.boats set has_coxswain = false where id = $1`, [boat.mavi]));
+    const byMember = await as(db, ids.member1, () => db.query(`update public.boats set has_coxswain = false where id = $1`, [boat.c4x]));
     expect(byMember.affectedRows).toBe(0);
   });
 });

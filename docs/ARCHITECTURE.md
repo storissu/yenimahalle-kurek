@@ -67,6 +67,15 @@ later phases, risks) was agreed with the club before implementation started.
   takes it back to draft. Deactivated members / out-of-use boats that were already in a program may stay in it
   (history) but cannot be newly assigned.
 - **Boats that must be full**: `boats.requires_full_crew` (C4X = exactly 4, editable per boat in *Tekneler*).
+- **Crew order and the dümenci (coxswain)**: `program_crew.seat` is the rower's place in the boat (1 = first) and IS the order
+  the coach set — `save_program` stores the `crew` array as given and nothing ever sorts by name; the editor moves a rower
+  one place with up/down buttons (`moveMember`) and the published program shows numbered chips in that order. The dümenci is a
+  **separate role**, not a fifth seat: `program_crew.is_cox` (no seat, one per session, unique partial index), sent as `"cox"` next
+  to `"crew"` in the payload. Only boats with `boats.has_coxswain` (C4X; editable in *Tekneler*) may have one, and such a boat
+  cannot be **published** without one (drafts may be incomplete). The dümenci does not count towards `capacity` /
+  `requires_full_crew`, may be a member or a coach (the coach steering themselves), and follows the same "nobody is in two boats
+  at once" rule. Members read a steering coach's name through `coach_directory` (names only); attendance ignores a coach
+  dümenci (attendance is for members); the personal notification says who steers.
   `save_program()` refuses to **publish** (or update a published program) when such a boat has fewer or more people
   than its capacity in any session; drafts may be incomplete. The editor mirrors this: an incomplete C4X is flagged
   on its card, the publish button is disabled and the warning names boat, session and head count.
@@ -220,7 +229,7 @@ Coaches get the same compact view: `CoachProgramView` renders `ProgramByBoat` (n
   privileges). Coaches may edit only `full_name`/`phone`.
 - A trigger protects the **last active coach** from being demoted/deactivated (applies to the service role too).
 - Members are **deactivated, never deleted**: Auth-level ban + `is_active=false`; history is preserved.
-- Members see other members only through `member_directory` (id + name), never phone/username.
+- Members see other members only through `member_directory` (id + name + phone), never username/role. Coaches' names (id + name only) are readable through `coach_directory`, so members can see who steers a boat.
 - Usernames are ASCII-only (`[a-z0-9._-]{3,30}`) to avoid Turkish dotted/dotless-i case-folding bugs. Login uses a
   synthetic email `<username>@<LOGIN_EMAIL_DOMAIN>`; the domain is a config value, fixed once members exist.
 - The full review (threat model, checklist, evidence, limits) is in `docs/SECURITY.md`; `supabase/tests/security.test.ts`

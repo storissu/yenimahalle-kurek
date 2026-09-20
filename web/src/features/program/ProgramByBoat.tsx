@@ -1,4 +1,4 @@
-import { MapPin } from 'lucide-react';
+import { MapPin, ShipWheel } from 'lucide-react';
 import { Fragment, useId, useMemo, useState } from 'react';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { cn } from '@/lib/cn';
@@ -24,25 +24,50 @@ interface ProgramByBoatProps {
 }
 
 /**
- * One member of a session: a compact chip (same height, same type size, same spacing for everybody, so 1–4 names always
+ * One person of a session: a compact chip (same height, same type size, same spacing for everybody, so 1–4 names always
  * line up the same way). On the white card a chip is a soft pill. On the reader's own row (`boat` = that boat's colours) the
  * others are white chips with a soft edge in the boat's colour, and the reader's own chip is the boat's colour itself, with
  * a pin — that one is what "Siz" used to spell out.
+ *  - `seat`: the rower's place in the boat (1 = first), a small number in front of the name. The order of the chips IS the
+ *    seating order, exactly as the coach set it.
+ *  - `cox`: the dümenci (coxswain) — a steering wheel instead of a number; they are not a seat.
  */
-const CHIP = 'inline-flex min-h-9 max-w-full items-center gap-1 rounded-lg px-2.5 py-1 text-left text-sm font-semibold leading-tight [overflow-wrap:anywhere]';
+const CHIP =
+  'inline-flex min-h-9 max-w-full items-center gap-1.5 rounded-lg px-2.5 py-1 text-left text-sm font-semibold leading-tight [overflow-wrap:anywhere]';
 
-function CrewChip({ name, boat, me, fill, onOpen }: { name: string; boat?: BoatStyle; me?: boolean; fill?: boolean; onOpen?: () => void }) {
+interface CrewChipProps {
+  name: string;
+  boat?: BoatStyle;
+  me?: boolean;
+  fill?: boolean;
+  seat?: number;
+  cox?: boolean;
+  onOpen?: () => void;
+}
+
+function CrewChip({ name, boat, me, fill, seat, cox, onOpen }: CrewChipProps) {
   const shape = cn(CHIP, fill && 'w-full');
   const tone = me
     ? cn('border border-transparent font-extrabold', boat?.solid ?? 'bg-primary text-primary-fg')
     : boat
       ? cn('border bg-surface text-fg', boat.outline)
       : 'border border-border bg-surface-2 text-fg';
+  const lead = cox ? (
+    <ShipWheel aria-hidden="true" size={15} className="shrink-0" />
+  ) : seat ? (
+    <span
+      aria-hidden="true"
+      className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-current/15 px-1 text-xs font-bold tabular-nums"
+    >
+      {seat}
+    </span>
+  ) : null;
   if (me) {
     return (
       <span className={cn(shape, tone)}>
-        <MapPin aria-hidden="true" size={14} className="shrink-0" />
+        {lead}
         {name}
+        {!cox && <MapPin aria-hidden="true" size={14} className="shrink-0" />}
         <span className="sr-only"> — {tr.program.yourSession}</span>
       </span>
     );
@@ -50,11 +75,17 @@ function CrewChip({ name, boat, me, fill, onOpen }: { name: string; boat?: BoatS
   if (onOpen) {
     return (
       <button type="button" onClick={onOpen} aria-label={tr.program.contactAbout(name)} className={cn(shape, tone)}>
+        {lead}
         {name}
       </button>
     );
   }
-  return <span className={cn(shape, tone)}>{name}</span>;
+  return (
+    <span className={cn(shape, tone)}>
+      {lead}
+      {name}
+    </span>
+  );
 }
 
 /**
@@ -86,6 +117,17 @@ export function ProgramByBoat({ data, boats, meId, nameOf, contactOf, profileLin
   if (schedules.length === 0) {
     return <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted">{tr.program.noBoats}</p>;
   }
+
+  // One person of a session: the reader's own chip, a chip that opens the contact card, or a plain name (a coach who steers has no card).
+  const person = (id: string, style: BoatStyle | undefined, extra: { seat?: number; cox?: boolean; fill?: boolean }) => {
+    const entry = contactOf?.(id) ?? null;
+    if (id === meId) return <CrewChip name={nameOf(id)} boat={style} me {...extra} />;
+    if (entry) {
+      const open = () => setContact({ ...(profileLinks ? { id } : {}), name: entry.full_name, phone: entry.phone });
+      return <CrewChip name={entry.full_name} boat={style} onOpen={open} {...extra} />;
+    }
+    return <CrewChip name={nameOf(id)} boat={style} {...extra} />;
+  };
 
   return (
     <>
@@ -121,33 +163,20 @@ export function ProgramByBoat({ data, boats, meId, nameOf, contactOf, profileLin
                       />
                       <div className="min-w-0 flex-1">
                         <div className={cn('gap-1.5', many ? 'grid grid-cols-2' : 'flex flex-wrap items-center')}>
-                          {session.crew.map((id, i) => {
-                            const entry = contactOf?.(id) ?? null;
-                            return (
-                              <Fragment key={id}>
-                                {i > 0 && <span className="sr-only">, </span>}
-                                {id === meId ? (
-                                  <CrewChip name={nameOf(id)} boat={mine ? style : undefined} me fill={many} />
-                                ) : entry ? (
-                                  <CrewChip
-                                    name={entry.full_name}
-                                    boat={mine ? style : undefined}
-                                    fill={many}
-                                    onOpen={() =>
-                                      setContact({
-                                        ...(profileLinks ? { id } : {}),
-                                        name: entry.full_name,
-                                        phone: entry.phone,
-                                      })
-                                    }
-                                  />
-                                ) : (
-                                  <CrewChip name={nameOf(id)} boat={mine ? style : undefined} fill={many} />
-                                )}
-                              </Fragment>
-                            );
-                          })}
+                          <span className="sr-only">{tr.program.crewOrderSr} </span>
+                          {session.crew.map((id, i) => (
+                            <Fragment key={id}>
+                              {i > 0 && <span className="sr-only">, </span>}
+                              {person(id, mine ? style : undefined, { ...(session.crew.length > 1 ? { seat: i + 1 } : {}), fill: many })}
+                            </Fragment>
+                          ))}
                         </div>
+                        {session.cox && (
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span className={cn('text-xs font-bold', mine ? 'text-fg' : 'text-muted')}>{tr.program.cox}</span>
+                            {person(session.cox, mine ? style : undefined, { cox: true })}
+                          </div>
+                        )}
                         {session.notes && <p className={cn('mt-1 text-sm', mine ? 'text-fg' : 'text-muted')}>{session.notes}</p>}
                       </div>
                     </li>

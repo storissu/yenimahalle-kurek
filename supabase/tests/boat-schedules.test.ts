@@ -261,7 +261,7 @@ describe('attendance and history follow the sessions', () => {
 
   it('member and shared history, and the export, say when each session was', async () => {
     const t = await pastTraining();
-    await save(t, [{ slot_index: 0, boat_id: boat.c4x, crew: [ALI, BECCA, p.john, p.jamie], starts_at: await offset(t, 30), ends_at: await offset(t, 105) }], true);
+    await save(t, [{ slot_index: 0, boat_id: boat.c4x, crew: [ALI, BECCA, p.john, p.jamie], cox: ids.coach1, starts_at: await offset(t, 30), ends_at: await offset(t, 105) }], true);
     await as(db, ids.coach1, () =>
       db.query('select public.save_attendance($1, $2::jsonb, true)', [t, JSON.stringify([ALI, BECCA, p.john, p.jamie].map((m) => ({ slot_index: 0, member_id: m, status: 'present' })))]),
     );

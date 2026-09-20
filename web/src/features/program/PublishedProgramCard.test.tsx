@@ -21,10 +21,10 @@ const data: ProgramData = {
     { id: 'a4', training_id: 't1', slot_index: 3, boat_id: 'c4x', notes: null, ...t('05:30', '06:30') }, // no crew: not counted
   ],
   crew: [
-    { assignment_id: 'a1', training_id: 't1', slot_index: 0, member_id: 'alex', seat: 1 },
-    { assignment_id: 'a1', training_id: 't1', slot_index: 0, member_id: 'ashley', seat: 2 },
-    { assignment_id: 'a2', training_id: 't1', slot_index: 1, member_id: 'alex', seat: 1 }, // rows twice: one person
-    { assignment_id: 'a3', training_id: 't1', slot_index: 2, member_id: 'ali', seat: 1 },
+    { assignment_id: 'a1', training_id: 't1', slot_index: 0, member_id: 'alex', seat: 1, is_cox: false },
+    { assignment_id: 'a1', training_id: 't1', slot_index: 0, member_id: 'ashley', seat: 2, is_cox: false },
+    { assignment_id: 'a2', training_id: 't1', slot_index: 1, member_id: 'alex', seat: 1, is_cox: false }, // rows twice: one person
+    { assignment_id: 'a3', training_id: 't1', slot_index: 2, member_id: 'ali', seat: 1, is_cox: false },
   ],
 };
 

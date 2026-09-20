@@ -60,6 +60,7 @@ export function BoatsPage() {
                   <p className="text-sm text-muted">
                     {tr.boats.capacityOption(boat.capacity)}
                     {boat.requires_full_crew && ` · ${tr.boats.fullCrewBadge}`}
+                    {boat.has_coxswain && ` · ${tr.boats.coxBadge}`}
                   </p>
                 </div>
                 <Badge tone={boat.is_active ? 'success' : 'neutral'}>{boat.is_active ? tr.boats.active : tr.boats.inactive}</Badge>

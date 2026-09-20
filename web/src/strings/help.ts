@@ -39,7 +39,7 @@ export const help = {
     },
     {
       q: `Hangi tekneye, hangi saate yazıldığımı nerede görürüm?`,
-      a: `Program yayınlanınca Ana Sayfa'nın üstünde "Sizin programınız" kutusunda saatiniz, tekneniz ve ekip arkadaşlarınız görünür; hemen altında o saatin hava tahmini yer alır. Sonra tüm program tekne tekne listelenir; sizin seanslarınız kendi teknenizin renginde hafif bir zemin ve çizgiyle öne çıkar (Mavi mavi, Turuncu turuncu, C4X mor) ve adınız o renkte bir etiketle işaretlenir, kürek çektiğiniz tekneler en üstte "Sizin tekneniz" etiketiyle gelir. Teknelerin yanındaki küçük çizim kaç kişilik olduğunu gösterir.`,
+      a: `Program yayınlanınca Ana Sayfa'nın üstünde "Sizin programınız" kutusunda saatiniz, tekneniz ve ekip arkadaşlarınız görünür; hemen altında o saatin hava tahmini yer alır. Sonra tüm program tekne tekne listelenir; sizin seanslarınız kendi teknenizin renginde hafif bir zemin ve çizgiyle öne çıkar (Mavi mavi, Turuncu turuncu, C4X mor) ve adınız o renkte bir etiketle işaretlenir, kürek çektiğiniz tekneler en üstte "Sizin tekneniz" etiketiyle gelir. Teknelerin yanındaki küçük çizim kaç kişilik olduğunu gösterir. Kürekçilerin adları teknedeki oturma sırasıyla, sıra numarasıyla yazılır; C4X'te dümenci ayrı bir "Dümenci" satırında görünür.`,
     },
     {
       q: `Ekip arkadaşımın telefonuna nasıl ulaşırım?`,
@@ -73,7 +73,7 @@ export const help = {
     },
     {
       q: `Programı nasıl hazırlar ve yayınlarım?`,
-      a: `Antrenmanı açıp Program sekmesine gidin. Her teknenin kendi saatleri vardır: teknenin ilk seansının başlangıç saatini yazın (bitiş otomatik 1 saat sonradır), "Ekip seç" ile üyeleri ekleyin. "Seans ekle" bir sonraki seansı öncekinin bittiği saatte başlatır; gerekirse başlangıç veya bitiş saatini değiştirebilirsiniz (ör. 09:15'e kadar süren bir seans). Tekneler birbirinden bağımsızdır: Mavi 08:00'da, Turuncu 08:15'te başlayabilir. "Taslağı kaydet" üyelere görünmez; "Yayınla" herkese gösterir ve bildirim gönderir. Yayınlanınca sekmelerin üstünde "Yayınlanan program" bölümü üyelerin gördüğü sade tekne listesini gösterir. C4X tam 4 kişi olmadan yayınlanamaz.`,
+      a: `Antrenmanı açıp Program sekmesine gidin. Her teknenin kendi saatleri vardır: teknenin ilk seansının başlangıç saatini yazın (bitiş otomatik 1 saat sonradır), "Ekip seç" ile üyeleri ekleyin. "Seans ekle" bir sonraki seansı öncekinin bittiği saatte başlatır; gerekirse başlangıç veya bitiş saatini değiştirebilirsiniz (ör. 09:15'e kadar süren bir seans). Tekneler birbirinden bağımsızdır: Mavi 08:00'da, Turuncu 08:15'te başlayabilir. "Taslağı kaydet" üyelere görünmez; "Yayınla" herkese gösterir ve bildirim gönderir. Yayınlanınca sekmelerin üstünde "Yayınlanan program" bölümü üyelerin gördüğü sade tekne listesini gösterir. Kürekçilerin sırası teknedeki oturma sırasıdır (1 = ilk sıra): eklediğiniz sırayla kalır, kartta yukarı/aşağı okları ile değiştirebilirsiniz. C4X 4 kürekçi + 1 dümencidir: tam 4 kürekçi ve bir dümenci (üye ya da "Kendim (antrenör)") olmadan yayınlanamaz.`,
     },
     {
       q: `Yayınladıktan sonra değişiklik yapabilir miyim?`,

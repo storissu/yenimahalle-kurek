@@ -1,4 +1,4 @@
-import { MessageSquareText } from 'lucide-react';
+import { MessageSquareText, ShipWheel } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Button } from '@/components/ui/Button';
@@ -23,6 +23,10 @@ interface CrewPickerDialogProps {
   draft: ProgramDraft;
   roster: RosterMemberInfo[];
   boatName: (boatId: string) => string;
+  /** `crew` (default): choose the rowers. `cox`: choose the one dümenci. */
+  mode?: 'crew' | 'cox';
+  /** The signed-in coach: offered as "Kendim" when choosing the dümenci (a coach can steer). */
+  coach?: { id: string; name: string } | null;
   onToggle: (memberId: string) => void;
   onClose: () => void;
 }
@@ -68,17 +72,29 @@ function Row({ member, checked, disabledReason, load, onToggle }: { member: Rost
   );
 }
 
-function PickerBody({ session: target, boat, draft, roster, boatName, onToggle, onClose }: PickerBodyProps) {
+function PickerBody({ session: target, boat, draft, roster, boatName, mode = 'crew', coach = null, onToggle, onClose }: PickerBodyProps) {
   // always read the session from the draft: the crew changes while the dialog is open
   const session = draft.sessions.find((s) => s.id === target.id) ?? target;
   const inBoat = session.crew;
   const full = inBoat.length >= boat.capacity;
+  const choosingCox = mode === 'cox';
 
   const renderRow = (member: RosterMemberInfo) => {
-    const checked = inBoat.includes(member.id);
-    // somebody who already rows ANOTHER boat while this session is on the water cannot be picked (nobody is in two boats at once)
+    const checked = choosingCox ? session.cox === member.id : inBoat.includes(member.id);
+    // somebody who already is in ANOTHER boat while this session is on the water cannot be picked (nobody is in two boats at once);
+    // a rower cannot also steer the same boat, nor the dümenci row it
     const clash = checked ? undefined : conflictFor(draft, session, member.id);
-    const disabledReason = checked ? null : clash ? tr.program.inOtherBoat(boatName(clash.boatId), `${clash.start}–${clash.end}`) : full ? tr.program.boatFull : null;
+    const disabledReason = checked
+      ? null
+      : choosingCox && inBoat.includes(member.id)
+        ? tr.program.coxIsRower
+        : !choosingCox && session.cox === member.id
+          ? tr.program.coxIsCox
+          : clash
+            ? tr.program.inOtherBoat(boatName(clash.boatId), `${clash.start}–${clash.end}`)
+            : !choosingCox && full
+              ? tr.program.boatFull
+              : null;
     return <Row key={member.id} member={member} checked={checked} disabledReason={disabledReason} load={memberSessions(draft, member.id).length} onToggle={() => onToggle(member.id)} />;
   };
 
@@ -87,13 +103,29 @@ function PickerBody({ session: target, boat, draft, roster, boatName, onToggle, 
   const notAttending = roster.filter((m) => m.answer === 'not_attending');
   const others = [...noAnswer, ...notAttending];
   // People already in this boat must stay visible even if they are in the collapsed group.
-  const othersOpen = others.some((m) => inBoat.includes(m.id)) || attending.length === 0;
+  const othersOpen = others.some((m) => inBoat.includes(m.id) || session.cox === m.id) || attending.length === 0;
 
   return (
     <>
-      <p className="-mt-2 flex justify-end">
-        <Badge tone={full ? 'success' : 'neutral'}>{tr.program.crewCount(inBoat.length, boat.capacity)}</Badge>
-      </p>
+      {choosingCox ? (
+        <div className="-mt-2 flex flex-col gap-1">
+          <p className="flex items-center gap-1.5 font-bold">
+            <ShipWheel aria-hidden="true" size={18} />
+            {tr.program.coxPickerTitle}
+          </p>
+          <p className="text-sm text-muted">{tr.program.coxPickerHint}</p>
+        </div>
+      ) : (
+        <p className="-mt-2 flex justify-end">
+          <Badge tone={full ? 'success' : 'neutral'}>{tr.program.crewCount(inBoat.length, boat.capacity)}</Badge>
+        </p>
+      )}
+
+      {choosingCox && coach && (
+        <section aria-label={tr.program.coxCoachTag} className="flex flex-col gap-2">
+          {renderRow({ id: coach.id, name: tr.program.coxMyself, answer: undefined, note: null })}
+        </section>
+      )}
 
       {roster.length === 0 && <p className="text-sm text-muted">{tr.program.noMembersToPick}</p>}
 
@@ -118,7 +150,7 @@ function PickerBody({ session: target, boat, draft, roster, boatName, onToggle, 
         {tr.program.pickerDone}
       </Button>
       <span className="sr-only" aria-live="polite">
-        {session.start}–{session.end} {boat.name} {tr.program.crewCount(inBoat.length, boat.capacity)}
+        {session.start}–{session.end} {boat.name} {choosingCox ? tr.program.cox : tr.program.crewCount(inBoat.length, boat.capacity)}
       </span>
     </>
   );

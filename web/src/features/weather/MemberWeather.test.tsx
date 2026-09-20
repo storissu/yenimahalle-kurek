@@ -15,7 +15,7 @@ const state = { sessions: [] as MockSession[], rows: [] as WeatherSnapshot[] };
 const programData = () => ({
   program: null,
   assignments: state.sessions.map((s) => ({ id: `a${s.slot}`, training_id: 't', slot_index: s.slot, boat_id: 'mavi', notes: null, starts_at: `2026-09-22T${s.from}:00Z`, ends_at: `2026-09-22T${s.to}:00Z` })),
-  crew: state.sessions.flatMap((s) => s.members.map((m) => ({ assignment_id: `a${s.slot}`, training_id: 't', slot_index: s.slot, member_id: m, seat: 1 }))),
+  crew: state.sessions.flatMap((s) => s.members.map((m) => ({ assignment_id: `a${s.slot}`, training_id: 't', slot_index: s.slot, member_id: m, seat: 1, is_cox: false }))),
 });
 vi.mock('../auth/AuthProvider', () => ({ useProfile: () => ({ id: 'me' }) }));
 vi.mock('../program/hooks', () => ({ useProgram: () => ({ isPending: false, data: programData() }) }));

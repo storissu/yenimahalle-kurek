@@ -27,11 +27,13 @@ Antrenman sayfasının en üstünde **Yanıtlar / Program / Yoklama** düğmeler
 
 **Program** sekmesi. **Her teknenin kendi seans dizisi vardır**: Mavi 08:00'da, Turuncu 08:15'te, C4X 08:30'da başlayabilir; tekneler birbirinin saatini hiç etkilemez.
 1. Her teknede antrenmanın başlangıç saatinde 1 saatlik boş bir seans hazır gelir. Teknenin **Başlangıç** saatini yazın (ör. 08:15); bitiş otomatik 1 saat sonradır (08:15–09:15). Tekne birden çok seans içeriyorsa ilk seansın başlangıcını değiştirmek o teknenin tüm seanslarını birlikte kaydırır.
-2. **Ekip seç** ile üyeleri ekleyin: katılanlar önce, notlarıyla birlikte listelenir. Tekne kapasitesi aşılamaz; bir üye **aynı saatte** iki teknede olamaz (art arda olabilir: 08:00–09:00 Mavi, 09:00–10:00 Turuncu). Seçici, çakışan kişiyi hangi tekne ve saatte olduğuyla birlikte gösterir.
+2. **Ekip seç** ile kürekçileri ekleyin: katılanlar önce, notlarıyla birlikte listelenir. **Sıra önemlidir**: kürekçiler eklediğiniz sırayla numaralanır (1 = teknedeki ilk sıra) ve üyeler programı aynı sırayla görür; hiçbir zaman alfabetik olarak yeniden sıralanmaz. Sırayı, kartta her adın yanındaki **yukarı / aşağı** okları ile değiştirebilirsiniz (yayınlamadan önce ve sonra). Bu, tüm tekneler için geçerlidir. Tekne kapasitesi aşılamaz; bir üye **aynı saatte** iki teknede olamaz (art arda olabilir: 08:00–09:00 Mavi, 09:00–10:00 Turuncu). Seçici, çakışan kişiyi hangi tekne ve saatte olduğuyla birlikte gösterir.
 3. **Seans ekle**: bir sonraki seans, önceki bittiği saatte otomatik başlar (09:00–10:00, 10:00–11:00 …); düğme önerilen saati gösterir. Farklı bir ekip yazın.
 4. Olağan dışı süre gerekirse **Başlangıç** veya **Bitiş** saatini elle değiştirin (ör. 09:00–10:15). Bir seansın **bitişini** değiştirirseniz o teknenin sonraki seansları aynı miktarda kayar (09:15–10:15 gibi); başka teknelere dokunulmaz. Çakışmalar ve hatalı saatler kartın üstünde kırmızıyla yazar ve kaydetmeyi engeller.
 5. **Ok** düğmeleri komşu seansla ekibi değiştirir (saatler yerinde kalır); **Seansı kaldır** seansı ve ekibini siler (onay ister). Tekneye kısa bir not ekleyebilirsiniz.
-6. **C4X tam 4 kişi** olmalıdır; eksik veya fazla ekiple **yayınlanamaz** (uyarı hangi seans saati ve kaç kişi olduğunu söyler). *Tam kadro* kuralını Diğer → Tekneler'den her tekne için açıp kapatabilirsiniz.
+6. **C4X = 4 kürekçi + 1 dümenci.** Kürekçiler tam 4 kişi olmalıdır; eksik veya fazla ekiple **yayınlanamaz** (uyarı hangi seans saati ve kaç kişi olduğunu söyler). *Tam kadro* kuralını Diğer → Tekneler'den her tekne için açıp kapatabilirsiniz.
+   - **Dümenci** (teknenin önünde oturup dümen iplerini kullanarak tekneyi yönlendiren kişi) kürekçilerden ayrı bir görevdir ve 4 kişilik kadroya **dahil değildir**. Kartta "Dümenci" bölümünden **Dümenci seç** ile herhangi bir üyeyi ya da **"Kendim (antrenör)"** seçeneğiyle kendinizi atayabilirsiniz. Dümenci seçilmeden C4X programı **yayınlanamaz** (taslak kaydedilebilir). Aynı kişi aynı saatte hem başka bir teknede hem de dümenci olamaz.
+   - Dümenci gerektiren tekneleri Diğer → Tekneler'de **"Dümenci var"** ile belirlersiniz (C4X için hazır gelir).
 7. Hava ve antrenman notlarını yazın.
 8. **Taslağı kaydet**: üyeler görmez, istediğiniz kadar kaydedebilirsiniz.
 9. **Yayınla**: üyeler programı görür; ekipteki herkese **kişisel** bildirim ("Turuncu · 08:15–09:15 · Ayşe ile"), diğer katılanlara genel bildirim gider. **Yayınlandığı anda üyelerin yanıtları kilitlenir.**
@@ -82,7 +84,7 @@ Zil simgesi: size gelen tüm bildirimler (ör. "yanıt süresi doldu"). Kendi te
 |---|---|
 | Üye şifresini unuttu | Üyeler → üye → **Şifreyi sıfırla** → yeni şifreyi WhatsApp'tan gönderin |
 | Üye yanıtını değiştirmek istiyor (süre/yayın sonrası) | Yanıtlar sekmesinde satıra dokunup siz girin |
-| Yayınlanamıyor: "eksik veya fazla ekip" | C4X'i 4 kişiye tamamlayın veya o seanstan çıkarın |
+| Yayınlanamıyor: "eksik veya fazla ekip" | C4X'i 4 kürekçiye tamamlayın, **dümenci seçin** veya o seanstan çıkarın |
 | Programda hata var, üyeler zaten gördü | Düzeltip **Güncelle**; değişenler bilgilendirilir |
 | Yanlışlıkla iptal | İptal geri alınamaz: yeni antrenman oluşturun |
 | Bir şey ters gitti / kim değiştirdi? | Diğer → Değişiklik geçmişi |

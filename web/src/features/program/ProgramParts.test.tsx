@@ -22,12 +22,12 @@ const data: ProgramData = {
     asg('a3', 2, 'turuncu', '05:15', '06:15', null),
   ],
   crew: [
-    { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'alex', seat: 1 },
-    { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ashley', seat: 2 },
-    { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'john', seat: 1 },
-    { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'jamie', seat: 2 },
-    { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'ali', seat: 1 },
-    { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'becca', seat: 2 },
+    { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'alex', seat: 1, is_cox: false },
+    { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ashley', seat: 2, is_cox: false },
+    { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'john', seat: 1, is_cox: false },
+    { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'jamie', seat: 2, is_cox: false },
+    { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'ali', seat: 1, is_cox: false },
+    { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'becca', seat: 2, is_cox: false },
   ],
 };
 
@@ -63,12 +63,47 @@ describe('MyBoatCard', () => {
   });
 
   it("keeps the border blue when the member rows in more than one boat, each row still in its own boat's colour", () => {
-    const both: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'jamie', seat: 3 }] };
+    const both: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'jamie', seat: 3, is_cox: false }] };
     render(<MyBoatCard assignments={myAssignments(both, 'jamie')} nameOf={nameOf} boatName={boatName} styleOf={(id) => boatStyle(id === 'turuncu' ? 1 : 0)} />);
     const card = screen.getByRole('region', { name: tr.program.yours });
     expect(card.className).toContain('border-primary');
     expect(within(card).getByText('09:00–10:00').parentElement?.className).toContain('text-boat-1');
     expect(within(card).getByText('08:15–09:15').parentElement?.className).toContain('text-boat-2');
+  });
+
+  describe('with a dümenci', () => {
+    const who: Record<string, string> = { ...names, coach: 'Ayşe Antrenör', mert: 'Mert', bora: 'Bora', zeynep: 'Zeynep' };
+    const crewRow = (member: string, seat: number | null, cox = false) => ({ assignment_id: 'q', training_id: 't', slot_index: 6, member_id: member, seat, is_cox: cox });
+    const quad: ProgramData = {
+      ...data,
+      assignments: [asg('q', 6, 'c4x', '05:30', '06:30', null)],
+      crew: [crewRow('coach', null, true), crewRow('zeynep', 1), crewRow('mert', 2), crewRow('bora', 3), crewRow('ali', 4)],
+    };
+    const card = (memberId: string) => {
+      render(<MyBoatCard assignments={myAssignments(quad, memberId)} nameOf={(id) => who[id] ?? '?'} boatName={() => 'C4X'} capacityOf={() => 4} />);
+      return screen.getByRole('region', { name: tr.program.yours });
+    };
+
+    it('tells a rower who steers, their seat and the others in seat order', () => {
+      const region = card('bora');
+      expect(within(region).getByText('Zeynep, Mert ve Ali ile')).toBeInTheDocument();
+      expect(within(region).getByText('Ayşe Antrenör')).toBeInTheDocument();
+      expect(within(region).getByText(tr.program.cox, { exact: false })).toBeInTheDocument();
+      expect(within(region).getByText(tr.program.yourSeat(3))).toBeInTheDocument();
+    });
+
+    it('tells the dümenci that they steer (no seat)', () => {
+      const region = card('coach');
+      expect(within(region).getByText(tr.program.coxSteers)).toBeInTheDocument();
+      expect(within(region).getByText('Zeynep, Mert, Bora ve Ali ile')).toBeInTheDocument();
+      expect(within(region).queryByText(/sıradasınız/)).not.toBeInTheDocument();
+    });
+
+    it('says nothing about a dümenci in a boat that has none', () => {
+      render(<MyBoatCard assignments={myAssignments(data, 'jamie')} nameOf={nameOf} boatName={boatName} />);
+      expect(screen.queryByText(tr.program.cox, { exact: false })).not.toBeInTheDocument();
+      expect(screen.getByText(tr.program.yourSeat(2))).toBeInTheDocument();
+    });
   });
 
   it('leads with the start hour, big, and the end hour small beneath it (read out as one range)', () => {
@@ -90,7 +125,7 @@ describe('MyBoatCard', () => {
   });
 
   it('shows every hour for someone who rows twice, alone when nobody else is in the boat', () => {
-    const solo: ProgramData = { ...data, crew: [...data.crew.filter((c) => c.member_id !== 'john' && c.member_id !== 'jamie'), { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'ali', seat: 1 }] };
+    const solo: ProgramData = { ...data, crew: [...data.crew.filter((c) => c.member_id !== 'john' && c.member_id !== 'jamie'), { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'ali', seat: 1, is_cox: false }] };
     render(<MyBoatCard assignments={myAssignments(solo, 'ali')} nameOf={nameOf} boatName={boatName} />);
     expect(screen.getByText('08:15–09:15')).toBeInTheDocument();
     expect(screen.getByText('Becca ile')).toBeInTheDocument();
@@ -193,7 +228,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
   });
 
   it('a person in two boats sees both first, in club order', () => {
-    const both: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'jamie', seat: 3 }].filter((c) => !(c.assignment_id === 'a3' && c.member_id === 'becca')) };
+    const both: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'jamie', seat: 3, is_cox: false }].filter((c) => !(c.assignment_id === 'a3' && c.member_id === 'becca')) };
     render(<ProgramByBoat data={both} boats={boats} meId="jamie" nameOf={nameOf} />);
     expect(screen.getAllByText(tr.program.yourBoat)).toHaveLength(2);
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(['MaviSizin tekneniz', 'TuruncuSizin tekneniz']);
@@ -201,7 +236,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
 
   it('gives each boat its icon by capacity, and the highlight takes the colour of the boat I row in', () => {
     const withQuad = [...boats, { id: 'c4x', name: 'C4X', sort_order: 3, capacity: 4 }];
-    const quad: ProgramData = { ...data, assignments: [...data.assignments, asg('a4', 5, 'c4x', '05:30', '06:30', null)], crew: [...data.crew, { assignment_id: 'a4', training_id: 't', slot_index: 5, member_id: 'jamie', seat: 1 }] };
+    const quad: ProgramData = { ...data, assignments: [...data.assignments, asg('a4', 5, 'c4x', '05:30', '06:30', null)], crew: [...data.crew, { assignment_id: 'a4', training_id: 't', slot_index: 5, member_id: 'jamie', seat: 1, is_cox: false }] };
     render(<ProgramByBoat data={quad} boats={withQuad} meId="jamie" nameOf={nameOf} />);
     expect(boatSection('C4X').querySelector('svg[data-boat]')).toHaveAttribute('data-boat', 'quad');
     expect(boatSection('Mavi').querySelector('svg[data-boat]')).toHaveAttribute('data-boat', 'double');
@@ -270,11 +305,11 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     const uneven: ProgramData = {
       ...data,
       crew: [
-        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'alex', seat: 1 },
-        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ashley', seat: 2 },
-        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ali', seat: 3 },
-        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'becca', seat: 4 },
-        { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'john', seat: 1 },
+        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'alex', seat: 1, is_cox: false },
+        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ashley', seat: 2, is_cox: false },
+        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ali', seat: 3, is_cox: false },
+        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'becca', seat: 4, is_cox: false },
+        { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'john', seat: 1, is_cox: false },
       ],
     };
     render(
@@ -284,7 +319,8 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     );
     const rows = within(boatSection('Mavi')).getAllByRole('listitem');
     const chips = (row: HTMLElement | undefined) => Array.from((row as HTMLElement).querySelectorAll('button, span.min-h-9'));
-    expect(chips(rows[0]).map((c) => c.textContent)).toEqual(['Alex', 'Ashley', 'Ali', 'Becca']);
+    // the small number in front of a name is the seat (1 = first); a lone rower has no number
+    expect(chips(rows[0]).map((c) => c.textContent)).toEqual(['1Alex', '2Ashley', '3Ali', '4Becca']);
     expect(chips(rows[1]).map((c) => c.textContent)).toEqual(['John']);
     const shape = (c: Element) => c.className.split(/\s+/).filter((cls) => cls !== 'w-full').join(' '); // the grid only stretches the chip to its cell
     expect(new Set([...chips(rows[0]), ...chips(rows[1])].map(shape)).size).toBe(1); // one look for everybody, so the rows stay even
@@ -297,13 +333,72 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     );
   });
 
+  describe('seat order and the dümenci', () => {
+    const withQuad = [...boats, { id: 'c4x', name: 'C4X', sort_order: 3, capacity: 4, has_coxswain: true }];
+    const who: Record<string, string> = { ...names, coach: 'Ayşe Antrenör', mert: 'Mert', bora: 'Bora', zeynep: 'Zeynep' };
+    const crewRow = (id: string, member: string, seat: number | null, cox = false) => ({ assignment_id: id, training_id: 't', slot_index: 6, member_id: member, seat, is_cox: cox });
+    // deliberately not alphabetical: Zeynep sits first, Ali last
+    const quad = (cox: string, me?: string): ProgramData => ({
+      ...data,
+      assignments: [asg('q', 6, 'c4x', '05:30', '06:30', null)],
+      crew: [crewRow('q', cox, null, true), crewRow('q', 'zeynep', 1), crewRow('q', 'mert', 2), crewRow('q', 'bora', 3), crewRow('q', me === 'ali' ? 'becca' : 'ali', 4)],
+    });
+    const renderQuad = (cox: string, meId?: string) =>
+      render(
+        <MemoryRouter>
+          <ProgramByBoat data={quad(cox, meId)} boats={withQuad} meId={meId} nameOf={(id) => who[id] ?? '?'} contactOf={contactOf} />
+        </MemoryRouter>,
+      );
+
+    it('shows the rowers in the order the coach set (never alphabetical), each with its seat number', () => {
+      renderQuad('coach');
+      const row = within(boatSection('C4X')).getAllByRole('listitem')[0] as HTMLElement;
+      const crew = within(row).getByText(tr.program.crewOrderSr, { exact: false }).parentElement as HTMLElement;
+      expect(Array.from(crew.querySelectorAll('button, span.min-h-9')).map((c) => c.textContent)).toEqual(['1Zeynep', '2Mert', '3Bora', '4Ali']);
+    });
+
+    it('names the dümenci on its own line with a label — not as a fifth numbered seat', () => {
+      renderQuad('coach');
+      const row = within(boatSection('C4X')).getAllByRole('listitem')[0] as HTMLElement;
+      const label = within(row).getByText(tr.program.cox);
+      const chip = within(label.parentElement as HTMLElement).getByText('Ayşe Antrenör');
+      expect(chip.closest('span.min-h-9')?.querySelector('svg')).not.toBeNull(); // the steering wheel
+      expect(chip.textContent).toBe('Ayşe Antrenör'); // no seat number
+      // four numbered rowers only
+      expect(within(row).queryByText('5')).not.toBeInTheDocument();
+      expect(row.textContent).toContain('4Ali');
+    });
+
+    it('a coach who steers is a plain name (no contact card); a member who steers opens their contact card like anybody', () => {
+      renderQuad('coach');
+      expect(screen.queryByRole('button', { name: tr.program.contactAbout('Ayşe Antrenör') })).not.toBeInTheDocument();
+      renderQuad('alex');
+      expect(screen.getByRole('button', { name: tr.program.contactAbout('Alex') })).toBeInTheDocument();
+    });
+
+    it('a session without a dümenci (other boats) shows no such line', () => {
+      show();
+      expect(screen.queryByText(tr.program.cox)).not.toBeInTheDocument();
+    });
+
+    it('the dümenci sees the session as theirs: highlighted, tagged, and their chip says so', () => {
+      renderQuad('ali', 'ali');
+      const c4x = boatSection('C4X');
+      const row = c4x.querySelector('li[data-mine="true"]') as HTMLElement;
+      expect(row.className).toContain('bg-boat-3-soft');
+      expect(within(c4x).getByText(tr.program.yourBoat)).toBeInTheDocument();
+      expect(within(row).getByText(`— ${tr.program.yourSession}`, { exact: false })).toBeInTheDocument();
+      expect(row.querySelector('span.bg-boat-3 svg')).not.toBeNull(); // the filled chip carries the steering wheel
+    });
+  });
+
   it('never repeats the weather inside the program: no forecast in any row, mine or not', () => {
     show('jamie');
     expect(screen.queryByText(/Yağmurlu|Açık|Parçalı bulutlu|km\/s/)).not.toBeInTheDocument();
   });
 
   it('highlights each of my sessions when I row more than once', () => {
-    const twice: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'alex', seat: 3 }].filter((c) => !(c.assignment_id === 'a1' && c.member_id === 'alex')) };
+    const twice: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'alex', seat: 3, is_cox: false }].filter((c) => !(c.assignment_id === 'a1' && c.member_id === 'alex')) };
     render(<ProgramByBoat data={twice} boats={boats} meId="alex" nameOf={nameOf} />);
     expect(screen.getAllByText(tr.program.yourSession, { exact: false })).toHaveLength(1);
   });

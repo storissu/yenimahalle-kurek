@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { fetchBoats, boatsKey } from '../boats/api';
-import { fetchMemberNames, memberNamesKey, type DirectoryEntry } from '../members/api';
+import { coachNamesKey, fetchCoachNames, fetchMemberNames, memberNamesKey, type DirectoryEntry } from '../members/api';
 import { tr } from '@/strings/tr';
 import { trainingKeys } from '../trainings/api';
 import { refreshWeather, weatherKeys } from '../weather/api';
@@ -44,12 +44,15 @@ export function useBoats() {
 
 /**
  * id → display name (and phone) for everyone a member may see (active members). Falls back to "Eski üye".
- * `contactOf` is null for people who are no longer in the directory (deactivated members).
+ * `contactOf` is null for people who are no longer in the directory (deactivated members) and for coaches: a coach who
+ * steers a boat (dümenci) has a name, but no contact card.
  */
 export function useMemberNames() {
   const query = useQuery({ queryKey: memberNamesKey, queryFn: fetchMemberNames, staleTime: 5 * 60_000 });
+  const coaches = useQuery({ queryKey: coachNamesKey, queryFn: fetchCoachNames, staleTime: 5 * 60_000 });
   const entries = useMemo(() => new Map((query.data ?? []).map((m) => [m.id, m])), [query.data]);
-  const nameOf = (id: string) => entries.get(id)?.full_name ?? tr.program.formerMember;
+  const coachNames = useMemo(() => new Map((coaches.data ?? []).map((c) => [c.id, c.full_name])), [coaches.data]);
+  const nameOf = (id: string) => entries.get(id)?.full_name ?? coachNames.get(id) ?? (coaches.isPending ? '…' : tr.program.formerMember);
   const contactOf = (id: string): DirectoryEntry | null => entries.get(id) ?? null;
   return { query, nameOf, contactOf };
 }

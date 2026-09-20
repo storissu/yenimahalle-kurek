@@ -4,8 +4,11 @@
 //   Mavi    08:00–09:00 Ali + John   09:00–10:00 Ayşe + Mehmet
 //   Turuncu 08:15–09:15 Elif + Can   09:15–10:15 Zeynep + Deniz
 // Sessions of different boats never influence each other. A session lasts one hour unless the coach says otherwise.
-// Every rule the database enforces (capacity, no overlapping sessions of one boat, nobody in two boats at once, full C4X)
-// is mirrored here so the editor can refuse a bad move immediately instead of after a save.
+// Every rule the database enforces (capacity, no overlapping sessions of one boat, nobody in two boats at once, full C4X,
+// a dümenci on boats that have one) is mirrored here so the editor can refuse a bad move immediately instead of after a save.
+//
+// A session's crew is ORDERED: the first rower is the first seat of the boat, and that order is kept exactly as the coach
+// left it (nothing here ever sorts it). The dümenci (coxswain) is a separate role next to the rowers, never a fifth seat.
 import type { Boat, Json, ProgramAssignment, ProgramCrew, TrainingProgram } from '@/types/database';
 import { instantToWallTime, wallTimeToInstant } from '@/lib/time';
 import { MAX_SLOTS } from '../trainings/schedule';
@@ -17,10 +20,18 @@ export interface SessionDraft {
   /** "HH:MM", club time. */
   start: string;
   end: string;
-  /** Member ids in seat order. */
+  /** The ROWERS' ids in seat order (the order in the boat: the first is the first seat). The dümenci is not in here. */
   crew: string[];
+  /** The dümenci (coxswain) of a boat that has one: a member or a coach. Not one of the rowers. */
+  cox: string | null;
   notes: string;
 }
+
+/** Everybody in the session: the rowers in seat order, then the dümenci. */
+export const peopleOf = (session: Pick<SessionDraft, 'crew' | 'cox'>): string[] => (session.cox ? [...session.crew, session.cox] : [...session.crew]);
+
+/** True when the person is in the session as a rower or as its dümenci. */
+export const isInSession = (session: Pick<SessionDraft, 'crew' | 'cox'>, memberId: string): boolean => session.crew.includes(memberId) || session.cox === memberId;
 
 export interface ProgramDraft {
   weatherNote: string;
@@ -72,8 +83,10 @@ export const emptyDraft = (): ProgramDraft => ({ weatherNote: '', trainingNotes:
 export function draftFromProgram(data: ProgramData): ProgramDraft {
   const sessions: SessionDraft[] = [];
   for (const assignment of data.assignments) {
-    const crew = data.crew
-      .filter((c) => c.assignment_id === assignment.id)
+    const rows = data.crew.filter((c) => c.assignment_id === assignment.id);
+    // the seat number IS the order in the boat; the member id only breaks ties of old rows that have no seat
+    const crew = rows
+      .filter((c) => !c.is_cox)
       .sort((a, b) => (a.seat ?? 0) - (b.seat ?? 0) || a.member_id.localeCompare(b.member_id))
       .map((c) => c.member_id);
     if (crew.length === 0) continue;
@@ -83,6 +96,7 @@ export function draftFromProgram(data: ProgramData): ProgramDraft {
       start: instantToWallTime(assignment.starts_at).time,
       end: instantToWallTime(assignment.ends_at).time,
       crew,
+      cox: rows.find((c) => c.is_cox)?.member_id ?? null,
       notes: assignment.notes ?? '',
     });
   }
@@ -96,7 +110,7 @@ export function normalize(draft: ProgramDraft): ProgramDraft {
     trainingNotes: draft.trainingNotes.trim(),
     sessions: draft.sessions
       .filter((s) => s.crew.length > 0)
-      .map((s) => ({ id: s.id, boatId: s.boatId, start: s.start, end: s.end, crew: [...s.crew], notes: s.notes.trim() }))
+      .map((s) => ({ id: s.id, boatId: s.boatId, start: s.start, end: s.end, crew: [...s.crew], cox: s.cox, notes: s.notes.trim() }))
       .sort((a, b) => a.id - b.id || a.boatId.localeCompare(b.boatId)),
   };
 }
@@ -116,15 +130,15 @@ export const sessionById = (draft: ProgramDraft, id: number, boatId?: string): S
 
 export const hasAnyCrew = (draft: ProgramDraft): boolean => draft.sessions.some((s) => s.crew.length > 0);
 
-/** The sessions a member rows in, in time order (each with its boat). */
-export const memberSessions = (draft: ProgramDraft, memberId: string): SessionDraft[] => draft.sessions.filter((s) => s.crew.includes(memberId)).sort(byTime);
+/** The sessions a member takes part in (as a rower or as the dümenci), in time order (each with its boat). */
+export const memberSessions = (draft: ProgramDraft, memberId: string): SessionDraft[] => draft.sessions.filter((s) => isInSession(s, memberId)).sort(byTime);
 
 const overlaps = (a: Pick<SessionDraft, 'start' | 'end'>, b: Pick<SessionDraft, 'start' | 'end'>): boolean =>
   toMinutes(a.start) < toMinutes(b.end) && toMinutes(b.start) < toMinutes(a.end);
 
-/** Another session of a DIFFERENT boat that the member already rows in while `session` is on the water, if any. */
+/** Another session that the person is already in (rowing or steering) while `session` is on the water, if any. */
 export function conflictFor(draft: ProgramDraft, session: SessionDraft, memberId: string): SessionDraft | undefined {
-  return draft.sessions.find((s) => s !== session && s.crew.includes(memberId) && overlaps(s, session));
+  return draft.sessions.find((s) => s !== session && isInSession(s, memberId) && overlaps(s, session));
 }
 
 // --- adding, timing, removing sessions -------------------------------------------------------------
@@ -153,7 +167,7 @@ export function addSession(draft: ProgramDraft, boatId: string, firstStart: stri
   const start = suggestedStart(draft, boatId, firstStart);
   const end = fromMinutes(toMinutes(start) + DEFAULT_MINUTES);
   const id = nextSessionId(draft, floor);
-  return { draft: { ...draft, sessions: [...draft.sessions, { id, boatId, start, end, crew: [], notes: '' }] }, id };
+  return { draft: { ...draft, sessions: [...draft.sessions, { id, boatId, start, end, crew: [], cox: null, notes: '' }] }, id };
 }
 
 /**
@@ -220,8 +234,8 @@ export function setEnd(draft: ProgramDraft, id: number, end: string): ProgramDra
 export const removeSession = (draft: ProgramDraft, id: number): ProgramDraft => ({ ...draft, sessions: draft.sessions.filter((s) => s.id !== id) });
 
 /**
- * Swaps the TEAMS (crew and note) of a session and its neighbour in the same boat, `direction` -1 = the one before, +1 =
- * the one after. The times stay where they are: the first team simply rows second.
+ * Swaps the TEAMS (rowers in their order, dümenci and note) of a session and its neighbour in the same boat, `direction`
+ * -1 = the one before, +1 = the one after. The times stay where they are: the first team simply rows second.
  */
 export function moveTeam(draft: ProgramDraft, id: number, direction: -1 | 1): ProgramDraft {
   const session = sessionById(draft, id);
@@ -233,8 +247,8 @@ export function moveTeam(draft: ProgramDraft, id: number, direction: -1 | 1): Pr
   return {
     ...draft,
     sessions: draft.sessions.map((s) => {
-      if (s.id === session.id) return { ...s, crew: [...other.crew], notes: other.notes };
-      if (s.id === other.id) return { ...s, crew: [...session.crew], notes: session.notes };
+      if (s.id === session.id) return { ...s, crew: [...other.crew], cox: other.cox, notes: other.notes };
+      if (s.id === other.id) return { ...s, crew: [...session.crew], cox: session.cox, notes: session.notes };
       return s;
     }),
   };
@@ -242,7 +256,7 @@ export function moveTeam(draft: ProgramDraft, id: number, direction: -1 | 1): Pr
 
 // --- crew ---------------------------------------------------------------------------------------------
 
-export type ToggleError = 'full' | 'elsewhere';
+export type ToggleError = 'full' | 'elsewhere' | 'cox';
 export interface ToggleResult {
   draft: ProgramDraft;
   error?: ToggleError;
@@ -251,8 +265,9 @@ export interface ToggleResult {
 }
 
 /**
- * Adds the member to the session, or removes them if they are already in it. Refuses (and returns the draft unchanged)
- * when the boat is full or the member already rows another boat while this session is on the water.
+ * Adds the member to the session as a rower (at the END of the order), or removes them if they already row in it. Refuses
+ * (and returns the draft unchanged) when the boat is full, the member is already in another boat while this session is on
+ * the water, or is this session's dümenci (a dümenci is not a rower).
  */
 export function toggleMember(draft: ProgramDraft, id: number, memberId: string, capacity: number): ToggleResult {
   const session = sessionById(draft, id);
@@ -260,6 +275,7 @@ export function toggleMember(draft: ProgramDraft, id: number, memberId: string, 
   if (session.crew.includes(memberId)) {
     return { draft: mapSession(draft, id, (s) => ({ ...s, crew: s.crew.filter((m) => m !== memberId) })) };
   }
+  if (session.cox === memberId) return { draft, error: 'cox' };
   const conflict = conflictFor(draft, session, memberId);
   if (conflict) return { draft, error: 'elsewhere', conflict };
   if (session.crew.length >= capacity) return { draft, error: 'full' };
@@ -268,6 +284,51 @@ export function toggleMember(draft: ProgramDraft, id: number, memberId: string, 
 
 export function removeMember(draft: ProgramDraft, id: number, memberId: string): ProgramDraft {
   return mapSession(draft, id, (s) => ({ ...s, crew: s.crew.filter((m) => m !== memberId) }));
+}
+
+/**
+ * Moves a rower one place towards the FRONT (`direction` -1) or towards the back (+1) of the boat. The order is the seating
+ * order and only changes when the coach says so. Does nothing at either end.
+ */
+export function moveMember(draft: ProgramDraft, id: number, memberId: string, direction: -1 | 1): ProgramDraft {
+  return mapSession(draft, id, (s) => {
+    const from = s.crew.indexOf(memberId);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= s.crew.length) return s;
+    const crew = [...s.crew];
+    [crew[from], crew[to]] = [crew[to] as string, crew[from] as string];
+    return { ...s, crew };
+  });
+}
+
+export type CoxError = 'rower' | 'elsewhere';
+export interface CoxResult {
+  draft: ProgramDraft;
+  error?: CoxError;
+  /** For 'elsewhere': the session the person is already in at that time. */
+  conflict?: SessionDraft;
+}
+
+/**
+ * Sets (or, with null, clears) the session's dümenci. Any member or the coach can steer, but not somebody who already rows in
+ * this very session, nor somebody who is in another boat while this session is on the water.
+ */
+export function setCox(draft: ProgramDraft, id: number, memberId: string | null): CoxResult {
+  const session = sessionById(draft, id);
+  if (!session) return { draft };
+  if (memberId === null || session.cox === memberId) return { draft: mapSession(draft, id, (s) => ({ ...s, cox: null })) };
+  if (session.crew.includes(memberId)) return { draft, error: 'rower' };
+  const conflict = conflictFor(draft, session, memberId);
+  if (conflict) return { draft, error: 'elsewhere', conflict };
+  return { draft: mapSession(draft, id, (s) => ({ ...s, cox: memberId })) };
+}
+
+/** A draft in which boats without a dümenci role carry none (their setting may have been switched off after the save). */
+export function withoutCoxOn(draft: ProgramDraft, boats: ReadonlyArray<Pick<Boat, 'id' | 'has_coxswain'>>): ProgramDraft {
+  const allowed = new Set(boats.filter((b) => b.has_coxswain).map((b) => b.id));
+  return draft.sessions.some((s) => s.cox && !allowed.has(s.boatId))
+    ? { ...draft, sessions: draft.sessions.map((s) => (s.cox && !allowed.has(s.boatId) ? { ...s, cox: null } : s)) }
+    : draft;
 }
 
 export const setSessionNotes = (draft: ProgramDraft, id: number, notes: string): ProgramDraft => mapSession(draft, id, (s) => ({ ...s, notes }));
@@ -311,8 +372,8 @@ export function sessionProblems(draft: ProgramDraft, trainingStart: string): Map
         add(a.id, { kind: 'boat-overlap', other: b });
         add(b.id, { kind: 'boat-overlap', other: a });
       }
-      for (const memberId of a.crew) {
-        if (b.crew.includes(memberId)) {
+      for (const memberId of peopleOf(a)) {
+        if (isInSession(b, memberId)) {
           add(a.id, { kind: 'person-overlap', other: b, memberId });
           add(b.id, { kind: 'person-overlap', other: a, memberId });
         }
@@ -348,12 +409,31 @@ export function fullCrewProblems(draft: ProgramDraft, boats: ReadonlyArray<Pick<
   });
 }
 
+export interface CoxProblem {
+  sessionId: number;
+  boatId: string;
+  start: string;
+  end: string;
+}
+
+/**
+ * Boats with a dümenci (`has_coxswain`, the C4X) that have a session with rowers but nobody steering. Like an incomplete
+ * crew this blocks publishing (drafts may be incomplete); the database refuses the same thing.
+ */
+export function coxProblems(draft: ProgramDraft, boats: ReadonlyArray<Pick<Boat, 'id' | 'has_coxswain'>>): CoxProblem[] {
+  const withCox = new Set(boats.filter((b) => b.has_coxswain).map((b) => b.id));
+  return draft.sessions
+    .filter((s) => withCox.has(s.boatId) && s.crew.length > 0 && !s.cox)
+    .map((s) => ({ sessionId: s.id, boatId: s.boatId, start: s.start, end: s.end }));
+}
+
 // --- saving --------------------------------------------------------------------------------------
 
 export interface SavePayload {
   weather_note: string | null;
   training_notes: string | null;
-  assignments: Array<{ slot_index: number; boat_id: string; starts_at: string; ends_at: string; notes: string | null; crew: string[] }>;
+  /** `crew` = the rowers in seat order; `cox` = the dümenci (null when there is none). */
+  assignments: Array<{ slot_index: number; boat_id: string; starts_at: string; ends_at: string; notes: string | null; crew: string[]; cox: string | null }>;
 }
 
 /**
@@ -372,6 +452,7 @@ export function toPayload(draft: ProgramDraft, date: string): SavePayload {
       ends_at: wallTimeToInstant(date, s.end).toISOString(),
       notes: s.notes || null,
       crew: s.crew,
+      cox: s.cox,
     })),
   };
 }
@@ -399,7 +480,7 @@ export interface Analysis {
 
 export function analyzeDraft(draft: ProgramDraft, roster: RosterEntry[]): Analysis {
   const inProgram = new Set<string>();
-  for (const s of draft.sessions) for (const id of s.crew) inProgram.add(id);
+  for (const s of draft.sessions) for (const id of peopleOf(s)) inProgram.add(id);
   const byId = new Map(roster.map((r) => [r.id, r]));
 
   const unassignedAttending = roster.filter((r) => r.answer === 'attending' && !inProgram.has(r.id)).map((r) => r.id);

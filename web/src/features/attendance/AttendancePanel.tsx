@@ -349,6 +349,8 @@ function EditorLoader({
   const boatName = useMemo(() => new Map(boats.map((b) => [b.id, b.name])), [boats]);
   const names = useMemo(() => new Map(profiles.map((p) => [p.id, p.full_name])), [profiles]);
   const activeMembers = useMemo(() => profiles.filter((p) => p.role === 'member' && p.is_active), [profiles]);
+  // A coach who steers a boat (dümenci) is in the crew rows but is nobody's attendance to take: attendance is for members.
+  const coachIds = useMemo(() => new Set(profiles.filter((p) => p.role === 'coach').map((p) => p.id)), [profiles]);
 
   const { planned, planSource, boatBySlot, sessions } = useMemo(() => {
     // a training whose length was never planned (0 sessions) is still shown as one session
@@ -358,7 +360,7 @@ function EditorLoader({
     const assignmentById = new Map(programData.assignments.map((a) => [a.id, a]));
     for (const c of programData.crew) {
       const assignment = assignmentById.get(c.assignment_id);
-      if (!assignment || c.slot_index >= sessions) continue;
+      if (!assignment || c.slot_index >= sessions || coachIds.has(c.member_id)) continue;
       crewBySlot[c.slot_index]?.push(c.member_id);
       boatBySlot.set(`${c.slot_index}:${c.member_id}`, boatName.get(assignment.boat_id) ?? '');
     }
@@ -385,7 +387,7 @@ function EditorLoader({
     });
     list.sort((a, b) => a.startMs - b.startMs || a.slot - b.slot);
     return { planned, planSource: (hasProgram ? 'program' : 'rsvp') as 'program' | 'rsvp', boatBySlot, sessions: list };
-  }, [training, programData, responses, boatName, activeMembers, saved]);
+  }, [training, programData, responses, boatName, activeMembers, coachIds, saved]);
 
   return (
     <AttendanceEditor

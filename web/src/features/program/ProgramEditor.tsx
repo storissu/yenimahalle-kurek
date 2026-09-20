@@ -14,6 +14,7 @@ import { errorMessage } from '@/lib/errors';
 import { instantToWallTime } from '@/lib/time';
 import { tr } from '@/strings/tr';
 import type { Boat, Profile, Training, TrainingResponse } from '@/types/database';
+import { useProfile } from '../auth/AuthProvider';
 import { fetchMembers, membersKey, type DirectoryEntry } from '../members/api';
 import { useTrainingResponses } from '../trainings/hooks';
 import { BoatSchedule } from './BoatSchedule';
@@ -23,15 +24,18 @@ import { useBoats, useMemberNames, useProgram, useSaveProgram } from './hooks';
 import {
   addSession,
   analyzeDraft,
+  coxProblems,
   draftFromProgram,
   fullCrewProblems,
   hasAnyCrew,
   isSameDraft,
+  moveMember,
   moveTeam,
   removeMember,
   removeSession,
   sessionById,
   sessionProblems,
+  setCox,
   setEnd,
   setSessionNotes,
   setStart,
@@ -40,6 +44,7 @@ import {
   toggleMember,
   toPayload,
   withDefaultSessions,
+  withoutCoxOn,
   type ProgramData,
   type ProgramDraft,
   type SessionDraft,
@@ -54,6 +59,9 @@ interface InnerProps {
   roster: RosterMemberInfo[];
   nameOf: (id: string) => string;
   contactOf: (id: string) => DirectoryEntry | null;
+  /** The signed-in coach (who can steer a boat themselves) and everybody who is a coach (named as such when they steer). */
+  coach: { id: string; name: string };
+  coachIds: ReadonlySet<string>;
 }
 
 type Confirm = null | 'unpublish' | 'warn';
@@ -62,7 +70,7 @@ function joinNames(ids: string[], nameOf: (id: string) => string): string {
   return ids.map(nameOf).join(', ');
 }
 
-function ProgramEditorInner({ training, programData, boats, roster, nameOf }: InnerProps) {
+function ProgramEditorInner({ training, programData, boats, roster, nameOf, coach, coachIds }: InnerProps) {
   const toast = useToast();
   const save = useSaveProgram(training.id);
 
@@ -72,8 +80,9 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   const saved = useMemo(() => draftFromProgram(programData), [programData]);
   const visibleBoatIds = useMemo(() => boats.filter((b) => b.is_active || saved.sessions.some((s) => s.boatId === b.id)).map((b) => b.id), [boats, saved]);
   // Every boat starts with one empty session at the training's start (an hour long): the coach changes its time and adds a team.
-  const [draft, setDraft] = useState<ProgramDraft>(() => withDefaultSessions(saved, visibleBoatIds, trainingStart, training.slot_count));
-  const [picker, setPicker] = useState<number | null>(null);
+  const [draft, setDraft] = useState<ProgramDraft>(() => withDefaultSessions(withoutCoxOn(saved, boats), visibleBoatIds, trainingStart, training.slot_count));
+  // which session's people are being picked, and whether it is the rowers or the dümenci
+  const [picker, setPicker] = useState<{ id: number; mode: 'crew' | 'cox' } | null>(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [removing, setRemoving] = useState<SessionDraft | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -88,10 +97,11 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   const positions = useMemo(() => boatPositions(boats), [boats]);
   const analysis = analyzeDraft(draft, roster);
   const crewProblems = fullCrewProblems(draft, boats);
+  const missingCox = coxProblems(draft, boats);
   const timeProblems = sessionProblems(draft, trainingStart);
   const hasTimeProblems = timeProblems.size > 0;
   const hasWarnings = analysis.unassignedAttending.length + analysis.assignedNotAttending.length + analysis.assignedNoAnswer.length > 0;
-  const blocked = crewProblems.length > 0 || hasTimeProblems;
+  const blocked = crewProblems.length > 0 || missingCox.length > 0 || hasTimeProblems;
 
   const change = (next: ProgramDraft) => {
     setDraft(next);
@@ -129,7 +139,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   };
 
   // --- sessions -----------------------------------------------------------------------------------
-  const pickerSession = picker === null ? undefined : sessionById(draft, picker);
+  const pickerSession = picker === null ? undefined : sessionById(draft, picker.id);
   const pickerBoat = pickerSession ? boatById.get(pickerSession.boatId) : undefined;
   const visibleBoats = boats.filter((b) => visibleBoatIds.includes(b.id) || draft.sessions.some((s) => s.boatId === b.id && s.crew.length > 0));
   const errorText = localError ?? (save.isError ? errorMessage(save.error) : null);
@@ -158,11 +168,15 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
             problems={timeProblems}
             nameOf={nameOf}
             boatName={boatName}
+            isCoach={(id) => coachIds.has(id)}
             onAdd={() => change(addSession(draft, boat.id, trainingStart, training.slot_count).draft)}
             onStart={(id, time) => change(setStart(draft, id, time))}
             onEnd={(id, time) => change(setEnd(draft, id, time))}
-            onEdit={(session) => setPicker(session.id)}
+            onEdit={(session) => setPicker({ id: session.id, mode: 'crew' })}
             onRemoveMember={(id, memberId) => change(removeMember(draft, id, memberId))}
+            onMoveMember={(id, memberId, direction) => change(moveMember(draft, id, memberId, direction))}
+            onPickCox={(session) => setPicker({ id: session.id, mode: 'cox' })}
+            onRemoveCox={(id) => change(setCox(draft, id, null).draft)}
             onNotes={(id, text) => change(setSessionNotes(draft, id, text))}
             onMove={(id, direction) => change(moveTeam(draft, id, direction))}
             onRemove={requestRemove}
@@ -204,7 +218,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
             {tr.program.timeProblemsBlocked}
           </p>
         )}
-        {crewProblems.length > 0 && (
+        {(crewProblems.length > 0 || missingCox.length > 0) && (
           <div id="crew-problems" role="alert" className="max-h-40 overflow-y-auto rounded-xl bg-warning-soft px-3 py-2 text-sm text-warning">
             <p className="flex items-center gap-2 font-bold">
               <TriangleAlert aria-hidden="true" size={16} className="shrink-0" />
@@ -214,6 +228,9 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
             <ul className="list-disc pl-5">
               {crewProblems.map((p) => (
                 <li key={p.sessionId}>{tr.program.fullCrewProblem(boatName(p.boatId), `${p.start}–${p.end}`, p.count, p.capacity)}</li>
+              ))}
+              {missingCox.map((p) => (
+                <li key={`cox-${p.sessionId}`}>{tr.program.coxProblem(boatName(p.boatId), `${p.start}–${p.end}`)}</li>
               ))}
             </ul>
           </div>
@@ -251,7 +268,19 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
         draft={draft}
         roster={roster}
         boatName={boatName}
-        onToggle={(memberId) => pickerSession && pickerBoat && change(toggleMember(draft, pickerSession.id, memberId, pickerBoat.capacity).draft)}
+        mode={picker?.mode ?? 'crew'}
+        coach={coach}
+        onToggle={(memberId) => {
+          if (!pickerSession || !pickerBoat) return;
+          if (picker?.mode === 'cox') {
+            // one dümenci: choosing somebody sets them and closes the sheet; choosing the same person again clears it
+            const result = setCox(draft, pickerSession.id, memberId);
+            change(result.draft);
+            if (!result.error) setPicker(null);
+            return;
+          }
+          change(toggleMember(draft, pickerSession.id, memberId, pickerBoat.capacity).draft);
+        }}
         onClose={() => setPicker(null)}
       />
 
@@ -312,7 +341,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   );
 }
 
-function ReadOnlyProgram({ programData, boats, nameOf, contactOf }: Omit<InnerProps, 'roster' | 'training'>) {
+function ReadOnlyProgram({ programData, boats, nameOf, contactOf }: Omit<InnerProps, 'roster' | 'training' | 'coach' | 'coachIds'>) {
   if (!programData.program || programData.assignments.length === 0) {
     return <p className="text-sm text-muted">{tr.program.noProgramYet}</p>;
   }
@@ -334,6 +363,7 @@ function rosterFrom(profiles: Profile[], responses: TrainingResponse[]): RosterM
 
 /** Coach's "Program" tab: loads everything the editor needs, then hands over to it. */
 export function ProgramEditor({ training }: { training: Training }) {
+  const me = useProfile();
   const program = useProgram(training.id);
   const boats = useBoats();
   const responses = useTrainingResponses(training.id);
@@ -394,6 +424,8 @@ export function ProgramEditor({ training }: { training: Training }) {
       roster={rosterFrom(roster.data, responses.data)}
       nameOf={displayName}
       contactOf={contactOf}
+      coach={{ id: me.id, name: me.full_name }}
+      coachIds={new Set(roster.data.filter((p) => p.role === 'coach').map((p) => p.id))}
     />
   );
 }

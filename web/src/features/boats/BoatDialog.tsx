@@ -16,6 +16,7 @@ const schema = z.object({
   capacity: z.number({ message: tr.boats.nameRequired }).int().min(1).max(8),
   is_active: z.boolean(),
   requires_full_crew: z.boolean(),
+  has_coxswain: z.boolean(),
 });
 type FormValues = z.infer<typeof schema>;
 
@@ -44,6 +45,7 @@ function BoatForm({ target, nextSortOrder, onClose }: { target: Boat | 'new'; ne
       capacity: editing?.capacity ?? 2,
       is_active: editing?.is_active ?? true,
       requires_full_crew: editing?.requires_full_crew ?? false,
+      has_coxswain: editing?.has_coxswain ?? false,
     },
   });
 
@@ -80,6 +82,14 @@ function BoatForm({ target, nextSortOrder, onClose }: { target: Boat | 'new'; ne
         <span>
           <span className="block font-semibold">{tr.boats.fullCrewLabel}</span>
           <span className="block text-sm text-muted">{tr.boats.fullCrewHint}</span>
+        </span>
+      </label>
+
+      <label className="flex min-h-12 items-start gap-3 rounded-xl border border-border bg-surface p-3">
+        <input type="checkbox" className="mt-1 h-5 w-5 accent-[var(--primary)]" {...register('has_coxswain')} />
+        <span>
+          <span className="block font-semibold">{tr.boats.coxLabel}</span>
+          <span className="block text-sm text-muted">{tr.boats.coxHint}</span>
         </span>
       </label>
 

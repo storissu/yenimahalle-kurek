@@ -13,7 +13,7 @@ const asg = (id: string, slot: number, boat: string, from: string, to: string, n
   starts_at: at(from),
   ends_at: at(to),
 });
-const crew = (assignment: string, slot: number, member: string, seat: number) => ({ assignment_id: assignment, training_id: 't', slot_index: slot, member_id: member, seat });
+const crew = (assignment: string, slot: number, member: string, seat: number | null, isCox = false) => ({ assignment_id: assignment, training_id: 't', slot_index: slot, member_id: member, seat, is_cox: isCox });
 
 const data: ProgramData = {
   program: null,
@@ -67,8 +67,12 @@ describe('buildByBoat (each boat with its OWN schedule)', () => {
 
 describe('myAssignments ("which boat am I in, and when?")', () => {
   it('finds each session of a member with its boat, ITS OWN times and the crew mates', () => {
-    expect(myAssignments(data, 'jamie')).toEqual([{ slotIndex: 1, boatId: 'mavi', startsAt: at('09:00'), endsAt: at('10:00'), notes: 'sprint', mates: ['john'] }]);
-    expect(myAssignments(data, 'becca')).toEqual([{ slotIndex: 2, boatId: 'turuncu', startsAt: at('08:15'), endsAt: at('09:15'), notes: null, mates: ['ali'] }]);
+    expect(myAssignments(data, 'jamie')).toEqual([
+      { slotIndex: 1, boatId: 'mavi', startsAt: at('09:00'), endsAt: at('10:00'), notes: 'sprint', mates: ['john'], cox: null, iAmCox: false, seat: 2 },
+    ]);
+    expect(myAssignments(data, 'becca')).toEqual([
+      { slotIndex: 2, boatId: 'turuncu', startsAt: at('08:15'), endsAt: at('09:15'), notes: null, mates: ['ali'], cox: null, iAmCox: false, seat: 2 },
+    ]);
   });
 
   it('lists every session for someone who rows twice, in TIME order', () => {
@@ -113,5 +117,50 @@ describe('matesLabel', () => {
     expect(matesLabel(['Jamie'])).toBe('Jamie ile');
     expect(matesLabel(['Jamie', 'Ali'])).toBe('Jamie ve Ali ile');
     expect(matesLabel(['Jamie', 'Ali', 'Becca'])).toBe('Jamie, Ali ve Becca ile');
+  });
+});
+
+describe('the dümenci (coxswain) and the seating order', () => {
+  // a C4X with the rowers deliberately NOT in alphabetical order, and a coach steering
+  const quad: ProgramData = {
+    program: null,
+    assignments: [asg('q', 6, 'c4x', '08:30', '09:30')],
+    crew: [
+      crew('q', 6, 'coach', null, true),
+      crew('q', 6, 'zeynep', 3),
+      crew('q', 6, 'ali', 4),
+      crew('q', 6, 'mert', 1),
+      crew('q', 6, 'bora', 2),
+    ],
+  };
+
+  it('keeps the rowers in the order of their seats — never alphabetical — and lists the dümenci apart', () => {
+    const session = buildByBoat(quad, order)[0]?.sessions[0];
+    expect(session?.crew).toEqual(['mert', 'bora', 'zeynep', 'ali']);
+    expect(session?.cox).toBe('coach');
+  });
+
+  it('a session without a dümenci says null, and a dümenci alone does not make a session', () => {
+    expect(buildByBoat(data, order)[0]?.sessions[0]?.cox).toBeNull();
+    const onlyCox: ProgramData = { program: null, assignments: [asg('q', 6, 'c4x', '08:30', '09:30')], crew: [crew('q', 6, 'coach', null, true)] };
+    expect(buildByBoat(onlyCox, order)).toEqual([]);
+  });
+
+  it('the dümenci takes part: the session is theirs (also when it is a coach), the rowers stay theirs', () => {
+    const session = buildByBoat(quad, order)[0]?.sessions[0] as NonNullable<ReturnType<typeof buildByBoat>[0]>['sessions'][0];
+    expect(isMineSession(session, 'coach')).toBe(true);
+    expect(isMineSession(session, 'bora')).toBe(true);
+    expect(isMineSession(session, 'stranger')).toBe(false);
+  });
+
+  it('tells a rower their seat, the other rowers in order and who steers', () => {
+    const mine = myAssignments(quad, 'zeynep');
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ boatId: 'c4x', mates: ['mert', 'bora', 'ali'], cox: 'coach', iAmCox: false, seat: 3 });
+  });
+
+  it('tells the dümenci that they steer: no seat, all four rowers as crew', () => {
+    const mine = myAssignments(quad, 'coach');
+    expect(mine[0]).toMatchObject({ mates: ['mert', 'bora', 'zeynep', 'ali'], cox: 'coach', iAmCox: true, seat: null });
   });
 });
