@@ -14,7 +14,7 @@ import { SourceLink, WeatherRow } from './SessionWeather';
 /**
  * A member's forecast, shown ONCE per training as a small card: the conditions at the hour(s) they row in (their own
  * sessions in the published program), or at the start of the training when they are not in any boat yet. Every other
- * weather display (per session, per row) is gone on purpose — one compact place, right under "Sizin programınız".
+ * weather display (per session, per row) is gone on purpose — one compact place, at the end of the page (it is never the main thing).
  */
 export function MemberWeather({ training }: { training: Pick<Training, 'id' | 'starts_at' | 'status'> }) {
   const me = useProfile();

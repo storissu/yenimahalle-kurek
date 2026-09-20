@@ -1004,6 +1004,45 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByText('Yayında (sürüm 2)').waitFor();
   check('updating a published program bumps the version', db.programs[t.id].program.version === 2 && db.programs[t.id].program.training_notes.includes('uzun set'));
 
+  // the coach dashboard: ONE compact card for the live program, no separate "Üyeleri yönet" shortcut
+  {
+    const { page: cp, ctx: cc } = await newPage();
+    await cp.goto(BASE + '/giris');
+    await cp.getByLabel('Kullanıcı adı').fill('ayse');
+    await cp.getByLabel('Şifre').fill('Coach1234');
+    await cp.getByRole('button', { name: 'Giriş yap' }).click();
+    await cp.waitForURL('**/antrenor');
+    const live = cp.getByRole('region', { name: 'Yayındaki program' });
+    await live.waitFor();
+    const liveCard = live.getByRole('link');
+    await liveCard.getByText(/tekne/).waitFor();
+    const liveText = (await liveCard.innerText()).replace(/\s+/g, ' ');
+    check('coach dashboard: the live program is ONE compact card — date, time range, "Yayında", size', (await liveCard.count()) === 1 && liveText.includes('08:00–10:00') && liveText.includes('Yayında') && /2 seans · \d tekne · \d kişi/.test(liveText), liveText);
+    check('coach dashboard: the card opens the Program tab', ((await liveCard.getAttribute('href')) ?? '').endsWith('?sekme=program'));
+    check('coach dashboard: no "Üyeleri yönet" card any more — members live only in the bottom bar', (await cp.getByText('Üyeleri yönet').count()) === 0 && (await cp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).count()) === 1);
+    await shot(cp, '50-coach-dashboard-published');
+    await liveCard.click();
+    await cp.getByRole('tab', { name: 'Program', selected: true }).waitFor();
+    // the Yanıtlar / Program / Yoklama switch: first thing on the page, prominent, and it stays while scrolling
+    const tablist = cp.getByRole('tablist', { name: 'Antrenman bölümleri' });
+    const y = async (loc) => (await loc.boundingBox()).y;
+    check('coach training page: the tab switch is above the training summary (first thing after the back link)', (await y(tablist)) < (await y(cp.getByRole('heading', { level: 1 }))));
+    const tabBox = await cp.getByRole('tab', { name: 'Program' }).boundingBox();
+    check('coach training page: tabs are big touch targets (at least 48 px tall)', tabBox.height >= 48, String(tabBox.height));
+    const solidTab = await cp.getByRole('tab', { name: 'Program' }).evaluate((el) => getComputedStyle(el).backgroundColor);
+    check('coach training page: the selected tab is filled (not the page colour)', solidTab !== (await cp.locator('body').evaluate((el) => getComputedStyle(el).backgroundColor)));
+    await cp.evaluate(() => window.scrollTo(0, 900));
+    await cp.waitForTimeout(150);
+    check('coach training page: the switch stays in reach after scrolling down', (await y(tablist)) < 24, String(await y(tablist)));
+    const bannerBox = await cp.locator('[role="tabpanel"]:not([hidden]) .sticky').first().boundingBox();
+    check('program editor: its hour banner sits BELOW the sticky tab bar, not under it', bannerBox.y >= (await y(tablist)) + tabBox.height, `${bannerBox.y} vs ${await y(tablist)}`);
+    await cp.evaluate(() => window.scrollTo(0, 0));
+    await shot(cp, '51-coach-training-tabs-top');
+    const weatherStrip = cp.getByRole('region', { name: 'Hava durumu' });
+    if (await weatherStrip.count()) check('coach training page: the weather closes the page (below the tab panels)', (await y(weatherStrip)) > (await y(cp.getByRole('tabpanel').first())));
+    await cc.close();
+  }
+
   // the member's view
   {
     const { page: mp, ctx: mc, problems: mprob } = await newPage('dark');
@@ -1034,11 +1073,16 @@ const shot = async (page, name, fullPage = false) => {
     await forecastCard.getByRole('group', { name: /^Hava durumu, / }).first().waitFor();
     check('home: ONE forecast card, with a row for each of my two sessions (the coach\'s publish fetched it)', (await forecastCard.count()) === 1 && (await forecastCard.getByRole('group', { name: /^Hava durumu, / }).count()) === 2);
     check('home: the forecast is nowhere else — not in my boat card, not in the program rows', (await mine.getByRole('group').count()) === 0 && (await mp.getByRole('group', { name: /^Hava durumu, / }).count()) === 2 && (await mp.locator('li[data-mine="true"]').first().innerText()).includes('°') === false);
-    check('home: order is my boat, then the forecast, then the RSVP', (await above(mine, forecastCard)) && (await above(forecastCard, mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' }))));
+    check('home: the forecast comes LAST — after my boat, the RSVP and the whole program', (await above(mine, forecastCard)) && (await above(mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' }), forecastCard)) && (await above(mp.getByRole('heading', { name: 'Tüm program' }), forecastCard)) && (await above(turuncu, forecastCard)) && (await above(mavi, forecastCard)));
     await shot(mp, '26-member-my-boat-dark', true);
     await mp.goto(BASE + `/uye/antrenmanlar/${t.id}`);
     await mp.getByRole('heading', { name: 'Tüm program' }).waitFor();
     check('detail: whole program by boat with everyone\'s crew, notes and weather', (await mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ }).getByText('08:00', { exact: true }).isVisible()) && (await mp.getByText('Alex').first().isVisible()) && (await mp.getByText('teknik çalışma').isVisible()) && (await mp.getByText('Rüzgâr batıdan 15 km/s').isVisible()) && (await mp.getByText('Isınma 10 dk, sonra uzun set').isVisible()));
+    {
+      const top = async (loc) => (await loc.first().boundingBox()).y;
+      const maviBox = mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ });
+      check('detail: the training note comes BEFORE the boats, the coach\'s weather note AFTER them (weather is never above the assignments)', (await top(mp.getByText('Isınma 10 dk, sonra uzun set'))) < (await top(maviBox)) && (await top(mp.getByText('Rüzgâr batıdan 15 km/s'))) > (await top(maviBox)));
+    }
     check('detail: the reader\'s own sessions are marked', (await mp.getByText('Sizin seansınız').count()) >= 1);
     check('detail: the answer is locked because the program is published (the deadline is still days away)', (await mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' }).isVisible()) && (await mp.getByRole('radio', { name: 'Katılmıyorum' }).count()) === 0);
     await shot(mp, '27-member-full-program-dark');
@@ -1051,6 +1095,19 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('dialog').getByRole('button', { name: 'Yayından kaldır' }).click();
   await page.getByText('Program yayından kaldırıldı.').waitFor();
   check('unpublished: back to draft, version kept', db.programs[t.id].program.status === 'draft' && db.programs[t.id].program.version === 2);
+  {
+    // no live program → the dashboard shows no such section at all (no empty placeholder)
+    const { page: cp, ctx: cc } = await newPage();
+    await cp.goto(BASE + '/giris');
+    await cp.getByLabel('Kullanıcı adı').fill('ayse');
+    await cp.getByLabel('Şifre').fill('Coach1234');
+    await cp.getByRole('button', { name: 'Giriş yap' }).click();
+    await cp.waitForURL('**/antrenor');
+    await cp.getByRole('heading', { name: 'Yaklaşan antrenmanlar' }).waitFor();
+    await cp.waitForTimeout(300);
+    check('coach dashboard: without a published program there is no "Yayındaki program" section', (await cp.getByRole('region', { name: 'Yayındaki program' }).count()) === 0 && (await cp.getByText('Yayındaki program').count()) === 0);
+    await cc.close();
+  }
   {
     const { page: mp, ctx: mc } = await newPage();
     await mp.goto(BASE + '/giris');

@@ -48,29 +48,30 @@ export function MyBoatCard({ assignments, training, nameOf, boatName, capacityOf
   );
 }
 
-/** Coach's free-text notes attached to the program. */
-export function ProgramNotes({ weatherNote, trainingNotes }: { weatherNote: string | null; trainingNotes: string | null }) {
-  if (!weatherNote && !trainingNotes) return null;
+/** The coach's training note (warm-up, tempo, turning points…): read before the program. */
+export function TrainingNote({ notes }: { notes: string | null }) {
+  if (!notes) return null;
   return (
-    <div className="flex flex-col gap-3">
-      {weatherNote && (
-        <Card className="flex items-start gap-3">
-          <CloudSun aria-hidden="true" size={20} className="mt-0.5 shrink-0 text-primary" />
-          <div>
-            <h3 className="text-sm font-bold">{tr.program.weather}</h3>
-            <p className="whitespace-pre-line break-words text-sm">{weatherNote}</p>
-          </div>
-        </Card>
-      )}
-      {trainingNotes && (
-        <Card className="flex items-start gap-3">
-          <NotebookText aria-hidden="true" size={20} className="mt-0.5 shrink-0 text-primary" />
-          <div>
-            <h3 className="text-sm font-bold">{tr.program.trainingNotes}</h3>
-            <p className="whitespace-pre-line break-words text-sm">{trainingNotes}</p>
-          </div>
-        </Card>
-      )}
-    </div>
+    <Card className="flex items-start gap-3">
+      <NotebookText aria-hidden="true" size={20} className="mt-0.5 shrink-0 text-primary" />
+      <div>
+        <h3 className="text-sm font-bold">{tr.program.trainingNotes}</h3>
+        <p className="whitespace-pre-line break-words text-sm">{notes}</p>
+      </div>
+    </Card>
+  );
+}
+
+/** The coach's weather note. Weather is never the main thing, so it comes AFTER the program, next to the forecast. */
+export function WeatherNote({ note }: { note: string | null }) {
+  if (!note) return null;
+  return (
+    <Card className="flex items-start gap-3">
+      <CloudSun aria-hidden="true" size={20} className="mt-0.5 shrink-0 text-primary" />
+      <div>
+        <h3 className="text-sm font-bold">{tr.program.weather}</h3>
+        <p className="whitespace-pre-line break-words text-sm">{note}</p>
+      </div>
+    </Card>
   );
 }

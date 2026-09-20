@@ -10,7 +10,7 @@ import { useProfile } from '../auth/AuthProvider';
 import { useMyResponses } from '../trainings/hooks';
 import { useBoats, useMemberNames, useProgram } from './hooks';
 import { initialSessionCount } from './model';
-import { MyBoatCard, ProgramNotes } from './ProgramParts';
+import { MyBoatCard, TrainingNote, WeatherNote } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
 import { buildTimeline, myAssignments } from './view';
 
@@ -72,13 +72,14 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
 
   const everything = (
     <>
-      <ProgramNotes weatherNote={program.data.program?.weather_note ?? null} trainingNotes={program.data.program?.training_notes ?? null} />
+      <TrainingNote notes={program.data.program?.training_notes ?? null} />
       <section aria-labelledby="full-program-heading" className="flex flex-col gap-3">
         <h2 id="full-program-heading" className="text-sm font-bold text-muted">
           {tr.program.fullProgram}
         </h2>
         <ProgramByBoat data={program.data} training={training} boats={boats.data} meId={me.id} nameOf={nameOf} contactOf={contactOf} />
       </section>
+      <WeatherNote note={program.data.program?.weather_note ?? null} />
     </>
   );
 

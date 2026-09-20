@@ -1,5 +1,5 @@
-import { CalendarX, ChevronRight, History, Pencil, Plus, Settings, Ship, Users, XCircle } from 'lucide-react';
-import { useId, useState } from 'react';
+import { CalendarX, ChevronRight, ClipboardCheck, History, ListChecks, Pencil, Plus, Settings, Ship, XCircle } from 'lucide-react';
+import { useId, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { BackLink } from '@/components/layout/BackLink';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -18,7 +18,9 @@ import { useTrainingCounts } from '@/features/attendance/hooks';
 import { useProfile } from '@/features/auth/AuthProvider';
 import { InstallBanner } from '@/features/install/InstallBanner';
 import { CoachProgramView } from '@/features/program/CoachProgramView';
+import { usePublishedTrainingIds } from '@/features/program/hooks';
 import { ProgramEditor } from '@/features/program/ProgramEditor';
+import { PublishedProgramCard } from '@/features/program/PublishedProgramCard';
 import { useClubSettings } from '@/features/settings/api';
 import { CancelTrainingDialog } from '@/features/trainings/CancelTrainingDialog';
 import { defaultValues, fromTraining } from '@/features/trainings/form';
@@ -69,6 +71,11 @@ export function CoachDashboardPage() {
   const scheduled = partitionTrainings(allScheduled, now).upcoming.filter((t) => startsAt(t) > now);
   const shown = scheduled.slice(0, 3);
   const counts = useResponseCounts(shown.map((t) => t.id));
+  // Trainings that are not over yet and whose program is live: a compact reminder, nothing at all when there is none.
+  const publishedIds = usePublishedTrainingIds();
+  const published = allScheduled
+    .filter((t) => endsAt(t) > now && publishedIds.data?.has(t.id))
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 
   return (
     <>
@@ -84,16 +91,6 @@ export function CoachDashboardPage() {
       />
       <InstallBanner to="/antrenor/diger" />
       <div className="flex flex-col gap-5">
-        <Link to="/antrenor/uyeler" className="block">
-          <Card className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-soft text-primary">
-              <Users aria-hidden="true" size={22} />
-            </span>
-            <span className="flex-1 font-semibold">{tr.home.manageMembers}</span>
-            <ChevronRight aria-hidden="true" size={20} className="text-muted" />
-          </Card>
-        </Link>
-
         {needsAttendance.length > 0 && (
           <section aria-labelledby="coach-needs-attendance-heading" className="flex flex-col gap-3">
             <h2 id="coach-needs-attendance-heading" className="text-sm font-bold text-warning">
@@ -107,6 +104,21 @@ export function CoachDashboardPage() {
                     to={`/antrenor/antrenmanlar/${t.id}?sekme=yoklama`}
                     footer={<span className="text-sm font-semibold text-primary">{tr.attendance.needsAction} →</span>}
                   />
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {published.length > 0 && (
+          <section aria-labelledby="coach-published-heading" className="flex flex-col gap-3">
+            <h2 id="coach-published-heading" className="text-sm font-bold text-muted">
+              {tr.home.coachPublished}
+            </h2>
+            <ul className="flex flex-col gap-2">
+              {published.map((t) => (
+                <li key={t.id}>
+                  <PublishedProgramCard training={t} />
                 </li>
               ))}
             </ul>
@@ -175,13 +187,22 @@ export function CoachTrainingDetailPage() {
   const { id } = useParams();
   const training = useTraining(id);
   const [search] = useSearchParams();
-  const initialTab: DetailTab = search.get('sekme') === 'yoklama' ? 'attendance' : 'responses';
+  const sekme = search.get('sekme');
+  const initialTab: DetailTab = sekme === 'yoklama' ? 'attendance' : sekme === 'program' ? 'program' : 'responses';
   const [tab, setTab] = useState<DetailTab>(initialTab);
   // The program and attendance editors hold unsaved work: once opened they stay mounted (hidden) while other tabs are shown.
-  const [programOpened, setProgramOpened] = useState(false);
+  const [programOpened, setProgramOpened] = useState(initialTab === 'program');
   const [attendanceOpened, setAttendanceOpened] = useState(initialTab === 'attendance');
   const [cancelling, setCancelling] = useState(false);
   const idPrefix = useId();
+  const panelsRef = useRef<HTMLDivElement>(null);
+
+  // The switch sits at the top, the panels further down: after a tap, bring the panels into view if they are far below.
+  const showPanels = () =>
+    requestAnimationFrame(() => {
+      const panels = panelsRef.current;
+      if (panels && panels.getBoundingClientRect().top > window.innerHeight * 0.6) panels.scrollIntoView?.({ block: 'start' });
+    });
 
   return (
     <>
@@ -199,8 +220,52 @@ export function CoachTrainingDetailPage() {
 
       {training.data && (
         <div className="flex flex-col gap-4">
+          {/* The primary switch: first thing on the page, and it stays in reach while scrolling. */}
+          <div className="sticky top-[env(safe-area-inset-top)] z-30 -mx-4 bg-bg px-4 py-2">
+            <Tabs
+              variant="prominent"
+              label={tr.trainings.tabsLabel}
+              idPrefix={idPrefix}
+              value={tab}
+              onChange={(next) => {
+                setTab(next);
+                if (next === 'program') setProgramOpened(true);
+                if (next === 'attendance') setAttendanceOpened(true);
+                showPanels();
+              }}
+              tabs={[
+                {
+                  id: 'responses',
+                  label: (
+                    <>
+                      <ListChecks aria-hidden="true" size={18} />
+                      {tr.trainings.tabResponses}
+                    </>
+                  ),
+                },
+                {
+                  id: 'program',
+                  label: (
+                    <>
+                      <Ship aria-hidden="true" size={18} />
+                      {tr.trainings.tabProgram}
+                    </>
+                  ),
+                },
+                {
+                  id: 'attendance',
+                  label: (
+                    <>
+                      <ClipboardCheck aria-hidden="true" size={18} />
+                      {tr.trainings.tabAttendance}
+                    </>
+                  ),
+                },
+              ]}
+            />
+          </div>
+
           <TrainingSummary training={training.data} />
-          <WeatherStrip training={training.data} coach />
 
           {training.data.status === 'cancelled' && training.data.cancel_reason && (
             <p role="status" className="rounded-xl bg-danger-soft px-4 py-3 text-sm font-medium text-danger">
@@ -226,32 +291,20 @@ export function CoachTrainingDetailPage() {
 
           <CoachProgramView training={training.data} />
 
-          <div>
-            <Tabs
-              label={tr.trainings.tabsLabel}
-              idPrefix={idPrefix}
-              value={tab}
-              onChange={(next) => {
-                setTab(next);
-                if (next === 'program') setProgramOpened(true);
-                if (next === 'attendance') setAttendanceOpened(true);
-              }}
-              tabs={[
-                { id: 'responses', label: tr.trainings.tabResponses },
-                { id: 'program', label: tr.trainings.tabProgram },
-                { id: 'attendance', label: tr.trainings.tabAttendance },
-              ]}
-            />
-            <TabPanel idPrefix={idPrefix} id="responses" hidden={tab !== 'responses'}>
+          <div ref={panelsRef} className="scroll-mt-24">
+            <TabPanel idPrefix={idPrefix} id="responses" hidden={tab !== 'responses'} flush>
               <ResponsesPanel training={training.data} />
             </TabPanel>
-            <TabPanel idPrefix={idPrefix} id="program" hidden={tab !== 'program'}>
+            <TabPanel idPrefix={idPrefix} id="program" hidden={tab !== 'program'} flush>
               {programOpened && <ProgramEditor training={training.data} />}
             </TabPanel>
-            <TabPanel idPrefix={idPrefix} id="attendance" hidden={tab !== 'attendance'}>
+            <TabPanel idPrefix={idPrefix} id="attendance" hidden={tab !== 'attendance'} flush>
               {attendanceOpened && <AttendancePanel training={training.data} />}
             </TabPanel>
           </div>
+
+          {/* Weather is useful but never the main thing: it closes the page. */}
+          <WeatherStrip training={training.data} coach />
 
           <CancelTrainingDialog trainingId={training.data.id} open={cancelling} onClose={() => setCancelling(false)} />
         </div>

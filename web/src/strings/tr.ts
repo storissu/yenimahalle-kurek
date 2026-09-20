@@ -93,8 +93,8 @@ export const tr = {
     nextTraining: 'Sıradaki antrenman',
     otherUpcoming: 'Diğer yaklaşan antrenmanlar',
     coachUpcoming: 'Yaklaşan antrenmanlar',
+    coachPublished: 'Yayındaki program',
     seeAll: 'Tümünü gör',
-    manageMembers: 'Üyeleri yönet',
   },
 
   members: {
@@ -361,6 +361,8 @@ export const tr = {
     slotHeading: (n: number, range: string) => `${n}. seans · ${range}`,
     slotOrdinal: (n: number) => `${n}. seans`,
     peopleCount: (n: number) => `${n} kişi`,
+    boatCount: (n: number) => `${n} tekne`,
+    publishedBadge: 'Yayında',
     slotEmpty: 'Boş',
     noBoats: 'Bu seansta tekne yok',
     weather: 'Hava durumu',

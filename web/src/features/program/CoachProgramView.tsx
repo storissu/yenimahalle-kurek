@@ -4,7 +4,7 @@ import { tr } from '@/strings/tr';
 import type { Training } from '@/types/database';
 import { useBoats, useMemberNames, useProgram } from './hooks';
 import { ProgramByBoat } from './ProgramByBoat';
-import { ProgramNotes } from './ProgramParts';
+import { TrainingNote, WeatherNote } from './ProgramParts';
 
 /**
  * The coach's copy of what members see once a program is PUBLISHED: the notes and the whole program, boat by boat, in the
@@ -37,8 +37,9 @@ export function CoachProgramView({ training }: { training: Pick<Training, 'id' |
       <h2 id={`published-program-${training.id}`} className="text-sm font-bold text-muted">
         {tr.program.coachPublished}
       </h2>
-      <ProgramNotes weatherNote={program.data.program.weather_note} trainingNotes={program.data.program.training_notes} />
+      <TrainingNote notes={program.data.program.training_notes} />
       <ProgramByBoat data={program.data} training={training} boats={boats.data} nameOf={nameOf} contactOf={contactOf} profileLinks={false} />
+      <WeatherNote note={program.data.program.weather_note} />
     </section>
   );
 }

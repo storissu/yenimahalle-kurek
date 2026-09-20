@@ -71,6 +71,13 @@ export function buildByBoat(data: ProgramData, boatOrder: ReadonlyMap<string, nu
     .sort((a, b) => rank(a.boatId) - rank(b.boatId) || a.boatId.localeCompare(b.boatId));
 }
 
+/** How big the program is, for a one-line summary: boats that carry a crew, and distinct people placed. */
+export function summarizeProgram(data: ProgramData): { boats: number; people: number } {
+  const withCrew = new Set(data.crew.map((c) => c.assignment_id));
+  const boats = new Set(data.assignments.filter((a) => withCrew.has(a.id)).map((a) => a.boat_id));
+  return { boats: boats.size, people: new Set(data.crew.map((c) => c.member_id)).size };
+}
+
 /** True when this member rows in the session. */
 export const isMineSession = (session: Pick<BoatSession, 'crew'>, memberId: string | undefined): boolean =>
   memberId !== undefined && session.crew.includes(memberId);

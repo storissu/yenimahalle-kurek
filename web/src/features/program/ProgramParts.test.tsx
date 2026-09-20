@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { tr } from '@/strings/tr';
-import { MyBoatCard, ProgramNotes } from './ProgramParts';
+import { MyBoatCard, TrainingNote, WeatherNote } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
 import { buildTimeline, myAssignments } from './view';
 import type { ProgramData } from './model';
@@ -261,12 +261,23 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
   });
 });
 
-describe('ProgramNotes', () => {
-  it('shows weather and training notes, and nothing when both are empty', () => {
-    const { container, rerender } = render(<ProgramNotes weatherNote="Rüzgâr batıdan" trainingNotes="Isınma 10 dk" />);
-    expect(screen.getByText('Rüzgâr batıdan')).toBeInTheDocument();
+describe('TrainingNote / WeatherNote', () => {
+  it("show the coach's notes, and nothing when there is no note", () => {
+    const { container, rerender } = render(
+      <>
+        <TrainingNote notes="Isınma 10 dk" />
+        <WeatherNote note="Rüzgâr batıdan" />
+      </>,
+    );
     expect(screen.getByText('Isınma 10 dk')).toBeInTheDocument();
-    rerender(<ProgramNotes weatherNote={null} trainingNotes={null} />);
+    expect(screen.getByText('Rüzgâr batıdan')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: tr.program.weather })).toBeInTheDocument();
+    rerender(
+      <>
+        <TrainingNote notes={null} />
+        <WeatherNote note={null} />
+      </>,
+    );
     expect(container).toBeEmptyDOMElement();
   });
 });

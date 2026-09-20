@@ -74,9 +74,9 @@ export function MemberHomePage() {
               </h2>
               <TrainingSummary training={next} />
               <MemberProgram training={next} variant="mine" />
-              <MemberWeather training={next} />
               <MemberRsvp training={next} />
               <MemberProgram training={next} variant="rest" />
+              <MemberWeather training={next} />
             </section>
           ) : (
             <EmptyState icon={CalendarX} title={tr.home.noUpcomingTitle} body={tr.home.noUpcomingBody} />
@@ -150,9 +150,9 @@ export function MemberTrainingDetailPage() {
           <TrainingSummary training={training.data} />
           {training.data.status === 'completed' && attendance.isSuccess && <MyAttendanceCard training={training.data} records={attendance.data} />}
           {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="mine" />}
-          <MemberWeather training={training.data} />
           <MemberRsvp training={training.data} />
           {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="rest" />}
+          <MemberWeather training={training.data} />
         </div>
       )}
     </>

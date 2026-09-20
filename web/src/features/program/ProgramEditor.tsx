@@ -165,6 +165,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
 
   return (
     <div className="flex flex-col gap-5">
+      <h2 className="sr-only">{tr.program.heading}</h2>
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={published ? 'success' : 'warning'}>{published ? tr.program.statusPublished(version) : tr.program.statusDraft}</Badge>
         <span className="text-sm text-muted" aria-live="polite">
@@ -188,8 +189,8 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
         </div>
         {!canAddSession(draft) && <p className="mt-2 text-xs text-muted">{tr.program.maxSessions(MAX_SLOTS)}</p>}
         <TabPanel idPrefix={tabsPrefix} id={String(slot)}>
-          {/* Stays in view while the boats below scroll: which hour is being edited, and how many are placed in it. */}
-          <div className="sticky top-[env(safe-area-inset-top)] z-20 mb-3 flex items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-2.5 text-primary-fg shadow-md">
+          {/* Stays in view (just under the page's sticky Yanıtlar/Program/Yoklama bar) while the boats scroll: which hour is being edited. */}
+          <div className="sticky top-[calc(env(safe-area-inset-top)+5rem)] z-20 mb-3 flex items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-2.5 text-primary-fg shadow-md">
             <div className="min-w-0">
               <p className="text-xs font-bold">{tr.program.slotOrdinal(slot + 1)}</p>
               <p className="text-2xl font-extrabold leading-tight tabular-nums">{sessionRangeLabel(training, slot)}</p>

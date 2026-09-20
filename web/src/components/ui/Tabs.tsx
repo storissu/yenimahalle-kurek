@@ -14,6 +14,8 @@ interface TabsProps<T extends string> {
   onChange: (id: T) => void;
   /** Unique prefix so ids of tabs and their panels can reference each other. */
   idPrefix: string;
+  /** `prominent` = the page's primary switch: taller, larger text, solid selected tab. */
+  variant?: 'default' | 'prominent';
 }
 
 export const tabId = (prefix: string, id: string) => `${prefix}-tab-${id}`;
@@ -23,7 +25,8 @@ export const panelId = (prefix: string, id: string) => `${prefix}-panel-${id}`;
  * Segmented control with proper tab semantics: arrow keys / Home / End move between tabs,
  * only the selected tab is in the tab order, and each tab points at its panel.
  */
-export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix }: TabsProps<T>) {
+export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix, variant = 'default' }: TabsProps<T>) {
+  const prominent = variant === 'prominent';
   const refs = useRef(new Map<T, HTMLButtonElement>());
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -42,7 +45,7 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix 
   };
 
   return (
-    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex gap-1 overflow-x-auto rounded-2xl bg-surface-2 p-1">
+    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className={cn('flex overflow-x-auto rounded-2xl bg-surface-2', prominent ? 'gap-1.5 border border-border p-1.5 shadow-sm' : 'gap-1 p-1')}>
       {tabs.map((tab) => {
         const selected = tab.id === value;
         return (
@@ -60,8 +63,9 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix 
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
             className={cn(
-              'min-h-11 min-w-fit flex-1 whitespace-nowrap rounded-xl px-3 text-sm font-semibold transition-colors',
-              selected ? 'bg-surface text-primary shadow-sm' : 'text-muted',
+              'min-w-fit flex-1 whitespace-nowrap rounded-xl px-3 font-semibold transition-colors',
+              prominent ? 'flex min-h-12 items-center justify-center gap-2 text-base font-bold' : 'min-h-11 text-sm',
+              selected ? (prominent ? 'bg-primary text-primary-fg shadow' : 'bg-surface text-primary shadow-sm') : 'text-muted',
             )}
           >
             {tab.label}
@@ -73,9 +77,9 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix 
 }
 
 /** `hidden` keeps the panel mounted (so its state survives switching tabs) but invisible. */
-export function TabPanel({ idPrefix, id, hidden = false, children }: { idPrefix: string; id: string; hidden?: boolean; children: ReactNode }) {
+export function TabPanel({ idPrefix, id, hidden = false, flush = false, children }: { idPrefix: string; id: string; hidden?: boolean; flush?: boolean; children: ReactNode }) {
   return (
-    <div role="tabpanel" id={panelId(idPrefix, id)} aria-labelledby={tabId(idPrefix, id)} tabIndex={hidden ? -1 : 0} hidden={hidden} className="mt-4 outline-offset-4">
+    <div role="tabpanel" id={panelId(idPrefix, id)} aria-labelledby={tabId(idPrefix, id)} tabIndex={hidden ? -1 : 0} hidden={hidden} className={cn(flush ? '' : 'mt-4', 'outline-offset-4')}>
       {children}
     </div>
   );

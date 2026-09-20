@@ -18,7 +18,7 @@ Bir yazım hatası için **Düzenle**, hava vb. nedenle **İptal et** (neden yaz
 
 ## 2. Yanıtları izleme
 
-Antrenman sayfasında **Yanıtlar** sekmesi: Katılıyor / Katılmıyor / Yanıt yok listeleri ve üyelerin notları ("9'dan sonraya yazar mısınız?").
+Antrenman sayfasının en üstünde **Yanıtlar / Program / Yoklama** düğmeleri vardır (aşağı kaydırsanız da yerinde kalır). **Yanıtlar** sekmesi: Katılıyor / Katılmıyor / Yanıt yok listeleri ve üyelerin notları ("9'dan sonraya yazar mısınız?").
 - Yanıtı olmayanlara, son yanıt zamanından **3 saat** önce (Diğer → Kulüp ayarları'ndan değiştirilebilir) otomatik hatırlatma gider.
 - Süre dolunca size "Yanıt süresi doldu: X katılıyor, Y katılmıyor, Z yanıt yok" bildirimi gelir.
 - **Üye adına yanıt**: üyenin satırına dokunun (telefonla bildirdi vb.). Süre dolmuş veya program yayınlanmış olsa da çalışır; "Antrenör girdi" etiketiyle görünür.
@@ -35,7 +35,7 @@ Antrenman sayfasında **Yanıtlar** sekmesi: Katılıyor / Katılmıyor / Yanıt
 7. **Yayınla**: üyeler programı görür; ekipteki herkese **kişisel** bildirim ("Mavi · 09:00–10:00 · Ayşe ile"), diğer katılanlara genel bildirim gider. **Yayınlandığı anda üyelerin yanıtları kilitlenir.**
    Yayınlamadan önce "X hiçbir seansa atanmadı" gibi uyarılar çıkabilir; bilinçli ise "Yine de yayınla".
 
-**Yayınlanan programı üyeler gibi görmek:** program yayınlanınca antrenman sayfasında sekmelerin üstünde **"Yayınlanan program"** bölümü çıkar: notlar ve tüm seanslar tekne tekne, üyelerin telefonunda göründüğü sade düzenle. İsme dokunursanız telefon numarası açılır. Taslakta bu bölüm görünmez.
+**Yayınlanan programı üyeler gibi görmek:** program yayınlanınca antrenman sayfasında sekmelerin altında **"Yayınlanan program"** bölümü çıkar (Panel'de de **"Yayındaki program"** kartı görünür; dokunursanız Program sekmesi açılır): notlar ve tüm seanslar tekne tekne, üyelerin telefonunda göründüğü sade düzenle. İsme dokunursanız telefon numarası açılır. Taslakta bu bölüm görünmez.
 
 **Yayınladıktan sonra:** düzenleyip **Güncelle** — yalnızca ekibi değişenlere (ve o teknedeki arkadaşlarına) bildirim gider. Küçük bir düzeltme için **Üyelere bildirim gönder** işaretini kaldırın. **Yayından kaldır** programı taslağa alır; yanıtlar (süre dolmadıysa) yeniden açılır.
 
