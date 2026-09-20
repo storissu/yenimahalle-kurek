@@ -655,7 +655,7 @@ const shot = async (page, name, fullPage = false) => {
   // create — happy path (3 days ahead so the "24 saat önce" deadline is in the future at any time of day)
   await page.getByLabel('Tarih', { exact: true }).fill(istanbulDate(Date.now() + 3 * 24 * HOUR));
   await page.getByLabel('Başlangıç saati').fill('08:00');
-  check('the form does not ask for a number of sessions (the coach adds sessions while preparing the program)', (await page.getByLabel('Seans sayısı').count()) === 0 && (await page.getByText(/Kaç seans süreceğini şimdi girmenize gerek yok/).isVisible()));
+  check('the form does not ask for a number of sessions (the coach adds sessions while preparing the program)', (await page.getByLabel('Seans sayısı').count()) === 0 && (await page.getByText(/Süre, programa eklediğiniz seanslardan belli olur/).isVisible()));
   check('deadline choices: 12 / 24 / 48 hours before, the evening before at 20:00, or a custom time', (await page.getByRole('radio').allInnerTexts()).join('|') === '12 saat önce|24 saat önce|48 saat önce|Bir önceki akşam 20:00|Özel zaman');
   await page.getByRole('radio', { name: '24 saat önce' }).click();
   check('form previews the start time only', await page.getByText(/Antrenman 08:00 · Son yanıt:/).isVisible());
@@ -881,7 +881,10 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByText('Taslak — üyeler görmüyor').waitFor();
 
   const slotTabs = page.getByRole('tablist', { name: 'Seanslar' }).getByRole('tab');
-  check('one tab per one-hour session (08:00, 09:00)', (await slotTabs.count()) === 2 && (await slotTabs.allTextContents()).join(',') === '08:00,09:00');
+  // each tab is the hour plus how many people are placed in it ("Boş" while nobody is)
+  check('one tab per one-hour session (08:00, 09:00), each showing it is still empty', (await slotTabs.count()) === 2 && (await slotTabs.allTextContents()).join(',') === '08:00Boş,09:00Boş');
+  const banner = page.locator('[role="tabpanel"]:not([hidden]) .sticky').first();
+  check('the hour being edited is a big banner: "1. seans", 08:00–09:00, 0 people placed', (await banner.innerText()).replace(/\s+/g, ' ') === '1. seans 08:00–09:00 0 kişi');
   const boat = (name) => page.getByRole('group', { name, exact: true });
   check('active boats are offered (Mavi, Turuncu, C4X, Yeşil)', (await boat('Mavi').isVisible()) && (await boat('Turuncu').isVisible()) && (await boat('C4X').isVisible()));
   await shot(page, '22-program-editor-empty');
@@ -907,6 +910,8 @@ const shot = async (page, name, fullPage = false) => {
   await d.getByRole('checkbox', { name: /Ali Kaya/ }).click();
   await d.getByRole('checkbox', { name: /John/ }).click();
   await d.getByRole('button', { name: 'Tamam' }).click();
+  check('the tab and the banner count the people placed in the hour (4 kişi)', ((await slotTabs.first().innerText()).replace(/\s+/g, ' ') === '08:00 4 kişi') && (await banner.innerText()).includes('4 kişi'));
+  check('every boat card repeats the hour it is being edited for, in the boat\'s colour', (await boat('Mavi').getByText('08:00', { exact: true }).isVisible()) && (await boat('C4X').getByText('08:00', { exact: true }).isVisible()));
 
   d = await openPicker('C4X');
   check('a member already in another boat that hour cannot be picked again', (await d.getByRole('checkbox', { name: /Ali Kaya/ }).getAttribute('aria-disabled')) === 'true' && (await d.getByText('Bu seansta Turuncu teknesinde').first().isVisible()));
@@ -977,7 +982,7 @@ const shot = async (page, name, fullPage = false) => {
     const published = page.getByRole('region', { name: 'Yayınlanan program' });
     await published.waitFor();
     const boatsShown = await published.getByRole('heading', { level: 3 }).allInnerTexts();
-    check('coach: once published, the whole program shows above the tabs, boat by boat like on a member\'s phone', boatsShown.some((n) => n.includes('Mavi')) && boatsShown.some((n) => n.includes('Turuncu')) && (await published.getByText('Alex').first().isVisible()) && (await published.getByText('Jamie').first().isVisible()) && (await published.getByText('08:00–09:00').first().isVisible()));
+    check('coach: once published, the whole program shows above the tabs, boat by boat like on a member\'s phone', boatsShown.some((n) => n.includes('Mavi')) && boatsShown.some((n) => n.includes('Turuncu')) && (await published.getByText('Alex').first().isVisible()) && (await published.getByText('Jamie').first().isVisible()) && (await published.getByText('08:00', { exact: true }).first().isVisible()));
     check('coach: nobody is highlighted as "me" and there is no member-only tag', (await published.locator('[data-mine="true"]').count()) === 0 && (await published.getByText('Sizin tekneniz').count()) === 0);
     await published.getByRole('button', { name: /Alex/ }).first().click();
     check('coach: a name opens the phone card, without the member-only profile link', (await page.getByRole('dialog').getByRole('link', { name: /^Ara: Alex/ }).count()) === 1 && (await page.getByRole('dialog').getByText('Profili aç').count()) === 0);
@@ -1009,7 +1014,7 @@ const shot = async (page, name, fullPage = false) => {
     await mp.waitForURL('**/uye');
     const mine = mp.getByRole('region', { name: 'Sizin programınız' });
     await mine.waitFor();
-    check('home: "my boat" card shows each hour, boat and crew mates', (await mine.getByText('08:00–09:00').isVisible()) && (await mine.getByText('Turuncu').first().isVisible()) && (await mine.getByText('John ile').isVisible()) && (await mine.getByText('09:00–10:00').isVisible()) && (await mine.getByText('tek başına').isVisible()));
+    check('home: "my boat" card shows each hour, boat and crew mates', (await mine.getByText('08:00', { exact: true }).isVisible()) && (await mine.getByText('Turuncu').first().isVisible()) && (await mine.getByText('John ile').isVisible()) && (await mine.getByText('09:00', { exact: true }).isVisible()) && (await mine.getByText('tek başına').isVisible()));
     const above = async (a, b) => (await a.boundingBox()).y < (await b.boundingBox()).y;
     check('home: my boat comes BEFORE the RSVP card (the first thing a member sees)', await above(mine, mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' })));
     // the whole program is on Home too, grouped by boat, my sessions highlighted
@@ -1024,12 +1029,16 @@ const shot = async (page, name, fullPage = false) => {
     check('home: my sessions are SOLID blocks (own background, not the page background) — one per session of mine', (await mineRows.count()) === 2 && (await solid(mineRows.first())) !== pageBg && (await solid(mineRows.first())) === (await solid(mineRows.last())));
     check('home: the boat I row in comes first and is tagged "Sizin tekneniz"', (await above(turuncu, mavi)) && (await turuncu.getByText('Sizin tekneniz').isVisible()) && (await mavi.getByText('Sizin tekneniz').count()) === 0);
     check('home: each boat carries its icon (drawn, decorative)', (await mp.locator('section svg[data-boat]').count()) >= 2);
-    await mine.getByRole('group', { name: /^Hava durumu, / }).first().waitFor();
-    check('home: my card shows the forecast under EACH of my two sessions (the coach\'s publish fetched it)', (await mine.getByRole('group', { name: /^Hava durumu, / }).count()) === 2);
+    // the forecast lives in ONE small card right under my boat card (one row per hour I row in), not inside every session
+    const forecastCard = mp.getByRole('region', { name: 'Hava durumu' });
+    await forecastCard.getByRole('group', { name: /^Hava durumu, / }).first().waitFor();
+    check('home: ONE forecast card, with a row for each of my two sessions (the coach\'s publish fetched it)', (await forecastCard.count()) === 1 && (await forecastCard.getByRole('group', { name: /^Hava durumu, / }).count()) === 2);
+    check('home: the forecast is nowhere else — not in my boat card, not in the program rows', (await mine.getByRole('group').count()) === 0 && (await mp.getByRole('group', { name: /^Hava durumu, / }).count()) === 2 && (await mp.locator('li[data-mine="true"]').first().innerText()).includes('°') === false);
+    check('home: order is my boat, then the forecast, then the RSVP', (await above(mine, forecastCard)) && (await above(forecastCard, mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' }))));
     await shot(mp, '26-member-my-boat-dark', true);
     await mp.goto(BASE + `/uye/antrenmanlar/${t.id}`);
     await mp.getByRole('heading', { name: 'Tüm program' }).waitFor();
-    check('detail: whole program by boat with everyone\'s crew, notes and weather', (await mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ }).getByText('08:00–09:00').isVisible()) && (await mp.getByText('Alex').first().isVisible()) && (await mp.getByText('teknik çalışma').isVisible()) && (await mp.getByText('Rüzgâr batıdan 15 km/s').isVisible()) && (await mp.getByText('Isınma 10 dk, sonra uzun set').isVisible()));
+    check('detail: whole program by boat with everyone\'s crew, notes and weather', (await mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ }).getByText('08:00', { exact: true }).isVisible()) && (await mp.getByText('Alex').first().isVisible()) && (await mp.getByText('teknik çalışma').isVisible()) && (await mp.getByText('Rüzgâr batıdan 15 km/s').isVisible()) && (await mp.getByText('Isınma 10 dk, sonra uzun set').isVisible()));
     check('detail: the reader\'s own sessions are marked', (await mp.getByText('Sizin seansınız').count()) >= 1);
     check('detail: the answer is locked because the program is published (the deadline is still days away)', (await mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' }).isVisible()) && (await mp.getByRole('radio', { name: 'Katılmıyorum' }).count()) === 0);
     await shot(mp, '27-member-full-program-dark');
@@ -1321,22 +1330,21 @@ const shot = async (page, name, fullPage = false) => {
   check('coach detail: forecast per hour with wind, gust and waves', (await strip.getByText('08:00–09:00', { exact: true }).isVisible()) && (await strip.getByText('09:00–10:00', { exact: true }).isVisible()) && (await strip.getByText(/hamle 24 km\/s/).isVisible()) && (await strip.getByText(/dalga 0,6 m/).isVisible()));
   check('coach detail: attribution and forecast time', (await strip.getByRole('link', { name: 'Open-Meteo' }).isVisible()) && (await strip.getByText(/Tahmin: \d\d:\d\d/).isVisible()));
   const advisory = strip.getByRole('alert');
-  check('coach detail: only the gusty hour warns (thresholds are coach-set, nothing is cancelled)', (await advisory.getByText(/09:00–10:00: Rüzgâr hamlesi 38 km\/s \(eşik 30\)/).isVisible()) && (await advisory.getByText(/09:00–10:00: Dalga 1,4 m \(eşik 1\)/).isVisible()) && !(await advisory.getByText('08:00–09:00').isVisible()) && (await advisory.getByText(/Karar antrenöre aittir/).isVisible()));
+  check('coach detail: only the gusty hour warns (thresholds are coach-set, nothing is cancelled)', (await advisory.getByText(/09:00–10:00: Rüzgâr hamlesi 38 km\/s \(eşik 30\)/).isVisible()) && (await advisory.getByText(/09:00–10:00: Dalga 1,4 m \(eşik 1\)/).isVisible()) && !(await advisory.getByText('08:00–09:00').isVisible()));
   await shot(page, '35-coach-weather-advisory');
   await strip.getByRole('button', { name: 'Yenile' }).click();
   await page.getByText('Hava durumu güncellendi.').waitFor();
   check('coach can refresh the forecast on demand', db.weatherRefreshes.at(-1) === t.id);
 
-  // the editor shows each hour's forecast under its tab
+  // the weather has ONE place on the coach's page (the strip above, with its warnings): the editor repeats none of it
   await page.getByRole('tab', { name: 'Program' }).click();
   await page.getByText('Yayında (sürüm 1)').waitFor();
   const slotTabs = page.getByRole('tablist', { name: 'Seanslar' }).getByRole('tab');
   const alerts = () => page.getByRole('alert').count();
   const beforeSecond = await alerts();
   await slotTabs.nth(1).click();
-  check('program editor: the gusty hour shows its own warning, the calm hour does not', (await alerts()) === beforeSecond + 1);
+  check('program editor: switching to the gusty hour adds no second warning or forecast (the strip above says it once)', (await alerts()) === beforeSecond && (await page.getByRole('tabpanel').getByText(/hamle \d+ km\/s/).count()) === 0);
   await slotTabs.nth(0).click();
-  check('program editor: back on the calm hour the extra warning is gone', (await alerts()) === beforeSecond);
 
   // "notify" choice travels with the save
   const notifyBox = page.getByRole('checkbox', { name: /Üyelere bildirim gönder/ });
@@ -1366,7 +1374,7 @@ const shot = async (page, name, fullPage = false) => {
     check('member: bell shows the unread count (2)', (await bell.innerText()).trim() === '2');
     const mstrip = mp.getByRole('region', { name: 'Hava durumu' });
     await mstrip.waitFor();
-    check('member home: sees the forecast', (await mstrip.getByText(/hamle 24 km\/s/).isVisible()) && (await mstrip.getByText(/Bofor \d/).first().isVisible()));
+    check('member home: sees the forecast of MY hour (08:00, the calm one) with its source — not the gusty second hour, and no per-hour clutter', (await mstrip.getByText(/hamle 24 km\/s/).isVisible()) && (await mstrip.getByRole('link', { name: 'Open-Meteo' }).isVisible()) && (await mstrip.getByText(/Yağmurlu|hamle 38/).count()) === 0 && (await mp.getByRole('region', { name: 'Hava durumu' }).count()) === 1);
     check('member: never sees the coach warning or the refresh button', (await mstrip.getByRole('alert').count()) === 0 && (await mp.getByText('uyarı eşiği aşıldı').count()) === 0 && (await mstrip.getByRole('button', { name: 'Yenile' }).count()) === 0);
     await shot(mp, '36-member-home-weather-dark');
 
@@ -1456,10 +1464,11 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('tab', { name: 'Program' }).click();
   await page.getByText('Taslak — üyeler görmüyor').waitFor();
   const tabs = page.getByRole('tablist', { name: 'Seanslar' }).getByRole('tab');
-  check('a new training starts with one session, and the editor explains that sessions are added here', (await tabs.count()) === 1 && (await page.getByText(/Antrenman kaç saat sürecekse o kadar seans ekleyin/).isVisible()));
+  check('a new training starts with one session, and the editor explains that sessions are added here', (await tabs.count()) === 1 && (await page.getByRole('button', { name: 'Seans ekle' }).isVisible()));
   await page.getByRole('button', { name: 'Seans ekle' }).click();
   await page.getByRole('button', { name: 'Seans ekle' }).click();
-  check('"Seans ekle" adds sessions one by one (08:00, 09:00, 10:00) and jumps to the new one', (await tabs.allTextContents()).join(',') === '08:00,09:00,10:00' && (await page.getByRole('tab', { name: '10:00', selected: true }).isVisible()) && (await page.getByText('Antrenman şu an 3 seans (3 saat) sürüyor.').isVisible()));
+  const banner2 = page.locator('[role="tabpanel"]:not([hidden]) .sticky').first();
+  check('"Seans ekle" adds sessions one by one (08:00, 09:00, 10:00) and jumps to the new one', (await tabs.allTextContents()).map((s) => s.slice(0, 5)).join(',') === '08:00,09:00,10:00' && (await page.getByRole('tab', { name: '10:00', selected: true }).isVisible()) && (await banner2.innerText()).includes('3. seans'));
   await shot(page, '38-program-add-sessions');
 
   // ---- the C4X must have exactly four people ----
@@ -1516,7 +1525,7 @@ const shot = async (page, name, fullPage = false) => {
   await c4x.waitFor();
   check('the member sees every boat with its whole crew: the C4X has four names', (await Promise.all(['Alex', 'Ashley', 'John', 'Jamie'].map((n) => c4x.getByText(n).isVisible()))).every(Boolean));
   check('the length is known now: 08:00–10:00 · 2 seans', await mp.getByText('08:00–10:00 · 2 seans').first().isVisible());
-  check('only my own session (Mavi, 09:00–10:00) is highlighted', (await mavi.getByText('Sizin seansınız').count()) === 1 && (await c4x.getByText('Sizin seansınız').count()) === 0 && (await mavi.getByText('09:00–10:00').isVisible()));
+  check('only my own session (Mavi, 09:00–10:00) is highlighted', (await mavi.getByText('Sizin seansınız').count()) === 1 && (await c4x.getByText('Sizin seansınız').count()) === 0 && (await mavi.getByText('09:00', { exact: true }).isVisible()));
   check('the boat I row in (Mavi) is listed before the C4X, tagged "Sizin tekneniz"', (await mavi.boundingBox()).y < (await c4x.boundingBox()).y && (await mavi.getByText('Sizin tekneniz').isVisible()) && (await c4x.getByText('Sizin tekneniz').count()) === 0);
   check('the C4X shows the four-seat icon and Mavi the two-seat icon', (await c4x.locator('svg[data-boat="quad"]').count()) === 1 && (await mavi.locator('svg[data-boat="double"]').count()) === 1);
   await shot(mp, '40-member-by-boat-dark', true);
@@ -1798,16 +1807,15 @@ const shot = async (page, name, fullPage = false) => {
   await mp.getByRole('button', { name: 'Giriş yap' }).click();
   await mp.waitForURL('**/uye');
 
-  // ---- weather for MY session's hour, next to it ----
+  // ---- weather for MY session's hour: one small card right under my boat card ----
   const mine = mp.getByRole('region', { name: 'Sizin programınız' });
   await mine.waitFor();
-  const forMySession = mine.getByRole('group', { name: 'Hava durumu, 09:00–10:00' });
-  await forMySession.waitFor();
-  const forecastText = (await forMySession.innerText()).replace(/\s+/g, ' ');
-  check("home: my card shows the forecast for MY hour (09:00–10:00: rain, 24°, 27 km/s wind, 1,4 m waves), not another hour's", /Yağmurlu/.test(forecastText) && forecastText.includes('24°') && forecastText.includes('27 km/s') && forecastText.includes('1,4 m'), forecastText);
-  check('home: only my own hour has a forecast in the card (Jamie rows at 08:00, not me)', (await mine.getByRole('group').count()) === 1);
-  const inBoat = mp.locator('li[data-mine="true"]').first();
-  check('home: the same forecast is inside my highlighted row in the program by boat', (await inBoat.innerText()).replace(/\s+/g, ' ').includes('24°'));
+  const forecastCard = mp.getByRole('region', { name: 'Hava durumu' });
+  await forecastCard.waitFor();
+  const forecastText = (await forecastCard.innerText()).replace(/\s+/g, ' ');
+  check("home: the forecast card is for MY hour (09:00: rain, 24°, 27 km/s wind, 1,4 m waves), not the other hour's", /Yağmurlu/.test(forecastText) && forecastText.includes('24°') && forecastText.includes('27 km/s') && forecastText.includes('1,4 m'), forecastText);
+  check('home: only my own hour is in it — one row, so no per-hour label (Jamie rows at 08:00, not me)', (await forecastCard.getByRole('group').count()) === 0 && (await forecastCard.getByText(/Parçalı bulutlu/).count()) === 0);
+  check('home: it is not repeated inside my highlighted program row', !(await mp.locator('li[data-mine="true"]').first().innerText()).includes('24°'));
   await shot(mp, '47-member-my-session-weather-dark', true);
 
   // ---- the directory: names are links to a profile (mine is plain) ----

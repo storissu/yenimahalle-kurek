@@ -7,7 +7,6 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { tr } from '@/strings/tr';
 import type { Training } from '@/types/database';
 import { useProfile } from '../auth/AuthProvider';
-import { useWeather } from '../weather/hooks';
 import { useMyResponses } from '../trainings/hooks';
 import { useBoats, useMemberNames, useProgram } from './hooks';
 import { initialSessionCount } from './model';
@@ -18,11 +17,10 @@ import { buildTimeline, myAssignments } from './view';
 interface MemberProgramProps {
   training: Training;
   /**
-   * `summary` = the reader's own boats, then the notes and the whole program by boat (Home)
-   * `mine`    = only the reader's own boats (top of the training page, above the RSVP)
-   * `rest`    = notes + the whole program by boat, or the "not published" message (below the RSVP)
+   * `mine` = only the reader's own boats (top of the page, above the weather and the RSVP)
+   * `rest` = notes + the whole program by boat, or the "not published" message (below the RSVP)
    */
-  variant: 'summary' | 'mine' | 'rest';
+  variant: 'mine' | 'rest';
 }
 
 /** A member's view of a training's PUBLISHED program. Drafts are invisible to members (RLS). */
@@ -32,14 +30,11 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
   const boats = useBoats();
   const { query: namesQuery, nameOf, contactOf } = useMemberNames();
   const responses = useMyResponses();
-  const weather = useWeather(training.id);
 
   const boatById = useMemo(() => new Map((boats.data ?? []).map((b) => [b.id, b])), [boats.data]);
   const boatOrder = useMemo(() => new Map((boats.data ?? []).map((b) => [b.id, b.sort_order])), [boats.data]);
   const boatName = (id: string) => boatById.get(id)?.name ?? '?';
   const capacityOf = (id: string) => boatById.get(id)?.capacity ?? 2;
-  // the forecast of the session's own hour; before the query has answered nothing is shown yet
-  const weatherOf = weather.isPending ? undefined : (slot: number) => weather.data?.find((row) => row.slot_index === slot);
 
   if (program.isPending || boats.isPending || namesQuery.isPending) return <Skeleton className={variant === 'mine' ? 'h-32' : 'h-48'} />;
   if (program.isError || boats.isError || namesQuery.isError) {
@@ -68,7 +63,7 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
 
   const yours =
     mine.length > 0 ? (
-      <MyBoatCard assignments={mine} training={training} nameOf={nameOf} boatName={boatName} capacityOf={capacityOf} {...(weatherOf ? { weatherOf } : {})} />
+      <MyBoatCard assignments={mine} training={training} nameOf={nameOf} boatName={boatName} capacityOf={capacityOf} />
     ) : attending ? (
       <Card className="border-warning bg-warning-soft text-sm font-medium text-warning">{tr.program.yourNoneAttending}</Card>
     ) : null;
@@ -79,25 +74,13 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
     <>
       <ProgramNotes weatherNote={program.data.program?.weather_note ?? null} trainingNotes={program.data.program?.training_notes ?? null} />
       <section aria-labelledby="full-program-heading" className="flex flex-col gap-3">
-        <div>
-          <h2 id="full-program-heading" className="text-sm font-bold text-muted">
-            {tr.program.fullProgram}
-          </h2>
-          <p className="text-sm text-muted">{tr.program.fullProgramHint}</p>
-        </div>
-        <ProgramByBoat data={program.data} training={training} boats={boats.data} meId={me.id} nameOf={nameOf} contactOf={contactOf} {...(weatherOf ? { weatherOf } : {})} />
+        <h2 id="full-program-heading" className="text-sm font-bold text-muted">
+          {tr.program.fullProgram}
+        </h2>
+        <ProgramByBoat data={program.data} training={training} boats={boats.data} meId={me.id} nameOf={nameOf} contactOf={contactOf} />
       </section>
     </>
   );
-
-  if (variant === 'summary') {
-    return (
-      <div className="flex flex-col gap-4">
-        {yours}
-        {everything}
-      </div>
-    );
-  }
 
   return <div className="flex flex-col gap-4">{everything}</div>;
 }

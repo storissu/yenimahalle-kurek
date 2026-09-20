@@ -34,12 +34,9 @@ export function CoachProgramView({ training }: { training: Pick<Training, 'id' |
 
   return (
     <section aria-labelledby={`published-program-${training.id}`} className="flex flex-col gap-3">
-      <div>
-        <h2 id={`published-program-${training.id}`} className="text-sm font-bold text-muted">
-          {tr.program.coachPublished}
-        </h2>
-        <p className="text-sm text-muted">{tr.program.coachPublishedHint}</p>
-      </div>
+      <h2 id={`published-program-${training.id}`} className="text-sm font-bold text-muted">
+        {tr.program.coachPublished}
+      </h2>
       <ProgramNotes weatherNote={program.data.program.weather_note} trainingNotes={program.data.program.training_notes} />
       <ProgramByBoat data={program.data} training={training} boats={boats.data} nameOf={nameOf} contactOf={contactOf} profileLinks={false} />
     </section>

@@ -3,7 +3,7 @@ import { cn } from '@/lib/cn';
 
 export interface TabItem<T extends string> {
   id: T;
-  label: string;
+  label: ReactNode;
 }
 
 interface TabsProps<T extends string> {
@@ -42,7 +42,7 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix 
   };
 
   return (
-    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex gap-1 rounded-2xl bg-surface-2 p-1">
+    <div role="tablist" aria-label={label} onKeyDown={onKeyDown} className="flex gap-1 overflow-x-auto rounded-2xl bg-surface-2 p-1">
       {tabs.map((tab) => {
         const selected = tab.id === value;
         return (
@@ -60,7 +60,7 @@ export function Tabs<T extends string>({ label, tabs, value, onChange, idPrefix 
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(tab.id)}
             className={cn(
-              'min-h-11 flex-1 rounded-xl px-3 text-sm font-semibold transition-colors',
+              'min-h-11 min-w-fit flex-1 whitespace-nowrap rounded-xl px-3 text-sm font-semibold transition-colors',
               selected ? 'bg-surface text-primary shadow-sm' : 'text-muted',
             )}
           >

@@ -1,7 +1,6 @@
 // Web Push client helpers. A subscription is per browser installation; the server stores it via
 // the register_push_subscription RPC so a shared phone always notifies whoever logged in last.
 import { detectPlatform, isStandalone } from './platform';
-import { invokeFunction } from './functions';
 import { supabase, vapidPublicKey } from './supabase';
 
 export type PushSupport = { supported: true } | { supported: false; reason: 'ios-needs-install' | 'unsupported' };
@@ -98,6 +97,3 @@ export async function forgetThisDeviceOnServer(): Promise<void> {
   }
 }
 
-export async function sendTestPush(): Promise<{ sent: number; removed: number; failed: number }> {
-  return invokeFunction('push-test');
-}

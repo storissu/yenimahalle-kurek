@@ -13,17 +13,18 @@ import { TextAreaField } from '@/components/ui/TextAreaField';
 import { useToast } from '@/components/ui/Toast';
 import { errorMessage } from '@/lib/errors';
 import { formatTime } from '@/lib/time';
-import { SlotWeather } from '../weather/WeatherStrip';
 import { tr } from '@/strings/tr';
 import type { Boat, Profile, Training, TrainingResponse } from '@/types/database';
 import { fetchMembers, membersKey, type DirectoryEntry } from '../members/api';
 import { useTrainingResponses } from '../trainings/hooks';
 import { MAX_SLOTS, sessionRangeLabel, sessionStarts } from '../trainings/schedule';
+import { boatPositions } from './boatStyle';
 import { CrewPickerDialog, type RosterMemberInfo } from './CrewPickerDialog';
 import { useBoats, useMemberNames, useProgram, useSaveProgram } from './hooks';
 import {
   addSession,
   analyzeDraft,
+  assignedInSlot,
   canAddSession,
   canRemoveSession,
   clearSlot,
@@ -89,6 +90,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
 
   const boatById = useMemo(() => new Map(boats.map((b) => [b.id, b])), [boats]);
   const boatName = (id: string) => boatById.get(id)?.name ?? '?';
+  const positions = useMemo(() => boatPositions(boats), [boats]);
   const analysis = analyzeDraft(draft, roster);
   const crewProblems = fullCrewProblems(draft, boats);
   const hasWarnings = analysis.unassignedAttending.length + analysis.assignedNotAttending.length + analysis.assignedNoAnswer.length > 0;
@@ -131,7 +133,20 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
   // --- hours ------------------------------------------------------------------------------------
   const sessionCount = draft.slots.length;
   const slotStarts = sessionStarts({ starts_at: training.starts_at, slot_count: sessionCount });
-  const slotTabs = slotStarts.map((start, i) => ({ id: String(i), label: formatTime(start) }));
+  // Each tab carries its hour AND how many people are already placed in it, so gaps are visible without opening it.
+  const slotTabs = slotStarts.map((start, i) => {
+    const placed = assignedInSlot(draft, i).size;
+    return {
+      id: String(i),
+      label: (
+        <span className="flex flex-col items-center leading-tight">
+          <span className="text-base font-extrabold tabular-nums">{formatTime(start)}</span>
+          <span className={placed === 0 ? 'text-xs font-medium' : 'text-xs font-bold'}>{placed === 0 ? tr.program.slotEmpty : tr.program.peopleCount(placed)}</span>
+        </span>
+      ),
+    };
+  });
+  const placedNow = assignedInSlot(draft, slot).size;
   const addOneSession = () => {
     change(addSession(draft));
     setSlot(sessionCount); // jump to the new session
@@ -171,12 +186,16 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
             </Button>
           )}
         </div>
-        <p className="mt-2 text-xs text-muted">
-          {tr.program.sessionsHint} {canAddSession(draft) ? tr.program.sessionTotal(sessionCount) : tr.program.maxSessions(MAX_SLOTS)}
-        </p>
+        {!canAddSession(draft) && <p className="mt-2 text-xs text-muted">{tr.program.maxSessions(MAX_SLOTS)}</p>}
         <TabPanel idPrefix={tabsPrefix} id={String(slot)}>
-          <p className="mb-3 text-sm font-semibold text-muted">{tr.program.slotHeading(slot + 1, sessionRangeLabel(training, slot))}</p>
-          <SlotWeather trainingId={training.id} slot={slot} />
+          {/* Stays in view while the boats below scroll: which hour is being edited, and how many are placed in it. */}
+          <div className="sticky top-[env(safe-area-inset-top)] z-20 mb-3 flex items-center justify-between gap-3 rounded-2xl bg-primary px-4 py-2.5 text-primary-fg shadow-md">
+            <div className="min-w-0">
+              <p className="text-xs font-bold">{tr.program.slotOrdinal(slot + 1)}</p>
+              <p className="text-2xl font-extrabold leading-tight tabular-nums">{sessionRangeLabel(training, slot)}</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-primary-fg px-3 py-1 text-sm font-bold text-primary">{tr.program.peopleCount(placedNow)}</span>
+          </div>
 
           <div className="mb-3 grid grid-cols-2 gap-2">
             <Button variant="secondary" disabled={slot === 0} onClick={requestCopy}>
@@ -194,6 +213,8 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
               <SlotBoatCard
                 key={boat.id}
                 boat={boat}
+                position={positions.get(boat.id) ?? 0}
+                time={formatTime(slotStarts[slot] ?? training.starts_at)}
                 crew={crewOf(draft, slot, boat.id)}
                 notes={entryOf(draft, slot, boat.id)?.notes ?? ''}
                 nameOf={nameOf}
@@ -277,7 +298,7 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf }: In
       </div>
 
       <CrewPickerDialog
-        target={picker && pickerBoat ? { slot: picker.slot, boat: pickerBoat } : null}
+        target={picker && pickerBoat ? { slot: picker.slot, boat: pickerBoat, position: positions.get(pickerBoat.id) ?? 0 } : null}
         draft={draft}
         roster={roster}
         rangeLabel={(i) => sessionRangeLabel(training, i)}

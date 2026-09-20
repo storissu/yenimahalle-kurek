@@ -104,7 +104,6 @@ export function CoachStatsPage() {
                 {tr.stats.exportDetail}
               </Button>
             </div>
-            <p className="text-xs text-muted">{tr.stats.exportNote}</p>
           </Card>
         </div>
       )}

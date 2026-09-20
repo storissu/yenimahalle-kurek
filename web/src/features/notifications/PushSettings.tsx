@@ -4,8 +4,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
-import { FunctionError } from '@/lib/functions';
-import { disablePush, enablePush, getCurrentSubscription, getPushSupport, sendTestPush } from '@/lib/push';
+import { disablePush, enablePush, getCurrentSubscription, getPushSupport } from '@/lib/push';
 import { tr } from '@/strings/tr';
 
 const subscriptionKey = ['push-subscribed'] as const;
@@ -40,13 +39,6 @@ export function PushSettings() {
     onError: () => toast.show(tr.push.error, 'error'),
   });
 
-  const test = useMutation({
-    mutationFn: sendTestPush,
-    onSuccess: () => toast.show(tr.push.testSent, 'success'),
-    onError: (error) =>
-      toast.show(error instanceof FunctionError && error.status === 404 ? tr.push.testNoDevice : error.message, 'error'),
-  });
-
   const permission = support.supported ? Notification.permission : 'default';
   const isOn = subscribed.data === true && permission === 'granted';
 
@@ -69,23 +61,15 @@ export function PushSettings() {
       {support.supported && permission === 'denied' && <p className="text-sm text-danger">{tr.push.denied}</p>}
 
       {support.supported && permission !== 'denied' && !isOn && (
-        <>
-          <p className="text-sm text-muted">{tr.push.explain}</p>
-          <Button onClick={() => enable.mutate()} loading={enable.isPending}>
-            {enable.isPending ? tr.push.enabling : tr.push.enable}
-          </Button>
-        </>
+        <Button onClick={() => enable.mutate()} loading={enable.isPending}>
+          {enable.isPending ? tr.push.enabling : tr.push.enable}
+        </Button>
       )}
 
       {support.supported && isOn && (
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => test.mutate()} loading={test.isPending}>
-            {test.isPending ? tr.push.testing : tr.push.test}
-          </Button>
-          <Button variant="ghost" onClick={() => disable.mutate()} loading={disable.isPending}>
-            {tr.push.disable}
-          </Button>
-        </div>
+        <Button variant="secondary" onClick={() => disable.mutate()} loading={disable.isPending}>
+          {tr.push.disable}
+        </Button>
       )}
     </Card>
   );

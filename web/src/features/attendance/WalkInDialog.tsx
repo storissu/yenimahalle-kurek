@@ -23,7 +23,6 @@ function Body({ candidates, onPick, onClose }: Pick<WalkInDialogProps, 'candidat
 
   return (
     <>
-      <p className="-mt-2 text-sm text-muted">{tr.attendance.pickerHint}</p>
       <div>
         <label htmlFor="walk-in-search" className="sr-only">
           {tr.attendance.pickerSearch}

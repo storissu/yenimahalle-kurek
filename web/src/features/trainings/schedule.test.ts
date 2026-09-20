@@ -7,7 +7,9 @@ import {
   partitionTrainings,
   rsvpWindow,
   sessionCountLabel,
+  sessionRangeLabel,
   sessionStarts,
+  sessionTimes,
   timeRangeLabel,
   trainingTimeText,
   type TrainingLike,
@@ -37,6 +39,12 @@ describe('session schedule', () => {
     expect(trainingTimeText(open)).toBe('08:00 · süre program hazırlanınca belli olur');
     expect(trainingTimeText(training())).toBe('08:00–10:00 · 2 seans');
     expect(endsAt(open).toISOString()).toBe('2026-09-19T06:00:00.000Z'); // "is it over?" still works
+  });
+
+  it('gives the start and end of one session, and the same as one range', () => {
+    expect(sessionTimes(training(), 0)).toEqual({ start: '08:00', end: '09:00' });
+    expect(sessionTimes(training(), 2)).toEqual({ start: '10:00', end: '11:00' });
+    expect(sessionRangeLabel(training(), 1)).toBe('09:00–10:00');
   });
 
   it('lists each session start', () => {

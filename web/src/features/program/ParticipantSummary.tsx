@@ -29,7 +29,6 @@ export function ParticipantSummary({ draft, roster, analysis, boatName, slotTime
           {attending.length - analysis.unassignedAttending.length}/{attending.length}
         </Badge>
       </summary>
-      <p className="mb-3 text-sm text-muted">{tr.program.summaryHint}</p>
 
       <Card className="divide-y divide-border px-3 py-1">
         {attending.length === 0 && <p className="py-3 text-sm text-muted">{tr.responses.nobody}</p>}

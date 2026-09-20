@@ -6,7 +6,6 @@ import { MyBoatCard, ProgramNotes } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
 import { buildTimeline, myAssignments } from './view';
 import type { ProgramData } from './model';
-import type { WeatherSnapshot } from '@/types/database';
 
 // 08:00 Istanbul, two one-hour sessions.
 const training = { starts_at: '2026-09-22T05:00:00Z' };
@@ -33,13 +32,6 @@ const data: ProgramData = {
 const order = new Map([['mavi', 1], ['turuncu', 2]]);
 const timeline = buildTimeline(data, 2, order);
 
-// Forecast rows as the Edge Function stores them: one per session, for that session's start hour.
-const forecast = (slot: number, over: Partial<WeatherSnapshot> = {}): WeatherSnapshot => ({
-  training_id: 't', slot_index: slot, fetched_at: '2026-09-21T14:30:00Z', source: 'open-meteo', forecast_for: '2026-09-22T05:00:00Z',
-  temperature_c: 21.4, apparent_c: 20, wind_kmh: 14.2, gust_kmh: 24, wind_dir_deg: 315, precip_prob: 10, precip_mm: 0, weather_code: 2, cloud_pct: 40,
-  wave_height_m: 0.6, wave_period_s: 4, wave_dir_deg: 300, ...over,
-});
-
 describe('MyBoatCard', () => {
   it('shows each hour with the boat and the crew mates', () => {
     render(<MyBoatCard assignments={myAssignments(timeline, 'jamie')} training={training} nameOf={nameOf} boatName={boatName} />);
@@ -57,28 +49,22 @@ describe('MyBoatCard', () => {
     expect(icon).toHaveAttribute('data-boat', 'double');
   });
 
-  it("shows the forecast for EACH of my sessions' own hour, right under that session", () => {
-    const rows = [forecast(0, { temperature_c: 18.2, wind_kmh: 9, gust_kmh: 14, weather_code: 0, wave_height_m: 0.3 }), forecast(1, { temperature_c: 23.6, wind_kmh: 27, gust_kmh: 38, weather_code: 63, precip_prob: 70, wave_height_m: 1.4 })];
-    const solo: ProgramData = { ...data, crew: [...data.crew.filter((c) => c.member_id !== 'john' && c.member_id !== 'jamie'), { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'ali', seat: 1 }] };
-    render(<MyBoatCard assignments={myAssignments(buildTimeline(solo, 2, order), 'ali')} training={training} nameOf={nameOf} boatName={boatName} weatherOf={(slot) => rows[slot]} />);
-    const first = screen.getByRole('group', { name: tr.weather.forSession('08:00–09:00') });
-    expect(within(first).getByText(/Açık · 18°/)).toBeInTheDocument();
-    expect(within(first).getByText(/KB 9 km\/s · hamle 14 km\/s/)).toBeInTheDocument();
-    expect(within(first).getByText('dalga 0,3 m')).toBeInTheDocument();
-    const second = screen.getByRole('group', { name: tr.weather.forSession('09:00–10:00') });
-    expect(within(second).getByText(/Yağmurlu · 24°/)).toBeInTheDocument(); // 23.6 rounds to 24
-    expect(within(second).getByText('yağış %70')).toBeInTheDocument();
-    expect(within(second).getByText('dalga 1,4 m')).toBeInTheDocument();
-    expect(within(first).getByText(/Tahmin: \d\d:\d\d/)).toBeInTheDocument();
+  it('leads with the start hour, big, and the end hour small beneath it (read out as one range)', () => {
+    render(<MyBoatCard assignments={myAssignments(timeline, 'jamie')} training={training} nameOf={nameOf} boatName={boatName} />);
+    const card = screen.getByRole('region', { name: tr.program.yours });
+    const range = within(card).getByText('09:00–10:00'); // screen-reader text of the time block
+    const block = range.parentElement as HTMLElement;
+    const start = within(block).getByText('09:00');
+    expect(start.className).toContain('text-3xl');
+    expect(start.className).toContain('font-extrabold');
+    expect(within(block).getByText('–10:00').className).toContain('text-xs');
   });
 
-  it('says the forecast is not there yet when the session has no row, and shows nothing when weather is not offered', () => {
-    const { unmount } = render(<MyBoatCard assignments={myAssignments(timeline, 'jamie')} training={training} nameOf={nameOf} boatName={boatName} weatherOf={() => undefined} />);
-    expect(screen.getByText(tr.weather.mySessionLater)).toBeInTheDocument();
-    unmount();
+  it('carries no weather of its own: the forecast has one place, right below the card', () => {
     render(<MyBoatCard assignments={myAssignments(timeline, 'jamie')} training={training} nameOf={nameOf} boatName={boatName} />);
-    expect(screen.queryByText(tr.weather.mySessionLater)).not.toBeInTheDocument();
     expect(screen.queryByRole('group')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tahmin/)).not.toBeInTheDocument();
+    expect(screen.queryByText(tr.weather.mySessionLater)).not.toBeInTheDocument();
   });
 
   it('shows every hour for someone who rows twice, alone when nobody else is in the boat', () => {
@@ -150,8 +136,9 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(rows[1]?.className).toContain('text-primary-fg');
     expect(rows[1]?.className).toContain('py-4');
     expect(rows[0]?.className).not.toContain('bg-primary');
-    expect(within(rows[1] as HTMLElement).getByText('09:00–10:00').className).toContain('text-lg');
-    expect(within(rows[0] as HTMLElement).getByText('08:00–09:00').className).not.toContain('text-lg');
+    // the crew of my row is bigger and bolder than everybody else's
+    expect(within(rows[1] as HTMLElement).getByText('John').className).toContain('text-lg');
+    expect(within(rows[0] as HTMLElement).getByText('Ashley').className).not.toContain('text-lg');
     expect(within(rows[1] as HTMLElement).getByText(tr.program.you)).toBeInTheDocument();
     expect(within(rows[1] as HTMLElement).getByText(`— ${tr.program.yourSession}`, { exact: false })).toBeInTheDocument();
     expect(screen.getAllByText(tr.program.you)).toHaveLength(1);
@@ -194,12 +181,29 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     }
   });
 
-  it("shows the forecast for my session's hour inside my row (and only in my rows)", () => {
-    const rows: Record<number, WeatherSnapshot> = { 1: forecast(1, { temperature_c: 23.6, wind_kmh: 27, weather_code: 63 }) };
-    render(<ProgramByBoat data={data} training={training} boats={boats} meId="jamie" nameOf={nameOf} weatherOf={(slot) => rows[slot]} />);
-    const mine = boatSection('Mavi').querySelector('li[data-mine="true"]') as HTMLElement;
-    expect(within(mine).getByText(/Yağmurlu · 24° · KB 27 km\/s/)).toBeInTheDocument();
-    expect(screen.getAllByText(/Yağmurlu/)).toHaveLength(1);
+  it('puts the time first in every row: start hour big and bold, end hour small, a divider before the crew', () => {
+    show();
+    const rows = within(boatSection('Mavi')).getAllByRole('listitem');
+    const expected = [
+      [rows[0], '08:00', '–09:00', '08:00–09:00'],
+      [rows[1], '09:00', '–10:00', '09:00–10:00'],
+    ] as const;
+    for (const [row, start, end, range] of expected) {
+      const scoped = within(row as HTMLElement);
+      expect(scoped.getByText(start).className).toContain('text-2xl');
+      expect(scoped.getByText(start).className).toContain('font-extrabold');
+      expect(scoped.getByText(end).className).toContain('text-xs');
+      expect(scoped.getByText(range).className).toContain('sr-only'); // read out as one range
+    }
+    // the time block comes BEFORE the crew, separated from it by a divider
+    const first = rows[0] as HTMLElement;
+    expect(first.firstElementChild?.textContent).toContain('08:00');
+    expect(first.firstElementChild?.className).toContain('border-r');
+  });
+
+  it('never repeats the weather inside the program: no forecast in any row, mine or not', () => {
+    show('jamie');
+    expect(screen.queryByText(/Yağmurlu|Açık|Parçalı bulutlu|km\/s/)).not.toBeInTheDocument();
   });
 
   it('highlights each of my sessions when I row more than once', () => {

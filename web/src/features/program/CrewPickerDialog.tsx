@@ -1,10 +1,12 @@
 import { MessageSquareText } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
 import { cn } from '@/lib/cn';
 import { tr } from '@/strings/tr';
 import type { Boat } from '@/types/database';
+import { boatStyle } from './boatStyle';
 import { assignedInSlot, crewOf, memberSlots, type ProgramDraft } from './model';
 
 export interface RosterMemberInfo {
@@ -16,7 +18,8 @@ export interface RosterMemberInfo {
 }
 
 interface CrewPickerDialogProps {
-  target: { slot: number; boat: Boat } | null;
+  /** `position` = the boat's place in the club order (its accent colour). */
+  target: { slot: number; boat: Boat; position: number } | null;
   draft: ProgramDraft;
   roster: RosterMemberInfo[];
   rangeLabel: (slot: number) => string;
@@ -87,8 +90,7 @@ function PickerBody({ slot, boat, draft, roster, rangeLabel, boatName, onToggle,
 
   return (
     <>
-      <p className="-mt-2 flex items-center justify-between text-sm text-muted">
-        <span>{tr.program.pickerHint}</span>
+      <p className="-mt-2 flex justify-end">
         <Badge tone={full ? 'success' : 'neutral'}>{tr.program.crewCount(inBoat.length, boat.capacity)}</Badge>
       </p>
 
@@ -123,8 +125,21 @@ function PickerBody({ slot, boat, draft, roster, rangeLabel, boatName, onToggle,
 
 /** Multi-select of members for one boat in one hour. Changes apply immediately (no separate "apply"). */
 export function CrewPickerDialog({ target, ...rest }: CrewPickerDialogProps) {
+  // The title says WHICH boat and WHICH hour, with the hour big: the coach must never wonder what they are editing.
+  const title = target ? (
+    <>
+      <span className={cn('inline-flex items-center gap-1.5', boatStyle(target.position).text)}>
+        <BoatIcon capacity={target.boat.capacity} size={22} />
+        {target.boat.name}
+      </span>
+      {' · '}
+      <span className="text-2xl font-extrabold tabular-nums">{rest.rangeLabel(target.slot)}</span>
+    </>
+  ) : (
+    ''
+  );
   return (
-    <Dialog open={target !== null} onClose={rest.onClose} title={target ? tr.program.pickerTitle(target.boat.name, rest.rangeLabel(target.slot)) : ''}>
+    <Dialog open={target !== null} onClose={rest.onClose} title={title}>
       {target && <PickerBody slot={target.slot} boat={target.boat} {...rest} />}
     </Dialog>
   );

@@ -42,9 +42,9 @@ Kulübün antrenman uygulaması: antrenmana katılıp katılmayacağınızı bil
 ## 5. Programınız
 
 Antrenör programı yayınlayınca:
-- **Ana Sayfa**'nın üstünde **"Sizin programınız"** kutusunda tekneniz, saatiniz, ekip arkadaşlarınız ve **o saatin hava tahmini** görünür.
-- Altında **tüm program tekne tekne** listelenir. Her teknenin kendi rengi, adı ve **küçük bir tekne çizimi** vardır (tek, çift, dörtlü); her satırda saat aralığı ve ekip yazar.
-- **Sizin seanslarınız dolu mavi bir kutu ve "Siz" etiketiyle öne çıkar** (daha büyük yazıyla, hava tahminiyle birlikte). Kürek çektiğiniz **tekneler listenin en üstünde** gelir ve "Sizin tekneniz" yazar.
+- **Ana Sayfa**'nın üstünde **"Sizin programınız"** kutusunda **saatiniz (en büyük yazıyla)**, tekneniz ve ekip arkadaşlarınız görünür. Hemen altında **o saatin hava tahmini** küçük bir kartta yer alır.
+- Altında **tüm program tekne tekne** listelenir. Her teknenin kendi rengi, adı ve **küçük bir tekne çizimi** vardır (tek, çift, dörtlü); her satırda solda **saat (büyük)**, yanında ekip yazar.
+- **Sizin seanslarınız dolu mavi bir kutu ve "Siz" etiketiyle öne çıkar** (daha büyük yazıyla). Kürek çektiğiniz **tekneler listenin en üstünde** gelir ve "Sizin tekneniz" yazar.
 - Program değişirse yalnızca ilgili kişilere bildirim gelir.
 
 **Bir arkadaşınıza ulaşmak için:** programda adına dokunun → telefon numarası açılır → **Ara**. Tüm üyeler: **Profil → Kulüp üyeleri**. (Numaralar yalnızca kulüp üyelerine görünür.)
@@ -53,7 +53,7 @@ Antrenör programı yayınlayınca:
 
 ## 6. Hava durumu
 
-Her antrenmanda saat saat rüzgâr, hamle, dalga ve yağış tahmini görürsünüz. Programınız yayınlandıysa **sizin seansınızın saatine ait tahmin** "Sizin programınız" kutusunda ve programdaki satırınızda görünür (antrenmana çok varsa henüz alınmamış olabilir; yaklaştıkça belirir). Dalga değerleri açık deniz modelinden geldiği için kıyıda yaklaşık olabilir. **Antrenmanın yapılıp yapılmayacağına her zaman antrenör karar verir.**
+Antrenman sayfasında **tek bir küçük hava kartı** vardır: rüzgâr, hamle, dalga ve yağış tahmini. Programınız yayınlandıysa kart **yalnızca sizin seansınızın saatini** (birden fazla seansınız varsa her birini) gösterir; yoksa antrenmanın başlangıç saatini. Antrenmana çok varsa henüz alınmamış olabilir; yaklaştıkça belirir. Dalga değerleri açık deniz modelinden geldiği için kıyıda yaklaşık olabilir. **Antrenmanın yapılıp yapılmayacağına her zaman antrenör karar verir.**
 
 ## 7. Geçmişiniz ve sıralama
 

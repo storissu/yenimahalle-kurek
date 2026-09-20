@@ -120,9 +120,9 @@ Web Push can only be proven on devices. Ask one iPhone user and one Android user
 1. Open the site in **Safari** → log in.
 2. Share button → **Ana Ekrana Ekle** → Ekle.
 3. Open the app **from the new home-screen icon** → Profil (member) / Diğer (coach) → **Bildirimleri aç** → *İzin ver*.
-4. Tap **Test bildirimi gönder**, then lock the phone. ✅ A notification "Test bildirimi başarıyla ulaştı" appears.
+4. The badge next to **Bildirimler** must say **Açık**. To see a real push: ask a coach to publish or update a program with **Üyelere bildirim gönder** ticked, then lock the phone. ✅ The notification arrives. (There is no in-app test button; the `push-test` Edge Function still exists for a manual call.)
 
-**Android (Chrome):** same idea — menu ⋮ → *Uygulamayı yükle*, open the app, **Bildirimleri aç**, **Test bildirimi gönder**. ✅ Notification arrives.
+**Android (Chrome):** same idea — menu ⋮ → *Uygulamayı yükle*, open the app, **Bildirimleri aç**, then publish a program as above. ✅ Notification arrives.
 
 Report back per phone: model, OS version, worked/not worked. Older iPhones (before iOS 16.4) cannot receive web push.
 

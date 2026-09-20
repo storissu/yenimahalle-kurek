@@ -41,7 +41,7 @@ Antrenman sayfasında **Yanıtlar** sekmesi: Katılıyor / Katılmıyor / Yanıt
 
 ## 4. Hava durumu
 
-Antrenman sayfasında saat saat tahmin (rüzgâr, hamle, dalga, yağış). **Yenile** güncel tahmini hemen çeker. **Diğer → Kulüp ayarları**'nda rüzgâr hamlesi ve dalga eşiği koyarsanız, tahmin eşiği aştığında **yalnızca antrenörlere** uyarı görünür. Uygulama hiçbir antrenmanı kendiliğinden iptal etmez.
+Antrenman sayfasının üstünde, tek bir kartta saat saat tahmin (rüzgâr, hamle, dalga, yağış). **Yenile** güncel tahmini hemen çeker. **Diğer → Kulüp ayarları**'nda rüzgâr hamlesi ve dalga eşiği koyarsanız, tahmin eşiği aştığında **yalnızca antrenörlere** uyarı görünür. Uygulama hiçbir antrenmanı kendiliğinden iptal etmez.
 
 ## 5. Yoklama
 

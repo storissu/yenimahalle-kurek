@@ -10,7 +10,8 @@ import type { Training, WeatherSnapshot } from '@/types/database';
 import { useClubSettings } from '../settings/api';
 import { sessionRangeLabel } from '../trainings/schedule';
 import { useRefreshWeather, useWeather } from './hooks';
-import { beaufort, compassFrom, compassShort, describeWeather, evaluateAdvisory, formatNumber, FORECAST_HORIZON_MS, sourceName, type Thresholds } from './format';
+import { beaufort, compassFrom, compassShort, describeWeather, evaluateAdvisory, formatNumber, FORECAST_HORIZON_MS, type Thresholds } from './format';
+import { SourceLink } from './SessionWeather';
 import { WEATHER_ICONS } from './weatherIcons';
 
 /** One session's forecast as a compact, readable line: sky, temperature, wind (+gust), rain, waves. */
@@ -131,52 +132,16 @@ export function WeatherStrip({ training, coach = false }: WeatherStripProps) {
               </li>
             ))}
           </ul>
-          <p className="text-xs">{tr.weather.advisoryHint}</p>
         </div>
       )}
 
       {rows.length > 0 && newest && (
         <p className="text-xs text-muted">
           {tr.weather.forecastAt(formatTime(newest))} · {tr.weather.attribution}:{' '}
-          <a
-            href={rows[0]?.source === 'met.no' ? 'https://www.met.no/' : 'https://open-meteo.com/'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            {sourceName(rows[0]?.source ?? 'open-meteo')}
-          </a>
+          <SourceLink source={rows[0]?.source ?? 'open-meteo'} />
           {rows.some((r) => r.wave_height_m !== null) && <> · {tr.weather.marineNote}</>}
         </p>
       )}
     </Card>
-  );
-}
-
-/** The forecast for ONE session, shown in the program editor (with an advisory when a coach-set threshold is reached). */
-export function SlotWeather({ trainingId, slot }: { trainingId: string; slot: number }) {
-  const weather = useWeather(trainingId);
-  const settings = useClubSettings();
-  const row = weather.data?.find((r) => r.slot_index === slot);
-  if (!row) return null;
-  const advisories = evaluateAdvisory(row, settings.data ?? null);
-  return (
-    <div className="mb-3 flex flex-col gap-2 rounded-xl bg-surface-2 p-3">
-      <WeatherLine snapshot={row} />
-      {advisories.length > 0 && (
-        <p role="alert" className="flex items-start gap-2 text-sm font-semibold text-warning">
-          <TriangleAlert aria-hidden="true" size={16} className="mt-0.5 shrink-0" />
-          <span>
-            {advisories
-              .map((a) =>
-                a.kind === 'gust'
-                  ? tr.weather.advisoryGust(formatNumber(a.value, 0), formatNumber(a.threshold, 0))
-                  : tr.weather.advisoryWave(formatNumber(a.value, 1), formatNumber(a.threshold, 1)),
-              )
-              .join(' · ')}
-          </span>
-        </p>
-      )}
-    </div>
   );
 }

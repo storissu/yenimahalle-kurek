@@ -39,7 +39,7 @@ export const help = {
     },
     {
       q: `Hangi tekneye, hangi saate yazıldığımı nerede görürüm?`,
-      a: `Program yayınlanınca Ana Sayfa'nın üstünde "Sizin programınız" kutusunda tekneniz, saatiniz, ekip arkadaşlarınız ve o saatin hava tahmini görünür. Altında tüm program tekne tekne listelenir; sizin seanslarınız dolu mavi bir kutuyla ve "Siz" etiketiyle öne çıkar, kürek çektiğiniz tekneler en üstte "Sizin tekneniz" etiketiyle gelir. Teknelerin yanındaki küçük çizim kaç kişilik olduğunu gösterir.`,
+      a: `Program yayınlanınca Ana Sayfa'nın üstünde "Sizin programınız" kutusunda saatiniz, tekneniz ve ekip arkadaşlarınız görünür; hemen altında o saatin hava tahmini yer alır. Sonra tüm program tekne tekne listelenir; sizin seanslarınız dolu mavi bir kutuyla ve "Siz" etiketiyle öne çıkar, kürek çektiğiniz tekneler en üstte "Sizin tekneniz" etiketiyle gelir. Teknelerin yanındaki küçük çizim kaç kişilik olduğunu gösterir.`,
     },
     {
       q: `Ekip arkadaşımın telefonuna nasıl ulaşırım?`,

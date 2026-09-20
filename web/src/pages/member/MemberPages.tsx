@@ -14,7 +14,7 @@ import { MemberProgram } from '@/features/program/MemberProgram';
 import { useMyResponses, useTraining, useTrainings } from '@/features/trainings/hooks';
 import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { MemberRsvp } from '@/features/trainings/MemberRsvp';
-import { WeatherStrip } from '@/features/weather/WeatherStrip';
+import { MemberWeather } from '@/features/weather/MemberWeather';
 import { MyAnswerBadge } from '@/features/trainings/MyAnswerBadge';
 import { HOUR_MS, formatDayMonth } from '@/lib/time';
 import { endsAt, partitionTrainings, startsAt } from '@/features/trainings/schedule';
@@ -73,9 +73,10 @@ export function MemberHomePage() {
                 {tr.home.nextTraining}
               </h2>
               <TrainingSummary training={next} />
-              <MemberProgram training={next} variant="summary" />
+              <MemberProgram training={next} variant="mine" />
+              <MemberWeather training={next} />
               <MemberRsvp training={next} />
-              <WeatherStrip training={next} />
+              <MemberProgram training={next} variant="rest" />
             </section>
           ) : (
             <EmptyState icon={CalendarX} title={tr.home.noUpcomingTitle} body={tr.home.noUpcomingBody} />
@@ -149,8 +150,8 @@ export function MemberTrainingDetailPage() {
           <TrainingSummary training={training.data} />
           {training.data.status === 'completed' && attendance.isSuccess && <MyAttendanceCard training={training.data} records={attendance.data} />}
           {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="mine" />}
+          <MemberWeather training={training.data} />
           <MemberRsvp training={training.data} />
-          <WeatherStrip training={training.data} />
           {training.data.status !== 'cancelled' && <MemberProgram training={training.data} variant="rest" />}
         </div>
       )}
