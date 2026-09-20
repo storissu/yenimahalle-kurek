@@ -23,21 +23,21 @@ interface MyBoatCardProps extends NamesProps {
 /**
  * The signed-in member's own part of the program, big and first: WHEN (the start hour, largest), which boat, with whom.
  * The forecast for that hour sits right below this card (MemberWeather), once — not inside every session.
- * It wears the colour of the boat the member rows in (a subtle tint and edge; the time, the boat icon and the divider in
- * every row carry it too). When they row in more than one boat the card itself stays blue and each row keeps its own boat's colour.
+ * Only three things wear the colour of the boat the member rows in: the card's border, the start time and the boat icon.
+ * The inside stays neutral. When they row in more than one boat the border stays blue and each row keeps its own boat's colour.
  */
 export function MyBoatCard({ assignments, nameOf, boatName, capacityOf, styleOf }: MyBoatCardProps) {
   const styles = assignments.map((a) => styleOf?.(a.boatId));
   const first = styles[0];
   const card = first && styles.every((st) => st === first) ? first : undefined; // one boat only
   return (
-    // a plain div, not <Card>: Card brings its own border/background classes, which would fight the boat colours
+    // a plain div, not <Card>: Card brings its own border classes, which would fight the boat colour
     <div
-      className={cn('flex flex-col gap-3 rounded-2xl border-2 p-4', card ? cn(card.border, card.soft) : 'border-primary bg-primary-soft')}
+      className={cn('flex flex-col gap-3 rounded-2xl border-2 bg-surface p-4', card ? card.border : 'border-primary')}
       aria-labelledby="my-program-heading"
       role="region"
     >
-      <h2 id="my-program-heading" className={cn('flex items-center gap-2 text-sm font-bold', card ? card.text : 'text-primary')}>
+      <h2 id="my-program-heading" className="flex items-center gap-2 text-sm font-bold text-primary">
         <Ship aria-hidden="true" size={18} />
         {tr.program.yours}
       </h2>
@@ -45,12 +45,12 @@ export function MyBoatCard({ assignments, nameOf, boatName, capacityOf, styleOf 
         {assignments.map((a, i) => {
           const style = styles[i];
           return (
-            <li key={a.slotIndex} className="flex items-center gap-4 rounded-xl bg-surface p-3">
+            <li key={a.slotIndex} className="flex items-center gap-4 rounded-xl bg-surface-2 p-3">
               <SessionTime
                 startsAt={a.startsAt}
                 endsAt={a.endsAt}
                 size="lg"
-                className={cn('w-[6.5rem] self-stretch border-r pr-4', style ? cn(style.text, style.outline) : 'border-border text-primary')}
+                className={cn('w-[6.5rem] self-stretch border-r border-border pr-4', style ? style.text : 'text-primary')}
               />
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 text-xl font-extrabold text-fg">

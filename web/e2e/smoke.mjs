@@ -1207,7 +1207,15 @@ const shot = async (page, name, fullPage = false) => {
     const rgbOf = (css) => (css.match(/\d+/g) ?? []).slice(0, 3).map(Number); // "rgb(253, 232, 212)" -> [253, 232, 212]
     const [tr_, , tb] = rgbOf(await solid(mineRows.first()));
     check('home: my Turuncu sessions wear the ORANGE tint (red above blue), and the Mavi rows carry no tint', tr_ > tb + 20 && (await mavi.locator('li').evaluateAll((lis) => lis.every((li) => getComputedStyle(li).backgroundColor === 'rgba(0, 0, 0, 0)'))));
-    check('home: the "Sizin programınız" card wears the same orange (its border is not the blue of the app)', await mp.getByRole('region', { name: 'Sizin programınız' }).evaluate((el) => getComputedStyle(el).borderTopColor).then((css) => { const [r, , b] = rgbOf(css); return r > b + 20; }));
+    const cardStyle = await mp.getByRole('region', { name: 'Sizin programınız' }).evaluate((el) => ({ border: getComputedStyle(el).borderTopColor, bg: getComputedStyle(el).backgroundColor }));
+    const cardTime = rgbOf(await mp.getByRole('region', { name: 'Sizin programınız' }).getByText('08:00', { exact: true }).first().evaluate((el) => getComputedStyle(el).color));
+    check('home: the "Sizin programınız" card border and start time wear the boat\'s orange', rgbOf(cardStyle.border)[0] > rgbOf(cardStyle.border)[2] + 20 && cardTime[0] > cardTime[2] + 20);
+    check('home: ... but the inside of that card is NOT coloured (neutral background, same as the other cards)', rgbOf(cardStyle.bg)[0] <= rgbOf(cardStyle.bg)[2] + 5);
+    // a visible line between the sessions of each boat (the row above draws it as its bottom edge), mine or not
+    const lines = await mp.locator('section:has(> h3) > ul').evaluateAll((uls) =>
+      uls.flatMap((ul) => Array.from(ul.children).slice(0, -1).map((li) => { const cs = getComputedStyle(li); return { width: cs.borderBottomWidth, color: cs.borderBottomColor }; })),
+    );
+    check('home: every session (but the last of a boat) has a visible line under it', lines.length >= 2 && lines.every((l) => l.width === '1px' && l.color !== 'rgba(0, 0, 0, 0)' && l.color !== 'transparent'), JSON.stringify(lines));
     check('home: the boat I row in comes first and is tagged "Sizin tekneniz"', (await above(turuncu, mavi)) && (await turuncu.getByText('Sizin tekneniz').isVisible()) && (await mavi.getByText('Sizin tekneniz').count()) === 0);
     check('home: each boat carries its icon (drawn, decorative)', (await mp.locator('section svg[data-boat]').count()) >= 2);
     // the forecast lives in ONE small card right under my boat card (one row per hour I row in), not inside every session

@@ -111,7 +111,7 @@ export function ProgramByBoat({ data, boats, meId, nameOf, contactOf, profileLin
                     <li
                       key={session.slotIndex}
                       data-mine={mine ? 'true' : undefined}
-                      className={cn('flex items-center gap-3 border-l-4 px-3 py-3', mine ? cn('py-4', style.soft, style.border) : 'border-transparent')}
+                      className={cn('flex items-center gap-3 border-l-4 px-3 py-3', mine ? cn('py-4', style.soft, style.bar) : 'border-l-transparent')}
                     >
                       <SessionTime
                         startsAt={session.startsAt}

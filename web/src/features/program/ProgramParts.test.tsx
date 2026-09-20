@@ -48,22 +48,25 @@ describe('MyBoatCard', () => {
     expect(icon).toHaveAttribute('data-boat', 'double');
   });
 
-  it("wears the colour of the boat the member rows in: the card, the time, the boat icon (Turuncu = orange, boat-2)", () => {
+  it('wears the colour of the boat the member rows in in exactly three places: the border, the time and the boat icon (Turuncu = orange, boat-2)', () => {
     render(<MyBoatCard assignments={myAssignments(data, 'becca')} nameOf={nameOf} boatName={boatName} styleOf={(id) => boatStyle(id === 'turuncu' ? 1 : 0)} />);
     const card = screen.getByRole('region', { name: tr.program.yours });
     expect(card.className).toContain('border-boat-2');
-    expect(card.className).toContain('bg-boat-2-soft');
-    expect(card.className).not.toContain('bg-primary-soft');
-    expect(screen.getByRole('heading', { name: tr.program.yours }).className).toContain('text-boat-2');
     expect(within(card).getByText('08:15–09:15').parentElement?.className).toContain('text-boat-2');
     expect((card.querySelector('svg[data-boat]') as SVGElement).getAttribute('class')).toContain('text-boat-2');
+    // ... and nothing inside is coloured: neutral card, the same heading, a plain divider
+    expect(card.className).toContain('bg-surface');
+    expect(card.className).not.toMatch(/bg-boat|bg-primary/);
+    expect(screen.getByRole('heading', { name: tr.program.yours }).className).toContain('text-primary');
+    expect(within(card).getByText('08:15–09:15').parentElement?.className).toContain('border-border');
+    expect(card.innerHTML).not.toMatch(/bg-boat|-soft/);
   });
 
-  it("keeps the card itself blue when the member rows in more than one boat, each row still in its own boat's colour", () => {
+  it("keeps the border blue when the member rows in more than one boat, each row still in its own boat's colour", () => {
     const both: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 2, member_id: 'jamie', seat: 3 }] };
     render(<MyBoatCard assignments={myAssignments(both, 'jamie')} nameOf={nameOf} boatName={boatName} styleOf={(id) => boatStyle(id === 'turuncu' ? 1 : 0)} />);
     const card = screen.getByRole('region', { name: tr.program.yours });
-    expect(card.className).toContain('bg-primary-soft');
+    expect(card.className).toContain('border-primary');
     expect(within(card).getByText('09:00–10:00').parentElement?.className).toContain('text-boat-1');
     expect(within(card).getByText('08:15–09:15').parentElement?.className).toContain('text-boat-2');
   });
@@ -153,11 +156,11 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(rows[1]).toHaveAttribute('data-mine', 'true'); // John + Jamie
     // Mavi is the club's first boat, so its accent is boat-1 (blue): a soft tint and a bar in that colour, a little taller than the other rows
     expect(rows[1]?.className).toContain('bg-boat-1-soft');
-    expect(rows[1]?.className).toContain('border-boat-1');
+    expect(rows[1]?.className).toContain('border-l-boat-1'); // the bar is the LEFT edge only, so the line under the row keeps its own colour
     expect(rows[1]?.className).toContain('py-4');
     expect(rows[1]?.className).not.toContain('bg-primary');
     expect(rows[0]?.className).not.toContain('boat-1');
-    expect(rows[0]?.className).toContain('border-transparent'); // ... and the same left inset, so the names still line up
+    expect(rows[0]?.className).toContain('border-l-transparent'); // ... and the same left inset, so the names still line up
     // the crew are compact chips of ONE size everywhere; only my own chip is inverse (white on blue) and says whose session it is
     const chip = (row: HTMLElement | undefined, name: string) => within(row as HTMLElement).getByText(name, { exact: false }).closest('span,button') as HTMLElement;
     for (const [row, name] of [[rows[0], 'Ashley'], [rows[1], 'John'], [rows[1], 'Jamie']] as const) {
@@ -208,7 +211,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(mavi.className).toContain('bg-boat-1-soft');
     expect(mavi.className).not.toContain('boat-3');
     expect(c4x.className).toContain('bg-boat-3-soft');
-    expect(c4x.className).toContain('border-boat-3');
+    expect(c4x.className).toContain('border-l-boat-3');
     expect(c4x.className).not.toContain('boat-1');
     // the "Sizin tekneniz" tags carry the same colours
     expect(within(boatSection('C4X')).getByText(tr.program.yourBoat).className).toContain('bg-boat-3');
@@ -219,7 +222,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     show('becca'); // Becca rows in Turuncu only
     const own = boatSection('Turuncu').querySelector('li[data-mine="true"]') as HTMLElement;
     expect(own.className).toContain('bg-boat-2-soft');
-    expect(own.className).toContain('border-boat-2');
+    expect(own.className).toContain('border-l-boat-2');
     const tinted = Array.from(document.querySelectorAll('li')).filter((li) => /-soft(?: |$)/.test(li.className));
     expect(tinted).toEqual([own]); // no other session carries a tint
     expect(within(boatSection('Mavi')).queryByText(tr.program.yourBoat)).not.toBeInTheDocument();
@@ -228,6 +231,19 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
   it('a neutral view (no reader) tints nothing at all', () => {
     show();
     expect(Array.from(document.querySelectorAll('li')).filter((li) => /-soft(?: |$)/.test(li.className))).toHaveLength(0);
+  });
+
+  it('keeps a line between the sessions of a boat, mine or not (no row colours its bottom edge away)', () => {
+    show('jamie');
+    for (const name of ['Mavi', 'Turuncu']) {
+      const list = within(boatSection(name)).getAllByRole('listitem')[0]?.parentElement as HTMLElement;
+      expect(list.className).toContain('divide-y');
+      expect(list.className).toContain('divide-border');
+      for (const li of Array.from(list.children)) {
+        // a colour class on the whole edge (border-transparent, border-boat-N) would beat the divider's colour and hide the line
+        expect(li.className).not.toMatch(/(^| )border-(transparent|boat-\d)/);
+      }
+    }
   });
 
   it('puts the time first in every row: start hour big and bold, end hour small, a divider before the crew', () => {
