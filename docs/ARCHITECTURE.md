@@ -143,7 +143,7 @@ later phases, risks) was agreed with the club before implementation started.
 
 Members can see each other's phone numbers (crew members, training partners). The `member_directory` view — active
 members only — exposes `id`, `full_name` and `phone` and nothing else (no username, role, status or answers). Tapping
-a name in the program opens a contact card with a call link; *Profil → Kulüp üyeleri* lists everyone. The phone is
+a name in the program opens a contact card with a call link; the bottom-bar tab *Üyeler* lists everyone (a row opens that member's profile). The phone is
 optional when a coach creates an account (the form says other members will see it) and the privacy notice states it.
 Coaches see phones in *Üyeler*.
 

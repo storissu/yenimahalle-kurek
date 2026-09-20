@@ -31,6 +31,15 @@ export interface MonthRow {
   training_days: number;
   rank: number | null;
 }
+/** One session of a member's history. `boat_*` is null when no published program put them in a boat. */
+export interface MemberHistoryRow {
+  training_id: string;
+  starts_at: string;
+  title: string | null;
+  slot_index: number;
+  boat_id: string | null;
+  boat_name: string | null;
+}
 /** One session two members rowed in the same boat (present both; from the published program). */
 export interface SharedHistoryRow {
   training_id: string;
@@ -73,6 +82,8 @@ export type Database = {
           phone: string | null;
           is_active: boolean;
           must_change_password: boolean;
+          /** Set when the member was deleted: the row is then an anonymous tombstone that keeps the club's history. */
+          deleted_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -305,6 +316,7 @@ export type Database = {
       save_attendance: { Args: { p_training_id: string; p_rows: Json; p_complete?: boolean }; Returns: undefined };
       monthly_leaderboard: { Args: { p_month: string }; Returns: MonthRow[] };
       shared_boat_history: { Args: { p_member: string }; Returns: SharedHistoryRow[] };
+      member_training_history: { Args: { p_member: string }; Returns: MemberHistoryRow[] };
       my_month_stats: { Args: { p_month: string }; Returns: MyMonthStatsRow[] };
       coach_month_table: { Args: { p_month: string }; Returns: MonthRow[] };
       attendance_export: { Args: { p_month: string }; Returns: ExportRow[] };

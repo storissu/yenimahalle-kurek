@@ -43,11 +43,11 @@ export const help = {
     },
     {
       q: `Ekip arkadaşımın telefonuna nasıl ulaşırım?`,
-      a: `Programda arkadaşınızın adına dokunun; telefon numarası açılır ve tek dokunuşla arayabilirsiniz. Tüm üyeleri Profil → Kulüp üyeleri sayfasında da görebilirsiniz. Numaralar yalnızca kulüp üyelerine görünür.`,
+      a: `Programda arkadaşınızın adına dokunun; telefon numarası açılır ve tek dokunuşla arayabilirsiniz. Tüm üyeleri alttaki Üyeler sekmesinde görebilirsiniz. Numaralar yalnızca kulüp üyelerine görünür.`,
     },
     {
       q: `Bir üyeyle birlikte ne zaman kürek çektik?`,
-      a: `Profil → Kulüp üyeleri'nde (ya da sıralamada, ya da programda bir ismin kartında "Profili aç") üyenin adına dokunun. Telefonu ve sizinle aynı teknede kürek çektiğiniz seanslar görünür. Yalnızca ikinizin de o seansta olduğu ve yoklamada "Geldi" işaretlendiği seanslar sayılır; farklı teknelerde çektiyseniz görünmez.`,
+      a: `Üyeler sekmesinde (ya da sıralamada, ya da programda bir ismin kartında "Profili aç") üyenin adına dokunun. Telefonu ve iki sekme görünür: "Birlikte" sizinle aynı teknede kürek çektiği seansları, "Tüm antrenmanlar" katıldığı bütün seansları (tarih, saat, tekne) listeler. Yalnızca yoklamada "Geldi" işaretlenen seanslar sayılır.`,
     },
     {
       q: `Bildirim almıyorum.`,

@@ -160,6 +160,14 @@ async function newPage(scheme = 'light') {
     if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, headers: cors });
     if (url.pathname === '/rest/v1/profiles') {
       const id = url.searchParams.get('id');
+      if (req.method() === 'PATCH') {
+        // a coach edits a member (clients may only write full_name and phone)
+        const patch = JSON.parse(req.postData() || '{}');
+        const target = roster.find((p) => `eq.${p.id}` === id);
+        if (target && 'phone' in patch) target.phone = patch.phone;
+        state.patches = [...(state.patches ?? []), { id: id?.replace('eq.', ''), ...patch }];
+        return route.fulfill({ status: 204, headers: cors });
+      }
       if (id) return json(route, roster.filter((p) => `eq.${p.id}` === id).map((p) => ({ ...p, created_at: '', updated_at: '' })));
       return json(route, roster.map((p) => ({ ...p, created_at: '', updated_at: '' })));
     }
@@ -175,6 +183,15 @@ async function newPage(scheme = 'light') {
     }
     if (url.pathname === '/functions/v1/admin-reset-password') return json(route, { username: 'cagla', password: 'Zt4nHw6Vab' });
     if (url.pathname === '/functions/v1/admin-set-active') return json(route, { ok: true, is_active: false });
+    if (url.pathname === '/functions/v1/admin-delete-member') {
+      // like the database: the row stays as an anonymous tombstone (history kept), marked deleted
+      const b = JSON.parse(req.postData() ?? '{}');
+      const target = roster.find((p) => p.id === b.user_id);
+      if (!target) return json(route, { error: 'Kullanıcı bulunamadı' }, 404);
+      state.deleted = [...(state.deleted ?? []), b.user_id];
+      Object.assign(target, { full_name: 'Eski üye', username: 'silinen-' + b.user_id.slice(-12), phone: null, is_active: false, deleted_at: '2026-09-23T00:00:00Z' });
+      return json(route, { ok: true, history_kept: true });
+    }
     // ---- Phase 2 ----
     const path = url.pathname;
     const body = () => JSON.parse(req.postData() || '{}');
@@ -413,6 +430,23 @@ async function newPage(scheme = 'light') {
       }
       return json(route, rows.sort((a, b) => b.starts_at.localeCompare(a.starts_at) || a.slot_index - b.slot_index));
     }
+    if (path === '/rest/v1/rpc/member_training_history') {
+      // a member's complete history: every session they were present in (completed trainings), with the boat if a published program had one
+      const other = roster.find((r) => r.id === body().p_member);
+      if (!caller?.is_active) return dbError(route, 'P0001', 'Yetkisiz');
+      if (!other || other.role !== 'member' || !other.is_active) return dbError(route, 'P0001', 'Üye bulunamadı');
+      const rows = [];
+      for (const a of db.attendance) {
+        if (a.member_id !== other.id || a.status !== 'present') continue;
+        const t = db.trainings.find((x) => x.id === a.training_id);
+        if (!t || t.status !== 'completed') continue;
+        const entry = db.programs[t.id];
+        const assignment = entry?.program.status === 'published' ? entry.assignments.find((x) => x.slot_index === a.slot_index && entry.crew.some((c) => c.assignment_id === x.id && c.member_id === other.id)) : undefined;
+        const boat = assignment ? db.boats.find((b) => b.id === assignment.boat_id) : undefined;
+        rows.push({ training_id: t.id, starts_at: t.starts_at, title: t.title, slot_index: a.slot_index, boat_id: boat?.id ?? null, boat_name: boat?.name ?? null });
+      }
+      return json(route, rows.sort((a, b) => b.starts_at.localeCompare(a.starts_at) || a.slot_index - b.slot_index));
+    }
     if (path === '/rest/v1/rpc/my_month_stats') {
       const rows = monthRows(monthKeyParam());
       const me = rows.find((r) => r.member_id === caller?.id);
@@ -569,8 +603,42 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('button', { name: 'Kapat' }).last().click();
 
   await page.getByRole('button', { name: /Ayşe Yılmaz/ }).click();
-  check('coach cannot deactivate/reset themselves', (await page.getByRole('button', { name: 'Hesabı devre dışı bırak' }).count()) === 0 && (await page.getByText('Siz').isVisible()));
+  check('coach cannot deactivate/reset themselves', (await page.getByRole('button', { name: 'Hesabı devre dışı bırak' }).count()) === 0 && (await page.getByRole('button', { name: 'Üyeyi sil' }).count()) === 0 && (await page.getByText('Siz').isVisible()));
+  check('...but may still change their own phone number', await page.getByRole('dialog').getByLabel('Telefon').isVisible());
   await page.keyboard.press('Escape');
+
+  // ---- a coach changes a phone number, and deletes a member (with a confirmation) ----
+  const temp = { id: '55555555-5555-4555-8555-555555555555', full_name: 'Silinecek Kişi', username: 'silinecek', role: 'member', phone: '0533 000 11 22', is_active: true, must_change_password: false };
+  roster.push(temp);
+  await page.reload();
+  await page.getByRole('button', { name: /Silinecek Kişi/ }).click();
+  const md = page.getByRole('dialog');
+  check('member dialog: the phone number sits in an editable field, and "Telefonu kaydet" is off until it changes', ((await md.getByLabel('Telefon').inputValue()) === '0533 000 11 22') && (await md.getByRole('button', { name: 'Telefonu kaydet' }).isDisabled()));
+  await md.getByLabel('Telefon').fill('0533 999 88 77');
+  await md.getByRole('button', { name: 'Telefonu kaydet' }).click();
+  await page.getByText('Telefon güncellendi.').waitFor();
+  check('the coach can change the phone number: only the phone is sent, and the button is off again', JSON.stringify(state.patches.at(-1)) === JSON.stringify({ id: temp.id, phone: '0533 999 88 77' }) && (await md.getByRole('button', { name: 'Telefonu kaydet' }).isDisabled()));
+  await md.getByLabel('Telefon').fill('');
+  await md.getByRole('button', { name: 'Telefonu kaydet' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('[role="status"]').length >= 0);
+  await page.waitForTimeout(300);
+  check('an empty phone field removes the number', state.patches.at(-1).phone === null);
+  const yOf = async (loc) => (await loc.boundingBox()).y;
+  check('deleting is set apart from the everyday actions: last, under "Tehlikeli işlem"', (await yOf(md.getByText('Tehlikeli işlem'))) > (await yOf(md.getByRole('button', { name: 'Hesabı devre dışı bırak' }))) && (await md.getByRole('button', { name: 'Üyeyi sil' }).isVisible()));
+  await shot(page, '52-member-dialog-danger');
+  await md.getByRole('button', { name: 'Üyeyi sil' }).click();
+  const warning = (await md.getByRole('alert').innerText()).replace(/\s+/g, ' ');
+  check('deleting asks first: it is permanent, and the history stays as "Eski üye" with unchanged statistics', warning.includes('kalıcı olarak silinir') && warning.includes('Eski üye') && warning.includes('istatistikler değişmez') && (state.deleted ?? []).length === 0);
+  await shot(page, '53-member-delete-confirm');
+  await md.getByRole('button', { name: 'Vazgeç' }).click();
+  check('"Vazgeç" changes nothing', (state.deleted ?? []).length === 0 && (await md.getByRole('button', { name: 'Üyeyi sil' }).isVisible()));
+  await md.getByRole('button', { name: 'Üyeyi sil' }).click();
+  await md.getByRole('button', { name: 'Evet, kalıcı olarak sil' }).click();
+  await page.getByText('Üye silindi.').waitFor();
+  check('confirming deletes: the function is called once, for exactly that member', JSON.stringify(state.deleted) === JSON.stringify([temp.id]));
+  await page.getByText('Silinecek Kişi').waitFor({ state: 'detached' });
+  check('the deleted member is gone from the list (the anonymous tombstone is never listed); everybody else stays', (await page.getByText('Eski üye', { exact: true }).count()) === 0 && (await page.getByText('Çağla Şahin').isVisible()) && (await page.getByText('Ali Kaya').isVisible()));
+  roster.splice(roster.indexOf(temp), 1);
 
   await page.getByRole('link', { name: 'Diğer', exact: true }).click();
   await page.getByRole('heading', { name: 'Bildirimler' }).waitFor();
@@ -1455,11 +1523,12 @@ const shot = async (page, name, fullPage = false) => {
     await mp.getByRole('link', { name: 'Bildirimler', exact: true }).waitFor();
     check('the bell has no count once everything is read', true);
 
-    // profile also links to the inbox
+    // the profile page has no second entry point to the inbox (the bell is the one) nor to the member list (it has its own tab)
     await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Profil', exact: true }).click();
-    await mp.getByRole('link', { name: 'Bildirim kutusu' }).click();
-    await mp.getByRole('heading', { name: 'Bildirimler' }).waitFor();
-    check('profile links to the inbox', mp.url().endsWith('/uye/bildirimler'));
+    await mp.getByRole('heading', { name: 'Profil', level: 1 }).waitFor();
+    check('profile: no "Bildirim kutusu" link and no "Kulüp üyeleri" link', (await mp.getByRole('link', { name: 'Bildirim kutusu' }).count()) === 0 && (await mp.getByRole('link', { name: 'Kulüp üyeleri' }).count()) === 0);
+    check('profile: still has help, password and privacy', (await mp.getByRole('link', { name: 'Şifremi değiştir' }).isVisible()) && (await mp.getByRole('link', { name: 'Gizlilik bildirimi' }).isVisible()));
+    check('the bottom bar of a member: Ana Sayfa, Antrenmanlar, Üyeler, İstatistik, Profil', (await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link').allInnerTexts()).map((s) => s.trim()).join(',') === 'Ana Sayfa,Antrenmanlar,Üyeler,İstatistik,Profil');
 
     // a member cannot reach the coach's club settings
     await mp.goto(BASE + '/antrenor/diger/ayarlar');
@@ -1601,9 +1670,10 @@ const shot = async (page, name, fullPage = false) => {
   await mp.getByRole('dialog').getByRole('button', { name: 'Kapat' }).click();
   check('my own name in the crew is plain text (no phone card for myself)', (await mavi.getByRole('button', { name: /Ali Kaya/ }).count()) === 0);
 
-  await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Profil', exact: true }).click();
-  await mp.getByRole('link', { name: 'Kulüp üyeleri' }).click();
-  await mp.getByRole('heading', { name: 'Kulüp üyeleri' }).waitFor();
+  // the member list is a tab of its own: one tap from anywhere, no detour through the profile
+  await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).click();
+  await mp.getByRole('heading', { name: 'Üyeler', level: 1 }).waitFor();
+  check('the "Üyeler" tab opens the member list directly and is marked as the current tab', (await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).getAttribute('aria-current')) === 'page');
   await mp.getByText('Jamie', { exact: true }).waitFor();
   const directoryText = await mp.locator('main').innerText();
   check('the member directory lists every active member with their phone number', ['Alex', 'Ashley', 'Çağla Şahin', 'Jamie', 'John', '0555 111 22 33', '0544 987 65 43'].every((x) => directoryText.includes(x)) && !directoryText.includes('Eski Üye'));
@@ -1877,7 +1947,7 @@ const shot = async (page, name, fullPage = false) => {
 
   // ---- the directory: names are links to a profile (mine is plain) ----
   await mp.goto(BASE + '/uye/uyeler');
-  await mp.getByRole('heading', { name: 'Kulüp üyeleri' }).waitFor();
+  await mp.getByRole('heading', { name: 'Üyeler', level: 1 }).waitFor();
   await mp.getByRole('link', { name: 'Çağla Şahin profilini aç' }).waitFor();
   check("directory: every name (except my own) opens that member's profile", (await mp.getByRole('link', { name: 'Ali Kaya profilini aç' }).count()) === 0 && (await mp.getByRole('link', { name: 'Alex profilini aç' }).count()) === 1);
   await mp.getByRole('link', { name: 'Çağla Şahin profilini aç' }).click();
@@ -1888,16 +1958,24 @@ const shot = async (page, name, fullPage = false) => {
   check('profile: the sessions where we sat in DIFFERENT boats are not listed', !cagPage.includes('09:00–10:00') && !cagPage.includes('Turuncu') && (await mp.locator('main ul li ul li').count()) === 1);
   check('profile: the training title is shown, no username or other private data', cagPage.includes('Ortak antrenman') && !/@|cagla/.test(cagPage));
   await shot(mp, '48-member-profile-dark', true);
+  check('profile: two tabs with their counts — "Birlikte · 1" and "Tüm antrenmanlar · 2" — and "Birlikte" is open', (await mp.getByRole('tab').allInnerTexts()).map((s) => s.trim()).join('|') === 'Birlikte · 1|Tüm antrenmanlar · 2' && (await mp.getByRole('tab', { name: /^Birlikte/, selected: true }).isVisible()));
+  await mp.getByRole('tab', { name: /^Tüm antrenmanlar/ }).click();
+  await mp.getByText('2 seans · 2 antrenman günü').waitFor();
+  const cagAll = (await mp.locator('main').innerText()).replace(/\s+/g, ' ');
+  check('profile: "Tüm antrenmanlar" lists everything Çağla took part in — also the session in ANOTHER boat than mine (Turuncu), with date, time and boat', cagAll.includes('Mavi: 1') && cagAll.includes('Turuncu: 1') && cagAll.includes('Ortak antrenman') && cagAll.includes('08:00–09:00'), cagAll);
+  check('profile: phone stays on top whichever tab is open, and no username leaks', (await mp.getByRole('link', { name: /^Ara: Çağla Şahin/ }).isVisible()) && !/@|cagla/.test(cagAll));
+  await mp.waitForTimeout(400); // let the tab's colour transition finish before axe measures contrast
+  await shot(mp, '54-member-profile-all-dark', true);
 
   // ---- Alex: shared the second hour in Turuncu ----
-  await mp.getByRole('link', { name: 'Kulüp üyeleri' }).click();
+  await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).click();
   await mp.getByRole('link', { name: 'Alex profilini aç' }).click();
   await mp.getByText('1 seans · 1 antrenman günü').waitFor();
   const alexPage = (await mp.locator('main').innerText()).replace(/\s+/g, ' ');
   check('profile: another member — the other hour, another boat', alexPage.includes('09:00–10:00') && alexPage.includes('Turuncu'));
 
   // ---- Jamie: never in my boat -> friendly empty state ----
-  await mp.getByRole('link', { name: 'Kulüp üyeleri' }).click();
+  await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).click();
   await mp.getByRole('link', { name: 'Jamie profilini aç' }).click();
   await mp.getByRole('heading', { name: 'Henüz birlikte kürek çekmediniz' }).waitFor();
   check('profile: nobody shared -> an explanation instead of an empty list (phone still shown)', (await mp.getByRole('link', { name: /^Ara: Jamie/ }).count()) === 1);

@@ -40,7 +40,9 @@ export function MembersPage() {
   const [credentials, setCredentials] = useState<{ value: Credentials; title?: string } | null>(null);
 
   const members = useQuery({ queryKey: membersKey, queryFn: fetchMembers });
-  const filtered = useMemo(() => (members.data ?? []).filter((m) => matchesSearch(m, search)), [members.data, search]);
+  // A deleted member stays in the database only as an anonymous tombstone (it keeps the club's history): never listed.
+  const people = useMemo(() => (members.data ?? []).filter((m) => !m.deleted_at), [members.data]);
+  const filtered = useMemo(() => people.filter((m) => matchesSearch(m, search)), [people, search]);
 
   return (
     <>
@@ -80,7 +82,7 @@ export function MembersPage() {
 
       {members.isError && <ErrorState message={`${tr.members.loadError} ${errorMessage(members.error)}`} onRetry={() => void members.refetch()} />}
 
-      {members.isSuccess && members.data.length === 0 && (
+      {members.isSuccess && people.length === 0 && (
         <EmptyState
           icon={Users}
           title={tr.members.emptyTitle}
@@ -89,7 +91,7 @@ export function MembersPage() {
         />
       )}
 
-      {members.isSuccess && members.data.length > 0 && filtered.length === 0 && (
+      {members.isSuccess && people.length > 0 && filtered.length === 0 && (
         <p className="py-8 text-center text-sm text-muted">{tr.members.noResults}</p>
       )}
 

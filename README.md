@@ -30,7 +30,7 @@ programı hazırlar, üyeler katılım bildirir ve kendi teknesini/ekibini gör�
   the **whole program grouped by boat** (own sessions highlighted); a **C4X must have exactly 4 people** to be
   published; the coach no longer enters a number of sessions — **sessions are added while preparing the program** and
   the training's length follows from it; new RSVP deadline option **"Bir önceki akşam 20:00"**; members can see each
-  other's **phone numbers** (crew names open a contact card, *Profil → Kulüp üyeleri*).
+  other's **phone numbers** (crew names open a contact card, the *Üyeler* tab).
 - **Phase 6 (hardening)** — coaches get a **Değişiklik geçmişi** (who changed what, kept a year); free-tier safety nets:
   a **keep-alive** workflow and a **weekly encrypted backup** with a documented restore drill; an **accessibility pass**
   (skip link, page titles and focus on navigation, arrow-key radio groups, axe-core scans of ~45 screens in light and

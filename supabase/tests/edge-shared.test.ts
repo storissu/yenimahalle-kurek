@@ -233,7 +233,7 @@ describe('audit entries written by the Edge Functions', () => {
   });
 
   it('every admin function writes one, and none of them puts the password in it', () => {
-    for (const name of ['admin-create-member', 'admin-reset-password', 'admin-set-active']) {
+    for (const name of ['admin-create-member', 'admin-reset-password', 'admin-set-active', 'admin-delete-member']) {
       const source = readFileSync(new URL(`../functions/${name}/index.ts`, import.meta.url), 'utf8');
       expect(source, name).toContain('logAudit(admin');
       const call = source.slice(source.indexOf('logAudit(admin'), source.indexOf('});', source.indexOf('logAudit(admin')));

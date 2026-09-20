@@ -1,10 +1,10 @@
-// Writes coach actions that happen in Edge Functions (account creation, password reset, (de)activation)
+// Writes coach actions that happen in Edge Functions (account creation, password reset, (de)activation, deletion)
 // into the audit log. Everything that happens inside the database is logged by triggers instead
 // (see supabase/migrations/*_audit_log.sql). Passwords and phone numbers are never part of an entry.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 
 export interface MemberAuditEntry {
-  action: 'member.create' | 'member.reset_password' | 'member.activate' | 'member.deactivate';
+  action: 'member.create' | 'member.reset_password' | 'member.activate' | 'member.deactivate' | 'member.delete';
   /** The account the action was about. */
   memberId: string;
   /** The coach who did it. */

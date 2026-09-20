@@ -57,7 +57,8 @@ Antrenman **başlayınca** **Yoklama** sekmesi açılır.
 **Üyeler** sekmesi.
 - **Üye ekle**: ad soyad + kullanıcı adı (küçük harf, rakam, nokta, tire, alt çizgi; 3–30 karakter) + isteğe bağlı telefon. Uygulama **tek seferlik bir şifre** üretir ve yalnızca **bir kez** gösterir → **Davet mesajını kopyala** ile WhatsApp'tan gönderin. Üye ilk girişte kendi şifresini belirler.
 - **Telefon numarası diğer üyelere görünür** (ekip arkadaşlarına ulaşmak için). Üyeye bunu söyleyin.
-- Üyeye dokunun: **Şifreyi sıfırla** (yeni tek seferlik şifre) veya **Hesabı devre dışı bırak** (giriş yapamaz, geçmişi korunur; üyeler silinmez). Sizin de dahil, son aktif antrenör kapatılamaz.
+- Üyeye dokunun: **Telefon** kutusundan numarayı değiştirip **Telefonu kaydet**, **Şifreyi sıfırla** (yeni tek seferlik şifre) veya **Hesabı devre dışı bırak** (giriş yapamaz, her şeyi korunur; geri açabilirsiniz). Son aktif antrenör kapatılamaz.
+- **Üyeyi sil** (en altta, kırmızı çerçeveli, onay ister): hesap, kullanıcı adı ve telefon **kalıcı olarak** silinir, geri alınamaz; henüz yapılmamış antrenmanlardaki yanıt ve yerleri kalkar. Geçmiş **yoklama ve ekip kayıtları "Eski üye" adıyla saklanır**, aylık istatistikler ve diğer üyelerin "Birlikte" geçmişi değişmez. Hiç antrenmana katılmamış bir üye tamamen silinir. Kendinizi silemezsiniz. Geçici olarak ayrılan biri için silme yerine **devre dışı bırakmayı** seçin.
 - Yeni antrenör eklemek için rol olarak **Antrenör** seçin.
 
 ## 7. Bildirimler

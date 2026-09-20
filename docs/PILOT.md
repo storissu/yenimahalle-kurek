@@ -15,7 +15,7 @@ Everything here must be ticked. Most items are already verified in earlier phase
 
 **Software and hosting**
 - [ ] `git` is pushed; **CI is green** on `main` (lint, types, unit, database, browser + accessibility scans, dependency audit).
-- [ ] `npx supabase db push` has applied **every** migration (last one: `20260921100100_audit_schedule`); `npx supabase functions deploy` is done; secrets are set (`ALLOWED_ORIGIN`, `LOGIN_EMAIL_DOMAIN`, VAPID, `CRON_SECRET`).
+- [ ] `npx supabase db push` has applied **every** migration (last one: `20260923100000_member_history_and_delete`); `npx supabase functions deploy` is done; secrets are set (`ALLOWED_ORIGIN`, `LOGIN_EMAIL_DOMAIN`, VAPID, `CRON_SECRET`).
 - [ ] **`node scripts/preflight.mjs --site https://<site>.pages.dev --supabase https://<ref>.supabase.co --anon-key <anon key>` shows no FAIL** (RUNBOOK 9.1). A WARN about the wide `connect-src` is advice: tighten it before the wider rollout.
 - [ ] Supabase Auth: sign-up **off**, confirm e-mail **off**, password rules min. 8 + letters and digits (preflight checks the first).
 - [ ] Optional: `VITE_FEEDBACK_URL` set in Cloudflare (a WhatsApp link or a form) so the *Görüş bildir* button works.

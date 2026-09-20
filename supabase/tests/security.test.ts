@@ -68,7 +68,7 @@ const AUTHENTICATED_COLUMN_PRIVILEGES: Record<string, Record<string, string>> = 
     UPDATE: 'read_at',
   },
   profiles: {
-    SELECT: 'created_at,full_name,id,is_active,must_change_password,phone,role,updated_at,username',
+    SELECT: 'created_at,deleted_at,full_name,id,is_active,must_change_password,phone,role,updated_at,username',
     UPDATE: 'full_name,phone',
   },
   program_assignments: {
@@ -97,7 +97,7 @@ const AUTHENTICATED_COLUMN_PRIVILEGES: Record<string, Record<string, string>> = 
 };
 
 /** Functions app users may call (everything else is internal: triggers, helpers, cron jobs, the audit writer). */
-const CALLABLE_BY_AUTHENTICATED = ['shared_boat_history', 'attendance_export', 'cancel_training', 'coach_month_table', 'coach_set_rsvp', 'complete_password_change', 'is_active_member', 'is_active_user', 'is_coach', 'monthly_leaderboard', 'my_month_stats', 'ping', 'program_is_published', 'register_push_subscription', 'save_attendance', 'save_program', 'server_now', 'set_rsvp', 'training_attendance_counts'];
+const CALLABLE_BY_AUTHENTICATED = ['member_training_history', 'shared_boat_history', 'attendance_export', 'cancel_training', 'coach_month_table', 'coach_set_rsvp', 'complete_password_change', 'is_active_member', 'is_active_user', 'is_coach', 'monthly_leaderboard', 'my_month_stats', 'ping', 'program_is_published', 'register_push_subscription', 'save_attendance', 'save_program', 'server_now', 'set_rsvp', 'training_attendance_counts'];
 const CALLABLE_BY_ANON = ['ping']; // keep-alive: returns the server time, nothing else
 
 describe('anonymous visitors', () => {

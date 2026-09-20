@@ -20,11 +20,11 @@ Deno.serve(
 
     const { data: target, error: targetError } = await admin
       .from('profiles')
-      .select('id, full_name, username, is_active')
+      .select('id, full_name, username, is_active, deleted_at')
       .eq('id', userId)
       .maybeSingle();
     if (targetError) throw new HttpError(500, 'Kullanıcı okunamadı');
-    if (!target) throw new HttpError(404, 'Kullanıcı bulunamadı');
+    if (!target || target.deleted_at) throw new HttpError(404, 'Kullanıcı bulunamadı'); // a deleted member is never brought back
     if (target.is_active === isActive) return json({ ok: true, is_active: isActive });
 
     // Profile first: the last-coach trigger may reject this change.

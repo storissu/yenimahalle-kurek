@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Phone, Search, Users } from 'lucide-react';
+import { ChevronRight, Phone, Search, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { BackLink } from '@/components/layout/BackLink';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -15,8 +14,9 @@ import { fetchMemberNames, memberNamesKey } from './api';
 import { telHref } from './contact';
 
 /**
- * "Kulüp üyeleri" for members: every active member's name and phone number, so training partners can reach each
- * other. It reads the member_directory view, which holds nothing else (no username, role or status).
+ * The "Üyeler" tab for members: every active member's name and phone number, so training partners can reach each
+ * other. A row opens that member's profile; the phone icon calls. It reads the member_directory view, which holds
+ * nothing else (no username, role or status).
  */
 export function MemberDirectoryPage() {
   const me = useProfile();
@@ -28,8 +28,7 @@ export function MemberDirectoryPage() {
 
   return (
     <>
-      <BackLink to="/uye/profil">{tr.contact.back}</BackLink>
-      <PageHeader title={tr.contact.directoryTitle} subtitle={tr.contact.directoryHint} />
+      <PageHeader title={tr.nav.members} />
 
       <div className="relative mb-4">
         <label htmlFor="directory-search" className="sr-only">
@@ -63,20 +62,24 @@ export function MemberDirectoryPage() {
           {filtered.map((m) => {
             const href = telHref(m.phone);
             return (
-              <li key={m.id} className="flex min-h-16 items-center gap-3 rounded-2xl border border-border bg-surface px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-2 font-semibold">
-                    {m.id === me.id ? (
-                      m.full_name
-                    ) : (
-                      <Link to={`/uye/uyeler/${m.id}`} aria-label={tr.contact.openProfileLabel(m.full_name)} className="inline-flex min-h-11 items-center rounded-sm underline decoration-dotted underline-offset-4">
-                        {m.full_name}
-                      </Link>
-                    )}
-                    {m.id === me.id && <Badge tone="primary">{tr.members.you}</Badge>}
-                  </p>
-                  <p className="text-sm tabular-nums text-muted">{m.phone ?? '—'}</p>
-                </div>
+              <li key={m.id} className="flex min-h-16 items-center gap-2 rounded-2xl border border-border bg-surface pr-3">
+                {m.id === me.id ? (
+                  <div className="min-w-0 flex-1 px-4 py-3">
+                    <p className="flex flex-wrap items-center gap-2 font-semibold">
+                      {m.full_name}
+                      <Badge tone="primary">{tr.members.you}</Badge>
+                    </p>
+                    <p className="text-sm tabular-nums text-muted">{m.phone ?? '—'}</p>
+                  </div>
+                ) : (
+                  <Link to={`/uye/uyeler/${m.id}`} aria-label={tr.contact.openProfileLabel(m.full_name)} className="flex min-h-16 min-w-0 flex-1 items-center gap-2 rounded-2xl px-4 py-3">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-semibold">{m.full_name}</span>
+                      <span className="block text-sm tabular-nums text-muted">{m.phone ?? '—'}</span>
+                    </span>
+                    <ChevronRight aria-hidden="true" size={20} className="shrink-0 text-muted" />
+                  </Link>
+                )}
                 {href && (
                   <a
                     href={href}

@@ -87,7 +87,7 @@ npx supabase secrets set LOGIN_EMAIL_DOMAIN=kulup.invalid `
 ```
 
 ✅ Dashboard → **Table Editor** shows `profiles`, `boats` (Mavi, Turuncu, C4X), `club_settings`, `push_subscriptions`;
-**Edge Functions** lists `admin-create-member`, `admin-reset-password`, `admin-set-active`, `push-test`,
+**Edge Functions** lists `admin-create-member`, `admin-reset-password`, `admin-set-active`, `admin-delete-member`, `push-test`,
 `send-notifications`, `refresh-weather` (the last two need step 7 to run on schedule).
 
 Then 👤 **Authentication → URL Configuration**: set **Site URL** to your Cloudflare address.
@@ -278,6 +278,15 @@ in Cloudflare (a WhatsApp link like `https://wa.me/905XXXXXXXXX`, or a form) to 
 then deploy the website as usual. Until the push, the profile page shows "Birlikte kürek çekme geçmişi yüklenemedi" and the
 leaderboard still hides members without sessions; nothing else is affected.
 
+**9.5 After updating to the "Üyeler tab / member deletion" release** — three steps, in this order:
+1. `npx supabase db push` (migration `20260923100000_member_history_and_delete`: a `deleted_at` column, `member_training_history()` for
+   the profile's "Tüm antrenmanlar" tab, and `delete_member()`).
+2. `npx supabase functions deploy` (the new `admin-delete-member`; `admin-reset-password` / `admin-set-active` now also refuse deleted members).
+3. Deploy the website.
+Until step 1, the "Tüm antrenmanlar" tab shows "Geçmiş yüklenemedi" (the coach's member list is not affected); until step 2, **Üyeyi sil**
+answers with an error and changes nothing. The privacy text changed too (other members now see a member's attended
+trainings) — show it to the club board before rolling out (see docs/SECURITY.md 7b).
+
 ## Local development
 
 ```powershell
@@ -305,9 +314,9 @@ $env:BROWSER_CHANNEL="msedge" ; npm run e2e       # uses the Edge already instal
 
 | Situation | What to do |
 |---|---|
-| Add a member / coach | App → Üyeler → Üye ekle → copy the invite message and send it (WhatsApp etc.). The password is shown once. The phone number is optional; **other members can see it** (crew cards, *Profil → Kulüp üyeleri*), and the form says so |
+| Add a member / coach | App → Üyeler → Üye ekle → copy the invite message and send it (WhatsApp etc.). The password is shown once. The phone number is optional; **other members can see it** (crew cards, the *Üyeler* tab), and the form says so; a coach can change it later (tap the member → *Telefon*) |
 | Member forgot password | Üyeler → tap the member → **Şifreyi sıfırla** |
-| Member left the club | Üyeler → tap → **Hesabı devre dışı bırak** (history stays; they can't log in) |
+| Member left the club | Üyeler → tap → **Hesabı devre dışı bırak** (history stays; they can't log in; reversible). To remove the person for good: **Üyeyi sil** — login, name, phone gone; attendance stays as "Eski üye" |
 | **All coaches locked out** | Run `node bootstrap-coach.mjs --username <coach> --reset` (step 5 env vars) → prints a new temporary password |
 | Ship an app update | Merge/push to `main` → Cloudflare rebuilds → members see a "Yeni sürüm hazır — Yenile" banner |
 | **Update after new features** | When a new version adds migrations (Phases 2–5 and the feedback round `20260920100000_coach_feedback` do), run `npx supabase db push` once, then let Cloudflare redeploy the site. Existing data is kept |

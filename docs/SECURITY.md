@@ -35,6 +35,8 @@ Not a target: payments (none), public content (none), other clubs (single club).
 | 6 | App users can call exactly the reviewed list of functions; helpers, triggers, cron jobs and the audit writer are closed | ✅ | `security.test.ts` → "exactly the reviewed list" |
 | 7 | Coach-only actions refuse members; deactivated accounts see and do nothing | ✅ | `security.test.ts`; `trainings.test.ts`, `program.test.ts`, `attendance.test.ts`, `last-coach.test.ts` |
 | 7a | `shared_boat_history()` tells a member only about sessions **they took part in** (same crew, both present, training completed) — never another member's other trainings | ✅ | `shared-history.test.ts` |
+| 7b | `member_training_history()` shows any signed-in member another ACTIVE member's completed-training attendance (date, time, boat) — nothing else about them (no answers, notes, username); coaches, deactivated and deleted people are "not found" | ✅ | `member-history.test.ts` |
+| 7c | `delete_member()` is callable by the service role only (the `admin-delete-member` function); it removes the person and keeps history as an anonymous "Eski üye" row — nobody else's statistics or shared history change | ✅ | `member-delete.test.ts`, `security.test.ts` |
 | 8 | Business rules live in the database (RSVP deadline on the **server** clock, RSVP locked once the program is published, one boat/one person per session, capacity, C4X full crew, drafts private) | ✅ | `trainings.test.ts`, `program.test.ts` |
 | 9 | Nobody can remove the last active coach | ✅ | `last-coach.test.ts` |
 | 10 | Audit log: written only by the database, readable by coaches only, no passwords/phone numbers stored, kept one year | ✅ | `audit.test.ts` |

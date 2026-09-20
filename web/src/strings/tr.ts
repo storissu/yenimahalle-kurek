@@ -135,6 +135,15 @@ export const tr = {
     activated: 'Hesap etkinleştirildi.',
     deactivated: 'Hesap devre dışı bırakıldı.',
     you: 'Siz',
+    phoneSave: 'Telefonu kaydet',
+    phoneSaved: 'Telefon güncellendi.',
+    phoneTooLong: 'Telefon en fazla 30 karakter olabilir.',
+    dangerZone: 'Tehlikeli işlem',
+    delete: 'Üyeyi sil',
+    deleteConfirm:
+      'Bu üye kalıcı olarak silinir: hesabı, kullanıcı adı ve telefon numarası kaldırılır; bu geri alınamaz. Geçmiş antrenman ve yoklama kayıtları "Eski üye" adıyla korunur, istatistikler değişmez.',
+    deleteConfirmAction: 'Evet, kalıcı olarak sil',
+    deleted: 'Üye silindi.',
   },
 
   push: {
@@ -182,7 +191,6 @@ export const tr = {
     title: 'Profil',
     account: 'Hesap',
     changePassword: 'Şifremi değiştir',
-    clubMembers: 'Kulüp üyeleri',
     privacy: 'Gizlilik bildirimi',
     version: 'Sürüm',
   },
@@ -208,7 +216,7 @@ export const tr = {
       },
       {
         heading: 'Kimler görebilir?',
-        body: 'Antrenörler tüm kayıtları görür. Üyeler kendi kayıtlarını, yayınlanmış programı ve diğer üyelerin ad soyadını ve telefon numarasını (antrenman arkadaşlarınıza ulaşabilmeniz için) görür. Kullanıcı adı, katılım yanıtları ve yoklama kayıtları diğer üyelere gösterilmez; aylık sıralamada yalnızca seans sayısı görünür.',
+        body: 'Antrenörler tüm kayıtları görür. Üyeler kendi kayıtlarını, yayınlanmış programı ve diğer üyelerin ad soyadını ve telefon numarasını (antrenman arkadaşlarınıza ulaşabilmeniz için) görür. Bir üyenin profilinde, katıldığı antrenmanlar (tarih, saat ve varsa tekne) da diğer üyelere görünür. Kullanıcı adı ve katılım yanıtları diğer üyelere gösterilmez; aylık sıralamada seans sayısı görünür.',
       },
       {
         heading: 'Değişiklik kayıtları',
@@ -216,7 +224,7 @@ export const tr = {
       },
       {
         heading: 'Verileriniz üzerindeki haklarınız',
-        body: 'Bilgilerinizin düzeltilmesini veya silinmesini antrenörlerinizden isteyebilirsiniz.',
+        body: 'Bilgilerinizin düzeltilmesini veya silinmesini antrenörlerinizden isteyebilirsiniz. Üye silindiğinde hesabı, kullanıcı adı ve telefon numarası kaldırılır; geçmiş yoklama kayıtları kulübün istatistikleri için "Eski üye" adıyla, kimliksiz olarak saklanır.',
       },
     ],
   },
@@ -618,7 +626,6 @@ export const tr = {
     hoursAgo: (n: number) => `${n} sa önce`,
     yesterday: (time: string) => `Dün ${time}`,
     unreadMark: 'Okunmadı',
-    inboxLink: 'Bildirim kutusu',
   },
 
   settings: {
@@ -677,8 +684,6 @@ export const tr = {
     call: 'Ara',
     noPhone: 'Bu üye için telefon numarası eklenmemiş.',
     close: 'Kapat',
-    directoryTitle: 'Kulüp üyeleri',
-    directoryHint: 'Kulüp üyelerinin adı ve telefon numarası. Yalnızca kulüp üyeleri ve antrenörler görebilir.',
     searchLabel: 'Üye ara',
     searchPlaceholder: 'İsim ara',
     noResults: 'Aramanızla eşleşen üye yok.',
@@ -686,24 +691,26 @@ export const tr = {
     emptyBody: 'Kulüp üyeleri burada listelenir.',
     loadError: 'Üye listesi yüklenemedi.',
     callLabel: (name: string) => `${name} kişisini ara`,
-    back: 'Profil',
     openProfile: 'Profili aç',
     openProfileLabel: (name: string) => `${name} profilini aç`,
   },
 
   person: {
-    back: 'Kulüp üyeleri',
+    back: 'Üyeler',
     notFound: 'Bu üye bulunamadı.',
     notFoundBody: 'Üye listesinde değil ya da artık kulüpte değil.',
     loadError: 'Üye bilgisi yüklenemedi.',
-    historyHeading: 'Birlikte kürek çektiğiniz seanslar',
-    historyHint: 'Yalnızca ikinizin de aynı teknede olup yoklamada "Geldi" işaretlendiği seanslar sayılır.',
+    tabsLabel: 'Antrenman geçmişi',
+    tabShared: 'Birlikte',
+    tabAll: 'Tüm antrenmanlar',
     summary: (sessions: number, days: number) => `${sessions} seans · ${days} antrenman günü`,
     boatCount: (name: string, count: number) => `${name}: ${count}`,
-    emptyTitle: 'Henüz birlikte kürek çekmediniz',
-    emptyBody: 'Aynı teknede yer aldığınız ve yoklaması tamamlanan seanslar burada görünür.',
+    sharedEmptyTitle: 'Henüz birlikte kürek çekmediniz',
+    sharedEmptyBody: 'Aynı teknede yer aldığınız seanslar burada görünür.',
+    allEmptyTitle: 'Henüz antrenmana katılmamış',
+    allEmptyBody: 'Katıldığı seanslar burada görünür.',
     capped: (n: number) => `En son ${n} seans gösteriliyor.`,
-    loadHistoryError: 'Birlikte kürek çekme geçmişi yüklenemedi.',
+    loadHistoryError: 'Geçmiş yüklenemedi.',
   },
 
   notFound: {

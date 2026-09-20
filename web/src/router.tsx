@@ -35,6 +35,7 @@ import { tr } from '@/strings/tr';
 const memberTabs: Tab[] = [
   { to: '/uye', label: tr.nav.home, icon: House, end: true },
   { to: '/uye/antrenmanlar', label: tr.nav.trainings, icon: CalendarDays },
+  { to: '/uye/uyeler', label: tr.nav.members, icon: Users },
   { to: '/uye/istatistik', label: tr.nav.stats, icon: Trophy },
   { to: '/uye/profil', label: tr.nav.profile, icon: UserRound },
 ];

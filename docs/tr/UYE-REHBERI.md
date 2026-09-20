@@ -47,7 +47,7 @@ Antrenör programı yayınlayınca:
 - **Sizin seanslarınız dolu mavi bir kutu ve "Siz" etiketiyle öne çıkar** (daha büyük yazıyla). Kürek çektiğiniz **tekneler listenin en üstünde** gelir ve "Sizin tekneniz" yazar.
 - Program değişirse yalnızca ilgili kişilere bildirim gelir.
 
-**Bir arkadaşınıza ulaşmak için:** programda adına dokunun → telefon numarası açılır → **Ara**. Tüm üyeler: **Profil → Kulüp üyeleri**. (Numaralar yalnızca kulüp üyelerine görünür.)
+**Bir arkadaşınıza ulaşmak için:** programda adına dokunun → telefon numarası açılır → **Ara**. Tüm üyeler: alttaki **Üyeler** sekmesi. (Numaralar yalnızca kulüp üyelerine görünür.)
 
 **Bir üyenin profili:** Kulüp üyeleri'nde (veya sıralamada, veya programdaki kartta **Profili aç** ile) bir ada dokunun. Adı, telefonu ve **sizinle aynı teknede kürek çektiğiniz seanslar** (tarih, saat, tekne; toplam seans sayısı) görünür. Yalnızca ikinizin de o seansta olduğu ve yoklamada "Geldi" işaretlendiği seanslar sayılır; farklı teknelerdeyseniz görünmez. Henüz birlikte çekmediyseniz bunu söyleyen bir mesaj çıkar.
 

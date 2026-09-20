@@ -433,6 +433,9 @@ verify_jwt = false
 [functions.admin-set-active]
 verify_jwt = false
 
+[functions.admin-delete-member]
+verify_jwt = false
+
 [functions.push-test]
 verify_jwt = false
 

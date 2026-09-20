@@ -140,7 +140,7 @@ export async function runPreflight({ site, supabase, anonKey, fetchImpl = global
 
   await check('Edge Functions refuse callers who are not signed in', async () => {
     const wrong = [];
-    for (const name of ['admin-create-member', 'admin-reset-password', 'admin-set-active', 'send-notifications', 'refresh-weather', 'push-test']) {
+    for (const name of ['admin-create-member', 'admin-reset-password', 'admin-set-active', 'admin-delete-member', 'send-notifications', 'refresh-weather', 'push-test']) {
       const res = await fetchImpl(`${supabaseUrl}/functions/v1/${name}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: siteOrigin }, body: '{}' });
       if (res.status !== 401 && res.status !== 403 && res.status !== 404) wrong.push(`${name} (${res.status})`);
       else if (res.status === 404) wrong.push(`${name} (not deployed)`);

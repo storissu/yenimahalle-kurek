@@ -15,6 +15,7 @@ const person = (over: Partial<Profile>): Profile => ({
   phone: null,
   is_active: true,
   must_change_password: false,
+  deleted_at: null,
   created_at: '',
   updated_at: '',
   ...over,

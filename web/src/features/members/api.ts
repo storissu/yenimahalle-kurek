@@ -1,6 +1,6 @@
 import { invokeFunction } from '@/lib/functions';
 import { supabase } from '@/lib/supabase';
-import type { Profile, SharedHistoryRow, UserRole } from '@/types/database';
+import type { MemberHistoryRow, Profile, SharedHistoryRow, UserRole } from '@/types/database';
 
 export const membersKey = ['members'] as const;
 
@@ -38,6 +38,15 @@ export const resetPassword = (userId: string) => invokeFunction<Credentials>('ad
 export const setMemberActive = (userId: string, isActive: boolean) =>
   invokeFunction<{ ok: true; is_active: boolean }>('admin-set-active', { user_id: userId, is_active: isActive });
 
+/** A coach changes a member's phone number (empty = remove it). Clients may update exactly full_name and phone. */
+export async function updateMemberPhone(userId: string, phone: string): Promise<void> {
+  const { error } = await supabase.from('profiles').update({ phone: phone.trim() === '' ? null : phone.trim() }).eq('id', userId);
+  if (error) throw error;
+}
+
+/** Deletes a member. `history_kept`: their attendance and past crews stay, under "Eski üye". */
+export const deleteMember = (userId: string) => invokeFunction<{ ok: true; history_kept: boolean }>('admin-delete-member', { user_id: userId });
+
 export const memberNamesKey = ['member-directory'] as const;
 
 /** What every signed-in user may see of an active member: name and phone number — no username, role or status. */
@@ -49,6 +58,15 @@ export interface DirectoryEntry {
 
 export async function fetchMemberNames(): Promise<DirectoryEntry[]> {
   const { data, error } = await supabase.from('member_directory').select('id, full_name, phone');
+  if (error) throw error;
+  return data;
+}
+
+export const memberHistoryKey = (memberId: string) => ['member-history', memberId] as const;
+
+/** Every session the member was present in (completed trainings, newest first), with the boat when there was one. */
+export async function fetchMemberHistory(memberId: string): Promise<MemberHistoryRow[]> {
+  const { data, error } = await supabase.rpc('member_training_history', { p_member: memberId });
   if (error) throw error;
   return data;
 }
