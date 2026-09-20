@@ -18,7 +18,7 @@ later phases, risks) was agreed with the club before implementation started.
 | App | React + Vite + TypeScript, React Router 7, TanStack Query, react-hook-form + zod, Tailwind CSS 4 |
 | PWA | `vite-plugin-pwa` (injectManifest) + our own service worker (`web/src/sw.ts`): app-shell precache, Web Push, notification click routing |
 | Backend | Supabase Free: Postgres + Auth + RLS + Edge Functions + `pg_cron` / `pg_net` / Vault |
-| Hosting | Netlify or Cloudflare Pages (static; Netlify where `*.pages.dev` is blocked, see RUNBOOK 3) |
+| Hosting | Cloudflare Pages (static) |
 | Push | Web Push (VAPID) sent from an Edge Function; subscriptions stored per device |
 | Weather | Open-Meteo forecast + marine (MET Norway fallback), fetched server-side and cached per session |
 

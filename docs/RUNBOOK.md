@@ -49,23 +49,7 @@ cd ..
 Copy the **Public Key** and **Private Key** it prints. The private key is a secret (like a password); the public key is not.
 Do not change these later without telling members to re-enable notifications (all subscriptions become invalid).
 
-## 3. Deploy the website (Cloudflare Pages, or Netlify)
-
-> **Some networks in Turkey block `*.pages.dev`.** On affected phones the site does not open unless a VPN such as
-> 1.1.1.1 WARP is on ("The network connection was lost", "couldn't establish a secure connection"), while Supabase
-> and Netlify open normally. If your pilot phones cannot open the `pages.dev` address, host the site on **Netlify**
-> instead of Cloudflare Pages (both free; the repo already contains the Netlify setup):
->
-> 1. 👤 netlify.com → **Add new site → Import an existing project → GitHub** → your repo. `netlify.toml` fills in the
->    build settings (base `web`, output `dist`, Node 22).
-> 2. **Site configuration → Environment variables**: add the `VITE_*` variables from the table below (not `NODE_VERSION`).
-> 3. **Site configuration → Build & deploy → Deploy previews → off** (the free plan has a monthly build allowance;
->    `netlify.toml` already skips builds that change nothing under `web/`). **Domain management → Options → Edit
->    site name** gives a short address such as `https://ysk-kurek.netlify.app`.
-> 4. Use that address wherever this guide says `https://<your-site>.pages.dev`: the `ALLOWED_ORIGIN` and
->    `VAPID_SUBJECT` secrets (step 4) and the Supabase **Site URL**.
-> 5. A new address is a new app to the phones: members open it, add it to the Home Screen again, log in and turn
->    notifications on again. The old icon can be deleted.
+## 3. Deploy the website (Cloudflare Pages)
 
 1. 👤 Cloudflare → **Workers & Pages → Create → Pages → Connect to Git** → choose your repo.
 2. Build settings:
@@ -358,6 +342,6 @@ $env:BROWSER_CHANNEL="msedge" ; npm run e2e       # uses the Edge already instal
 - **Login says "Kullanıcı adı veya şifre hatalı" for a correct password**: usernames are lower-case ASCII; check `LOGIN_EMAIL_DOMAIN` is identical in Cloudflare, Supabase secrets and the script.
 - **Add member fails with a 401/403/500**: Supabase → Edge Functions → *Logs*; confirm the functions were deployed and the caller is an active coach.
 - **The app says "Bağlantı kurulamadı" only for actions that call Edge Functions (add member, reset password, refresh weather)**: `ALLOWED_ORIGIN` is missing or wrong. It must be exactly your site address (`https://<your-site>.pages.dev`, no path, no `*`); the functions refuse to answer browsers otherwise. `npx supabase secrets set ALLOWED_ORIGIN=https://<your-site>.pages.dev`.
-- **The site does not open, or the installed app is blank, on some phones but works with a VPN such as 1.1.1.1 WARP**: the phones' network blocks the hosting domain (seen with `*.pages.dev` in Turkey: "The network connection was lost", "server stopped responding", "couldn't establish a secure connection", even with DNS set to 1.1.1.1), while Supabase is reachable. Check from the phone without VPN: the Supabase address `https://<ref>.supabase.co/auth/v1/health` answers with JSON but the site does not; a made-up `https://xyz.netlify.app` shows a Netlify "not found" page. Fix: host on Netlify (step 3). If the app loads but stays blank, the app now reloads itself once and then shows "Uygulama açılamadı" with the name of the file that failed under "Hata ayrıntısı".
+- **The installed app (Home Screen icon) is blank or says "Uygulama açılamadı" on some phones, but works with a VPN such as 1.1.1.1 WARP**: that phone's network drops the app's files (Safari reports "The network connection was lost"); the site and Supabase themselves are fine. The app reloads itself once, then shows the failed file name under "Hata ayrıntısı". Try in this order on the affected iPhone: (1) the other connection (Wi-Fi ↔ mobile data); (2) Settings → Safari → Advanced → Feature Flags → **HTTP/3** off (iOS 18: Settings → Apps → Safari), then delete the icon and add it again from Safari; (3) turn off iCloud **Private Relay** and "Limit IP Address Tracking" for the network. If (2) is what fixes it, the carrier drops QUIC/HTTP/3: `*.pages.dev` cannot turn HTTP/3 off, only a custom domain on Cloudflare can, which costs a domain name. Decide that with the club before spending anything.
 - **Browser console shows CSP errors**: edit `web/public/_headers` (`connect-src` must allow your Supabase URL).
 - **No notification on iPhone**: needs iOS ≥ 16.4, the app added to the Home Screen and opened from that icon, and permission granted (Ayarlar → Bildirimler → YSK).

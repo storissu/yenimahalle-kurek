@@ -1,4 +1,4 @@
-# Response headers. The same file works on Netlify and Cloudflare Pages.
+# Cloudflare Pages response headers.
 # connect-src must list your Supabase project origin. The wildcard below covers *.supabase.co;
 # tighten it to your exact project URL once it exists (see docs/RUNBOOK.md).
 /*
