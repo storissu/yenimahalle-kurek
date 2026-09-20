@@ -1,0 +1,4 @@
+# Netlify: every address the app owns (/giris, /uye/antrenmanlar, ...) is answered by index.html so the router can take over.
+# Real files (assets, sw.js, manifest, icons) are served as they are; this rule only applies where no file exists.
+# Cloudflare Pages does the same on its own and ignores this file.
+/*  /index.html  200
