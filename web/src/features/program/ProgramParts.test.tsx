@@ -121,7 +121,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     show('nobody');
     expect(screen.getAllByRole('listitem')).toHaveLength(3);
     for (const name of ['Alex', 'Ashley', 'John', 'Jamie', 'Ali', 'Becca']) expect(screen.getByText(name)).toBeInTheDocument();
-    expect(screen.queryByText(tr.program.you)).not.toBeInTheDocument();
+    expect(screen.queryByText(tr.program.yourSession, { exact: false })).not.toBeInTheDocument();
   });
 
   it("makes the reader's own session a solid block — and only that one — while the others stay plain and readable", () => {
@@ -135,12 +135,18 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(rows[1]?.className).toContain('text-primary-fg');
     expect(rows[1]?.className).toContain('py-4');
     expect(rows[0]?.className).not.toContain('bg-primary');
-    // the crew of my row is bigger and bolder than everybody else's
-    expect(within(rows[1] as HTMLElement).getByText('John').className).toContain('text-lg');
-    expect(within(rows[0] as HTMLElement).getByText('Ashley').className).not.toContain('text-lg');
-    expect(within(rows[1] as HTMLElement).getByText(tr.program.you)).toBeInTheDocument();
+    // the crew are compact chips of ONE size everywhere; only my own chip is inverse (white on blue) and says whose session it is
+    const chip = (row: HTMLElement | undefined, name: string) => within(row as HTMLElement).getByText(name, { exact: false }).closest('span,button') as HTMLElement;
+    for (const [row, name] of [[rows[0], 'Ashley'], [rows[1], 'John'], [rows[1], 'Jamie']] as const) {
+      expect(chip(row, name).className).toContain('text-sm');
+      expect(chip(row, name).className).toContain('min-h-9');
+      expect(chip(row, name).className).not.toContain('text-lg');
+    }
+    expect(chip(rows[1], 'Jamie').className).toContain('bg-primary-fg'); // me: inverse chip
+    expect(chip(rows[1], 'John').className).toContain('border-primary-fg/50'); // the others on my row: outlined
+    expect(chip(rows[0], 'Ashley').className).toContain('bg-surface-2'); // other rows: soft chip
     expect(within(rows[1] as HTMLElement).getByText(`— ${tr.program.yourSession}`, { exact: false })).toBeInTheDocument();
-    expect(screen.getAllByText(tr.program.you)).toHaveLength(1);
+    expect(screen.getAllByText(tr.program.yourSession, { exact: false })).toHaveLength(1);
     // everybody else is still there, unhighlighted
     expect(within(boatSection('Turuncu')).getByText('Ali')).toBeInTheDocument();
     expect(within(boatSection('Turuncu')).getAllByRole('listitem')[0]).not.toHaveAttribute('data-mine');
@@ -200,6 +206,37 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(first.firstElementChild?.className).toContain('border-r');
   });
 
+  it('keeps every name the same size and shape whether a session has one name or four, always after its own time', () => {
+    const uneven: ProgramData = {
+      ...data,
+      crew: [
+        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'alex', seat: 1 },
+        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ashley', seat: 2 },
+        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'ali', seat: 3 },
+        { assignment_id: 'a1', training_id: 't', slot_index: 0, member_id: 'becca', seat: 4 },
+        { assignment_id: 'a2', training_id: 't', slot_index: 1, member_id: 'john', seat: 1 },
+      ],
+    };
+    render(
+      <MemoryRouter>
+        <ProgramByBoat data={uneven} boats={boats} nameOf={nameOf} contactOf={contactOf} />
+      </MemoryRouter>,
+    );
+    const rows = within(boatSection('Mavi')).getAllByRole('listitem');
+    const chips = (row: HTMLElement | undefined) => Array.from((row as HTMLElement).querySelectorAll('button, span.min-h-9'));
+    expect(chips(rows[0]).map((c) => c.textContent)).toEqual(['Alex', 'Ashley', 'Ali', 'Becca']);
+    expect(chips(rows[1]).map((c) => c.textContent)).toEqual(['John']);
+    const shape = (c: Element) => c.className.split(/\s+/).filter((cls) => cls !== 'w-full').join(' '); // the grid only stretches the chip to its cell
+    expect(new Set([...chips(rows[0]), ...chips(rows[1])].map(shape)).size).toBe(1); // one look for everybody, so the rows stay even
+    expect((rows[0] as HTMLElement).querySelector('.grid-cols-2')).not.toBeNull(); // four names: an even 2 × 2 grid
+    expect((rows[1] as HTMLElement).querySelector('.grid-cols-2')).toBeNull(); // one name: no grid
+    // the time sits first (left) in each row, the crew after it
+    expect((rows[0] as HTMLElement).firstElementChild?.textContent).toContain('08:00');
+    expect(within(rows[0] as HTMLElement).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual(
+      ['Alex', 'Ashley', 'Ali', 'Becca'].map((n) => tr.program.contactAbout(n)),
+    );
+  });
+
   it('never repeats the weather inside the program: no forecast in any row, mine or not', () => {
     show('jamie');
     expect(screen.queryByText(/Yağmurlu|Açık|Parçalı bulutlu|km\/s/)).not.toBeInTheDocument();
@@ -208,7 +245,7 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
   it('highlights each of my sessions when I row more than once', () => {
     const twice: ProgramData = { ...data, crew: [...data.crew, { assignment_id: 'a3', training_id: 't', slot_index: 0, member_id: 'alex', seat: 3 }].filter((c) => !(c.assignment_id === 'a1' && c.member_id === 'alex')) };
     render(<ProgramByBoat data={twice} boats={boats} meId="alex" nameOf={nameOf} />);
-    expect(screen.getAllByText(tr.program.you)).toHaveLength(1);
+    expect(screen.getAllByText(tr.program.yourSession, { exact: false })).toHaveLength(1);
   });
 
   it('shows notes for a boat session', () => {

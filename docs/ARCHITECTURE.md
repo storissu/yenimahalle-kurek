@@ -75,8 +75,12 @@ later phases, risks) was agreed with the club before implementation started.
   session that still has a crew or an attendance record (trigger).
 - **Members see the whole published program grouped by boat** (`ProgramByBoat`, on Home and the training page):
   one coloured block per boat — the boat name is always written out, colours come from `--boat-N` tokens that are
-  contrast-checked — with a row per session (time range + crew, joined by " – "). Rows the reader rows in are
-  highlighted (tint, bar, "Siz" badge, screen-reader text) and the "Sizin programınız" card stays on top.
+  contrast-checked — with a row per session: the time (big start, small end) on the left, then the crew as compact
+  name chips — one size and shape for everybody (`text-sm`, `min-h-9`), flowing side by side for one or two names and
+  in an even two-column grid for three or four (the C4X), so rows stay tidy whatever the crew size. A name opens the
+  contact card. Rows the reader rows in are a solid blue block: the others' chips are outlined, the reader's own chip is
+  inverse with a pin and carries the screen-reader text "Sizin seansınız" (there is no separate "Siz" badge). The
+  "Sizin programınız" card stays on top.
 - Editor logic lives in `web/src/features/program/model.ts` (pure functions, mirrors the database rules; unit-tested):
   a draft is a flat list of sessions (boat, "HH:MM" start/end, crew); adding a session starts it where the boat's last one
   ended, changing a boat's FIRST start moves the whole boat, changing an END moves that boat's later sessions, swapping
