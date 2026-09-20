@@ -184,6 +184,16 @@ async function newPage(scheme = 'light') {
       if (id) return json(route, roster.filter((p) => `eq.${p.id}` === id).map((p) => ({ ...p, created_at: '', updated_at: '' })));
       return json(route, roster.map((p) => ({ ...p, created_at: '', updated_at: '' })));
     }
+    if (url.pathname === '/rest/v1/rpc/update_my_phone') {
+      // like the database: the caller's OWN number, digits/spaces/+()./- only, at least 7 digits; empty removes it
+      const me = callerOf(req);
+      const phone = (JSON.parse(req.postData() || '{}').p_phone ?? '').trim() || null;
+      if (!me) return dbError(route, '42501', 'Yetkisiz');
+      if (phone && (!/^[0-9 +()./-]+$/.test(phone) || phone.replace(/\D/g, '').length < 7)) return dbError(route, 'P0001', 'Geçerli bir telefon numarası yazın');
+      me.phone = phone;
+      state.phoneSaves = [...(state.phoneSaves ?? []), phone];
+      return route.fulfill({ status: 204, headers: cors });
+    }
     if (url.pathname === '/rest/v1/rpc/complete_password_change') {
       people.member.must_change_password = false;
       return route.fulfill({ status: 204, headers: cors });
@@ -1579,6 +1589,27 @@ const shot = async (page, name, fullPage = false) => {
     check('profile: no "Bildirim kutusu" link and no "Kulüp üyeleri" link', (await mp.getByRole('link', { name: 'Bildirim kutusu' }).count()) === 0 && (await mp.getByRole('link', { name: 'Kulüp üyeleri' }).count()) === 0);
     check('profile: still has help, password and privacy', (await mp.getByRole('link', { name: 'Şifremi değiştir' }).isVisible()) && (await mp.getByRole('link', { name: 'Gizlilik bildirimi' }).isVisible()));
     check('the bottom bar of a member: Ana Sayfa, Antrenmanlar, Üyeler, İstatistik, Profil', (await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link').allInnerTexts()).map((s) => s.trim()).join(',') === 'Ana Sayfa,Antrenmanlar,Üyeler,İstatistik,Profil');
+
+    // a member changes their OWN phone number right on the profile
+    check('profile: my phone number is on the profile ("Eklenmemiş" while there is none)', await mp.getByText('Eklenmemiş').isVisible());
+    await mp.getByRole('button', { name: 'Telefon numarasını düzenle' }).click();
+    check('profile: the editor tells the member that other members can see the number', await mp.getByText('Kulüpteki diğer üyeler bu numarayı görebilir.').isVisible());
+    await mp.getByLabel('Telefon').fill('ara beni');
+    check('profile: something that is not a phone number is refused on the spot, and cannot be saved', (await mp.getByText('Geçerli bir telefon numarası yazın.').isVisible()) && (await mp.getByRole('button', { name: 'Kaydet' }).isDisabled()));
+    await shot(mp, '56-my-phone-editor-dark');
+    await mp.getByLabel('Telefon').fill('0532 777 66 55');
+    await mp.getByRole('button', { name: 'Kaydet' }).click();
+    await mp.getByText('Telefon güncellendi.').waitFor();
+    check('profile: saving sends just the number, and it shows at once', (state.phoneSaves ?? []).at(-1) === '0532 777 66 55' && (await mp.getByText('0532 777 66 55').isVisible()) && (await mp.getByRole('textbox', { name: 'Telefon' }).count()) === 0);
+    await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).click();
+    await mp.getByRole('heading', { name: 'Üyeler', level: 1 }).waitFor();
+    check('the member list shows the new number too (what the other members see)', await mp.getByText('0532 777 66 55').isVisible());
+    await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Profil', exact: true }).click();
+    await mp.getByRole('button', { name: 'Telefon numarasını düzenle' }).click();
+    await mp.getByLabel('Telefon').fill('');
+    await mp.getByRole('button', { name: 'Kaydet' }).click();
+    await mp.getByText('Eklenmemiş').waitFor();
+    check('profile: emptying the field removes the number again', (state.phoneSaves ?? []).at(-1) === null);
 
     // a member cannot reach the coach's club settings
     await mp.goto(BASE + '/antrenor/diger/ayarlar');

@@ -43,7 +43,7 @@ export const help = {
     },
     {
       q: `Ekip arkadaşımın telefonuna nasıl ulaşırım?`,
-      a: `Programda arkadaşınızın adına dokunun; telefon numarası açılır ve tek dokunuşla arayabilirsiniz. Tüm üyeleri alttaki Üyeler sekmesinde görebilirsiniz. Numaralar yalnızca kulüp üyelerine görünür.`,
+      a: `Programda arkadaşınızın adına dokunun; telefon numarası açılır ve tek dokunuşla arayabilirsiniz. Tüm üyeleri alttaki Üyeler sekmesinde görebilirsiniz. Kendi numaranızı Profil sayfasında "Düzenle" ile değiştirebilirsiniz. Numaralar yalnızca kulüp üyelerine görünür.`,
     },
     {
       q: `Bir üyeyle birlikte ne zaman kürek çektik?`,

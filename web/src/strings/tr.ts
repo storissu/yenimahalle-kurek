@@ -191,6 +191,9 @@ export const tr = {
     title: 'Profil',
     account: 'Hesap',
     changePassword: 'Şifremi değiştir',
+    phoneEmpty: 'Eklenmemiş',
+    editPhone: 'Telefon numarasını düzenle',
+    phoneInvalid: 'Geçerli bir telefon numarası yazın.',
     privacy: 'Gizlilik bildirimi',
     version: 'Sürüm',
   },
@@ -224,7 +227,7 @@ export const tr = {
       },
       {
         heading: 'Verileriniz üzerindeki haklarınız',
-        body: 'Bilgilerinizin düzeltilmesini veya silinmesini antrenörlerinizden isteyebilirsiniz. Üye silindiğinde hesabı, kullanıcı adı ve telefon numarası kaldırılır; geçmiş yoklama kayıtları kulübün istatistikleri için "Eski üye" adıyla, kimliksiz olarak saklanır.',
+        body: 'Telefon numaranızı Profil sayfasından kendiniz değiştirebilir veya kaldırabilirsiniz. Diğer bilgilerinizin düzeltilmesini veya silinmesini antrenörlerinizden isteyebilirsiniz. Üye silindiğinde hesabı, kullanıcı adı ve telefon numarası kaldırılır; geçmiş yoklama kayıtları kulübün istatistikleri için "Eski üye" adıyla, kimliksiz olarak saklanır.',
       },
     ],
   },

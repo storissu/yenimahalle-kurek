@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth, useProfile } from '@/features/auth/AuthProvider';
 import { InstallGuide } from '@/features/install/InstallGuide';
+import { MyPhone } from '@/features/members/MyPhone';
 import { PushSettings } from '@/features/notifications/PushSettings';
 import { errorMessage } from '@/lib/errors';
 import { help } from '@/strings/help';
@@ -35,6 +36,7 @@ export function ProfilePanel() {
         <div className="mt-1">
           <Badge tone={profile.role === 'coach' ? 'primary' : 'neutral'}>{tr.roles[profile.role]}</Badge>
         </div>
+        <MyPhone />
       </Card>
 
       <PushSettings />

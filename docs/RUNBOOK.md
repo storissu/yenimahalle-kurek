@@ -278,6 +278,9 @@ in Cloudflare (a WhatsApp link like `https://wa.me/905XXXXXXXXX`, or a form) to 
 then deploy the website as usual. Until the push, the profile page shows "Birlikte kürek çekme geçmişi yüklenemedi" and the
 leaderboard still hides members without sessions; nothing else is affected.
 
+**9.7 After updating to the "members edit their own phone" release** — `npx supabase db push` (migration `20260925100000_update_my_phone`),
+then deploy the website. Until the push, saving a number on the profile shows an error and changes nothing.
+
 **9.6 After updating to the "independent boat schedules" release** — in this order: (1) `npx supabase db push` (migration
 `20260924100000_boat_schedules`: session times, `trainings.ends_at`, time-aware history/export; existing programs are converted
 to their old hourly times automatically), (2) `npx supabase functions deploy` (`refresh-weather` now forecasts each session at

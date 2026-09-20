@@ -330,6 +330,7 @@ export type Database = {
       monthly_leaderboard: { Args: { p_month: string }; Returns: MonthRow[] };
       shared_boat_history: { Args: { p_member: string }; Returns: SharedHistoryRow[] };
       member_training_history: { Args: { p_member: string }; Returns: MemberHistoryRow[] };
+      update_my_phone: { Args: { p_phone: string | null }; Returns: undefined };
       my_month_stats: { Args: { p_month: string }; Returns: MyMonthStatsRow[] };
       coach_month_table: { Args: { p_month: string }; Returns: MonthRow[] };
       attendance_export: { Args: { p_month: string }; Returns: ExportRow[] };

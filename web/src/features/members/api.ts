@@ -44,6 +44,12 @@ export async function updateMemberPhone(userId: string, phone: string): Promise<
   if (error) throw error;
 }
 
+/** A member (or coach) changes their OWN phone number; empty removes it. The database checks the format. */
+export async function updateMyPhone(phone: string): Promise<void> {
+  const { error } = await supabase.rpc('update_my_phone', { p_phone: phone.trim() === '' ? null : phone.trim() });
+  if (error) throw error;
+}
+
 /** Deletes a member. `history_kept`: their attendance and past crews stay, under "Eski üye". */
 export const deleteMember = (userId: string) => invokeFunction<{ ok: true; history_kept: boolean }>('admin-delete-member', { user_id: userId });
 
