@@ -48,14 +48,14 @@ later phases, risks) was agreed with the club before implementation started.
   same instant; the remembered rule keeps the coach's meaning when the start time is edited.
 - The app measures the phone/server clock difference (`server_now()`, `web/src/lib/clock.ts`) so countdowns and the
   lock state match what the server will enforce; a new measurement updates every countdown immediately.
-- Trainings are never deleted: **cancelling** goes through `cancel_training()` (coach-only, reason required, final).
+- Trainings are never deleted: **cancelling** goes through `cancel_training()` (coach-only, final; the reason is optional — blank means none, a given one is 3–200 characters and shown in the training's details; cancellations are shown only in *Antrenmanlar*, not on the home page).
   Only *scheduled* trainings can be edited. `status`, `cancel_reason` and `created_by` are not client-writable.
 - Members never see other members' answers; coaches see all. Error messages from our RPCs (SQLSTATE `P0001`) are
   written in Turkish and shown as-is; any other database error is replaced by a generic message.
 
 ## Boat program (Phase 3)
 
-- Tables: `training_programs` (status draft/published, `version` = number of publishes, weather + training notes),
+- Tables: `training_programs` (status draft/published, `version` = number of publishes, training note; the older `weather_note` column and the per-session `notes` are no longer written or shown),
   `program_assignments` (one row per boat per session), `program_crew` (members in that boat that session).
 - Database rules: a boat is used **once per session**, a member is in **one boat per session**, a boat never carries
   more than its **capacity**, crew are **members**, and sessions must exist in the training. Unique constraints plus

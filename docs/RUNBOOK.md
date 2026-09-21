@@ -9,7 +9,7 @@ Legend: 👤 = you do it in a browser/phone · ⌨️ = a command · ✅ = how t
 
 ## 0. One-time accounts (free)
 
-1. 👤 **GitHub** account → create a **private** repository `yenimahalle-kurek` (no README/gitignore, empty).
+1. 👤 **GitHub** account → create a repository `yenimahalle-kurek` (no README/gitignore, empty). Keep it **private** while the backup workflow (8.2) runs from it: a public repository would make the backup files downloadable by anyone.
 2. 👤 **Supabase** account (https://supabase.com — "Continue with GitHub" is fine).
 3. 👤 **Cloudflare** account (https://dash.cloudflare.com/sign-up). No card needed for Pages.
 
@@ -216,6 +216,8 @@ If a later run turns red, GitHub e-mails you: open the Supabase dashboard → **
 3. Replace `[YOUR-PASSWORD]` — **brackets included** — with the database password. If the password contains `@ # / ? : %` the URL breaks:
    the simplest fix is a new password of **letters and digits only** (Supabase → Project Settings → Database → **Reset database password**; then update the password in your `supabase link` notes too).
 4. Paste the whole string into the secret. The workflow now checks the string's shape and tests the login first, and tells you in plain words what is wrong.
+
+> **Public repository?** The backup workflow refuses to run there (its artifacts would be downloadable by anyone). Keep the operational repository private, or store the encrypted file somewhere private instead of as a workflow artifact, and delete any older `club-backup-*` artifacts before making a repository public. The keep-alive workflow (8.1) is also switched off by GitHub after 60 days without activity in a public repository.
 
 Run it once: **Actions → Weekly encrypted backup → Run workflow**. ✅ Green run, and an artifact `club-backup-<date>` (a `.gpg` file) at the bottom of the run page. Backups are kept 90 days (GitHub's maximum) — download the newest one now and then and keep a copy somewhere else (a USB stick, your own cloud).
 What is inside: the whole `public` schema (all club data + security rules) and the login accounts (`auth.users`, `auth.identities`, so members keep their passwords). The unencrypted dump exists only inside the runner for a few seconds and is wiped.

@@ -6,8 +6,9 @@ name: Keep-alive
 #
 # One-time setup (docs/RUNBOOK.md, "Keep-alive and backups"): repository secrets SUPABASE_URL and SUPABASE_ANON_KEY
 # (both are the public values that ship in the web app). Test it once: Actions → Keep-alive → Run workflow.
-# Note: GitHub switches scheduled workflows off after 60 days without ANY repository activity in PUBLIC repositories;
-# this repository is private, where that does not apply.
+# Note: in a PUBLIC repository GitHub switches scheduled workflows off after 60 days without any repository activity, and
+# then this ping stops (the Supabase project can pause). In a private repository that does not happen. If the repository is
+# public, re-enable the workflow now and then (Actions → Keep-alive → Enable workflow) or ping the project from elsewhere.
 
 on:
   schedule:

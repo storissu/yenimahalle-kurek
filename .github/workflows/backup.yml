@@ -9,6 +9,10 @@ name: Weekly encrypted backup
 # The plain-text dump exists only inside the runner for a few seconds and is wiped; only the .gpg file is uploaded.
 # The passphrase and the database address are repository SECRETS — never commit them.
 #
+# PRIVATE REPOSITORIES ONLY: workflow artifacts of a PUBLIC repository can be downloaded by anyone, and this file holds the
+# members' data and login accounts. The first step therefore refuses to run when the repository is public, so nothing is
+# ever uploaded. If the repository goes public, move the backup elsewhere first (docs/RUNBOOK.md, 8.2).
+#
 # One-time setup, restore drill and how to read the backup: docs/RUNBOOK.md, "Keep-alive and backups".
 # Test it once by hand: Actions → Weekly encrypted backup → Run workflow.
 
@@ -26,6 +30,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Refuse to run in a public repository
+        if: ${{ github.repository_visibility == 'public' }}
+        run: |
+          echo "::error::This repository is public: workflow artifacts would be downloadable by anyone. No backup was made or uploaded. Move the backup to private storage first (docs/RUNBOOK.md, 8.2)."
+          exit 1
+
       - name: Check the secrets exist
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
