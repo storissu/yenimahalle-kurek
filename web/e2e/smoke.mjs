@@ -424,7 +424,7 @@ async function newPage(scheme = 'light') {
           training_id: t.id,
           status: b.p_publish ? 'published' : 'draft',
           version: (previous?.version ?? 0) + (b.p_publish ? 1 : 0),
-          weather_note: b.p_payload.weather_note,
+          weather_note: b.p_payload.weather_note ?? null,
           training_notes: b.p_payload.training_notes,
           published_at: b.p_publish ? iso(Date.now()) : null,
           published_by: b.p_publish ? people.coach.id : null,
@@ -1068,8 +1068,6 @@ const shot = async (page, name, fullPage = false) => {
   check('somebody already in another boat at that time cannot be picked, and the picker says where', (await d.getByRole('checkbox', { name: /Ali Kaya/ }).getAttribute('aria-disabled')) === 'true' && (await d.getByText('Bu saatte Turuncu teknesinde (08:00–09:00)').first().isVisible()));
   await d.getByRole('button', { name: 'Tamam' }).click();
 
-  await session('Mavi', '08:00–09:00').getByLabel('Tekne notu (isteğe bağlı)').fill('teknik çalışma');
-
   // "Seans ekle" starts the next session right where the boat's previous one ended — for each boat separately
   await boat('Mavi').getByRole('button', { name: /Seans ekle/ }).click();
   await boat('Turuncu').getByRole('button', { name: /Seans ekle/ }).click();
@@ -1091,7 +1089,7 @@ const shot = async (page, name, fullPage = false) => {
   await clashing.getByLabel('Başlangıç').fill('09:00');
   check('correcting the time removes the warning and allows saving again', ((await session('Turuncu', '09:00–10:00').getByRole('alert').count()) === 0) && !(await page.getByRole('button', { name: 'Yayınla' }).isDisabled()));
 
-  await page.getByLabel('Hava durumu notu').fill('Rüzgâr batıdan 15 km/s');
+  check('program editor: no boat note and no weather note field any more — only the training note', (await page.getByLabel('Tekne notu', { exact: false }).count()) === 0 && (await page.getByLabel('Hava durumu notu').count()) === 0 && (await page.getByLabel('Antrenman notu').count()) === 1);
   await page.getByLabel('Antrenman notu').fill('Isınma 10 dk');
   await shot(page, '24-program-editor');
 
@@ -1111,7 +1109,7 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('button', { name: 'Taslağı kaydet' }).click();
   await page.getByText('Taslak kaydedildi.').waitFor();
   const draftRow = db.programs[t.id];
-  check('draft saved atomically with all four boat assignments and the notes', draftRow?.program.status === 'draft' && draftRow.assignments.length === 4 && draftRow.crew.length === 7 && draftRow.program.weather_note === 'Rüzgâr batıdan 15 km/s' && draftRow.assignments.some((a) => a.notes === 'teknik çalışma'));
+  check('draft saved atomically with all four boat assignments and the training note — and no weather or boat notes', draftRow?.program.status === 'draft' && draftRow.assignments.length === 4 && draftRow.crew.length === 7 && draftRow.program.training_notes === 'Isınma 10 dk' && draftRow.program.weather_note === null && draftRow.assignments.every((a) => a.notes === null) && db.saves.every((p) => !('weather_note' in p) && p.assignments.every((a) => !('notes' in a))));
 
   // a member cannot see a draft
   {
@@ -1244,11 +1242,11 @@ const shot = async (page, name, fullPage = false) => {
     await shot(mp, '26-member-my-boat-dark', true);
     await mp.goto(BASE + `/uye/antrenmanlar/${t.id}`);
     await mp.getByRole('heading', { name: 'Tüm program' }).waitFor();
-    check('detail: whole program by boat with everyone\'s crew, notes and weather', (await mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ }).getByText('08:00', { exact: true }).isVisible()) && (await mp.getByText('Alex').first().isVisible()) && (await mp.getByText('teknik çalışma').isVisible()) && (await mp.getByText('Rüzgâr batıdan 15 km/s').isVisible()) && (await mp.getByText('Isınma 10 dk, sonra uzun set').isVisible()));
+    check('detail: whole program by boat with everyone\'s crew and the training note', (await mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ }).getByText('08:00', { exact: true }).isVisible()) && (await mp.getByText('Alex').first().isVisible()) && (await mp.getByText('Isınma 10 dk, sonra uzun set').isVisible()));
     {
       const top = async (loc) => (await loc.first().boundingBox()).y;
       const maviBox = mp.getByRole('region', { name: /^Mavi( Sizin tekneniz)?$/ });
-      check('detail: the training note comes BEFORE the boats, the coach\'s weather note AFTER them (weather is never above the assignments)', (await top(mp.getByText('Isınma 10 dk, sonra uzun set'))) < (await top(maviBox)) && (await top(mp.getByText('Rüzgâr batıdan 15 km/s'))) > (await top(maviBox)));
+      check('detail: the training note comes BEFORE the boats', (await top(mp.getByText('Isınma 10 dk, sonra uzun set'))) < (await top(maviBox)));
     }
     check('detail: the reader\'s own sessions are marked', (await mp.getByText('Sizin seansınız').count()) >= 1);
     check('detail: the answer is locked because the program is published (the deadline is still days away)', (await mp.getByRole('heading', { name: 'Program yayınlandı, yanıtlar kilitlendi' }).isVisible()) && (await mp.getByRole('radio', { name: 'Katılmıyorum' }).count()) === 0);
@@ -2131,7 +2129,7 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('heading', { name: 'Yardım', level: 1 }).waitFor();
   check('coaches get the coach questions (training, program, attendance …)', (await page.getByText('Antrenmanı nasıl oluştururum?').isVisible()) && (await page.getByText('Yoklamayı nasıl alırım?').isVisible()) && (await page.getByText('Şifremi unuttum.').count()) === 0);
   await page.getByText('Programı nasıl hazırlar ve yayınlarım?').click();
-  await page.getByText(/C4X tam 4 kişi olmadan yayınlanamaz/).waitFor();
+  await page.getByText(/tam 4 kürekçi ve bir dümenci .* olmadan yayınlanamaz/).waitFor();
   await shot(page, '46-coach-help');
   await page.getByRole('link', { name: /^Diğer/ }).first().click();
   await page.waitForURL('**/antrenor/diger');
@@ -2194,6 +2192,7 @@ const shot = async (page, name, fullPage = false) => {
   await forecastCard.waitFor();
   const forecastText = (await forecastCard.innerText()).replace(/\s+/g, ' ');
   check("home: the forecast card is for MY hour (09:00: rain, 24°, 27 km/s wind, 1,4 m waves), not the other hour's", /Yağmurlu/.test(forecastText) && forecastText.includes('24°') && forecastText.includes('27 km/s') && forecastText.includes('1,4 m'), forecastText);
+  check('home: the card says WHICH date and time it is for — the start of my session ("D Mon, 09:00 tahmini"), not just when it was fetched', /\d{1,2} \p{L}+, 09:00 tahmini/u.test(forecastText) && /Konum: /.test(forecastText) && /Güncelleme: \d\d:\d\d/.test(forecastText), forecastText);
   check('home: only my own hour is in it — one row, so no per-hour label (Jamie rows at 08:00, not me)', (await forecastCard.getByRole('group').count()) === 0 && (await forecastCard.getByText(/Parçalı bulutlu/).count()) === 0);
   check('home: it is not repeated inside my highlighted program row', !(await mp.locator('li[data-mine="true"]').first().innerText()).includes('24°'));
   await shot(mp, '47-member-my-session-weather-dark', true);

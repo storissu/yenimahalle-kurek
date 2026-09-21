@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { tr } from '@/strings/tr';
-import { MyBoatCard, TrainingNote, WeatherNote } from './ProgramParts';
+import { MyBoatCard, TrainingNote } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
 import { boatStyle } from './boatStyle';
 import { myAssignments } from './view';
@@ -38,7 +38,7 @@ describe('MyBoatCard', () => {
     expect(within(card).getByText('09:00–10:00')).toBeInTheDocument();
     expect(within(card).getByText('Mavi')).toBeInTheDocument();
     expect(within(card).getByText('John ile')).toBeInTheDocument();
-    expect(within(card).getByText('sprint çalışması')).toBeInTheDocument();
+    expect(within(card).queryByText('sprint çalışması')).not.toBeInTheDocument(); // boat notes are not shown any more
   });
 
   it('draws the boat icon by capacity next to each boat name (double for Mavi, quad for the C4X)', () => {
@@ -403,9 +403,9 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
     expect(screen.getAllByText(tr.program.yourSession, { exact: false })).toHaveLength(1);
   });
 
-  it('shows notes for a boat session', () => {
+  it('does not show boat notes any more (the coach no longer writes them)', () => {
     show();
-    expect(within(boatSection('Mavi')).getByText('sprint çalışması')).toBeInTheDocument();
+    expect(screen.queryByText('sprint çalışması')).not.toBeInTheDocument();
   });
 
   it("opens a member's phone number from their name — but not for the reader themselves", () => {
@@ -452,23 +452,11 @@ describe('ProgramByBoat (the whole published program, grouped by boat)', () => {
   });
 });
 
-describe('TrainingNote / WeatherNote', () => {
-  it("show the coach's notes, and nothing when there is no note", () => {
-    const { container, rerender } = render(
-      <>
-        <TrainingNote notes="Isınma 10 dk" />
-        <WeatherNote note="Rüzgâr batıdan" />
-      </>,
-    );
+describe('TrainingNote', () => {
+  it("shows the coach's training note, and nothing when there is no note", () => {
+    const { container, rerender } = render(<TrainingNote notes="Isınma 10 dk" />);
     expect(screen.getByText('Isınma 10 dk')).toBeInTheDocument();
-    expect(screen.getByText('Rüzgâr batıdan')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: tr.program.weather })).toBeInTheDocument();
-    rerender(
-      <>
-        <TrainingNote notes={null} />
-        <WeatherNote note={null} />
-      </>,
-    );
+    rerender(<TrainingNote notes={null} />);
     expect(container).toBeEmptyDOMElement();
   });
 });

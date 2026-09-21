@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { addSession, analyzeDraft, canAddSession, conflictFor, draftFromProgram, durationLabel, emptyDraft, fromMinutes, fullCrewProblems, hasAnyCrew, isSameDraft, isTime, moveTeam, nextSessionId, normalize, payloadAsJson, removeMember, removeSession, sessionProblems, sessionsOf, setEnd, setSessionNotes, setStart, suggestedStart, toMinutes, toPayload, toggleMember, withDefaultSessions, type ProgramData, type ProgramDraft, type SessionDraft, coxProblems, isInSession, moveMember, peopleOf, setCox, withoutCoxOn, memberSessions, sessionById } from './model';
+import { addSession, analyzeDraft, canAddSession, conflictFor, draftFromProgram, durationLabel, emptyDraft, fromMinutes, fullCrewProblems, hasAnyCrew, isSameDraft, isTime, moveTeam, nextSessionId, normalize, payloadAsJson, removeMember, removeSession, sessionProblems, sessionsOf, setEnd, setStart, suggestedStart, toMinutes, toPayload, toggleMember, withDefaultSessions, type ProgramData, type ProgramDraft, type SessionDraft, coxProblems, isInSession, moveMember, peopleOf, setCox, withoutCoxOn, memberSessions, sessionById } from './model';
 
 const MAVI = 'mavi';
 const TURUNCU = 'turuncu';
 const C4X = 'c4x';
 
-const session = (id: number, boatId: string, start: string, end: string, crew: string[] = [], notes = '', cox: string | null = null): SessionDraft => ({ id, boatId, start, end, crew, cox, notes });
+const session = (id: number, boatId: string, start: string, end: string, crew: string[] = [], cox: string | null = null): SessionDraft => ({ id, boatId, start, end, crew, cox });
 const draftOf = (...sessions: SessionDraft[]): ProgramDraft => ({ ...emptyDraft(), sessions });
 const times = (draft: ProgramDraft, boatId: string) => sessionsOf(draft, boatId).map((s) => `${s.start}–${s.end}`);
 
@@ -169,9 +169,6 @@ describe('crew', () => {
     expect(conflictFor(d, d.sessions[1]!, 'becca')?.id).toBe(2); // 09:00–10:00 overlaps 08:30–09:30
   });
 
-  it('keeps a session\'s note', () => {
-    expect(setSessionNotes(draft(), 0, 'sprint').sessions[0]!.notes).toBe('sprint');
-  });
 });
 
 describe('what is wrong with the schedule', () => {
@@ -229,7 +226,7 @@ describe('boats that must be full (C4X)', () => {
 describe('loading and saving', () => {
   // 08:15 and 09:15 Istanbul (UTC+3) = 05:15Z and 06:15Z.
   const data: ProgramData = {
-    program: { training_id: 't', status: 'draft', version: 0, weather_note: ' rüzgâr ', training_notes: null, published_at: null, published_by: null, created_at: '', updated_at: '' },
+    program: { training_id: 't', status: 'draft', version: 0, weather_note: 'eski not', training_notes: null, published_at: null, published_by: null, created_at: '', updated_at: '' },
     assignments: [
       { id: 'a1', training_id: 't', slot_index: 4, boat_id: TURUNCU, notes: 'teknik', starts_at: '2026-09-22T05:15:00Z', ends_at: '2026-09-22T06:15:00Z' },
       { id: 'a2', training_id: 't', slot_index: 1, boat_id: MAVI, notes: null, starts_at: '2026-09-22T05:00:00Z', ends_at: '2026-09-22T06:15:00Z' },
@@ -244,20 +241,21 @@ describe('loading and saving', () => {
 
   it('builds a draft with the sessions\' own club-time "HH:MM", their numbers, seat order — and without empty sessions', () => {
     const draft = draftFromProgram(data);
-    expect(draft.weatherNote).toBe('rüzgâr');
     expect(draft.sessions).toEqual([
-      { id: 1, boatId: MAVI, start: '08:00', end: '09:15', crew: ['x'], cox: null, notes: '' },
-      { id: 4, boatId: TURUNCU, start: '08:15', end: '09:15', crew: ['y', 'z'], cox: null, notes: 'teknik' },
+      { id: 1, boatId: MAVI, start: '08:00', end: '09:15', crew: ['x'], cox: null },
+      { id: 4, boatId: TURUNCU, start: '08:15', end: '09:15', crew: ['y', 'z'], cox: null },
     ]);
   });
 
   it('makes the save payload: real instants on the training\'s day, the same session numbers, only sessions with a crew', () => {
     const payload = toPayload({ ...draftFromProgram(data), sessions: [...draftFromProgram(data).sessions, session(7, C4X, '08:30', '09:30', [])] }, '2026-09-22');
     expect(payload.assignments).toEqual([
-      { slot_index: 1, boat_id: MAVI, starts_at: '2026-09-22T05:00:00.000Z', ends_at: '2026-09-22T06:15:00.000Z', notes: null, crew: ['x'], cox: null },
-      { slot_index: 4, boat_id: TURUNCU, starts_at: '2026-09-22T05:15:00.000Z', ends_at: '2026-09-22T06:15:00.000Z', notes: 'teknik', crew: ['y', 'z'], cox: null },
+      { slot_index: 1, boat_id: MAVI, starts_at: '2026-09-22T05:00:00.000Z', ends_at: '2026-09-22T06:15:00.000Z', crew: ['x'], cox: null },
+      { slot_index: 4, boat_id: TURUNCU, starts_at: '2026-09-22T05:15:00.000Z', ends_at: '2026-09-22T06:15:00.000Z', crew: ['y', 'z'], cox: null },
     ]);
-    expect(payload.weather_note).toBe('rüzgâr');
+    // the coach's weather and boat notes are no longer part of a program: nothing of them is ever sent
+    expect(payload).not.toHaveProperty('weather_note');
+    expect(payload.assignments.every((a) => !('notes' in a))).toBe(true);
     expect(payload.training_notes).toBeNull();
     expect(payloadAsJson(payload)).toBe(payload);
   });
@@ -330,7 +328,7 @@ describe('the dümenci (coxswain) and the order of the crew', () => {
     });
 
     it('a swap of teams takes the order and the dümenci along', () => {
-      const draft = draftOf(session(0, C4X, '08:30', '09:30', ['d', 'c', 'b', 'a'], '', 'k1'), session(1, C4X, '09:30', '10:30', ['e', 'f', 'g', 'h'], '', 'k2'));
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', ['d', 'c', 'b', 'a'], 'k1'), session(1, C4X, '09:30', '10:30', ['e', 'f', 'g', 'h'], 'k2'));
       const swapped = moveTeam(draft, 0, 1);
       expect(sessionById(swapped, 0)?.crew).toEqual(['e', 'f', 'g', 'h']);
       expect(sessionById(swapped, 0)?.cox).toBe('k2');
@@ -355,7 +353,7 @@ describe('the dümenci (coxswain) and the order of the crew', () => {
     });
 
     it('is saved as its own field of the assignment', () => {
-      const payload = toPayload(draftOf(session(0, C4X, '08:30', '09:30', four, '', 'k')), '2026-09-22');
+      const payload = toPayload(draftOf(session(0, C4X, '08:30', '09:30', four, 'k')), '2026-09-22');
       expect(payload.assignments[0]).toMatchObject({ crew: four, cox: 'k' });
       expect(toPayload(draftOf(session(0, C4X, '08:30', '09:30', four)), '2026-09-22').assignments[0]?.cox).toBeNull();
     });
@@ -372,7 +370,7 @@ describe('the dümenci (coxswain) and the order of the crew', () => {
     });
 
     it('cannot be one of the rowers of the same session, in either direction', () => {
-      const draft = draftOf(session(0, C4X, '08:30', '09:30', ['a', 'b', 'c'], '', 'k'));
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', ['a', 'b', 'c'], 'k'));
       expect(setCox(draft, 0, 'a').error).toBe('rower');
       expect(toggleMember(draft, 0, 'k', 4).error).toBe('cox');
     });
@@ -388,22 +386,22 @@ describe('the dümenci (coxswain) and the order of the crew', () => {
     });
 
     it('counts as taking part: sessions of a person, the program summary and the schedule problems include the dümenci', () => {
-      const draft = draftOf(session(0, C4X, '08:30', '09:30', four, '', 'k'), session(1, MAVI, '09:00', '10:00', ['x', 'k']));
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four, 'k'), session(1, MAVI, '09:00', '10:00', ['x', 'k']));
       expect(memberSessions(draft, 'k').map((x) => x.id)).toEqual([0, 1]);
       expect(isInSession(draft.sessions[0] as SessionDraft, 'k')).toBe(true);
       expect(isInSession(draft.sessions[0] as SessionDraft, 'x')).toBe(false);
       expect(sessionProblems(draft, '08:00').get(0)?.some((p) => p.kind === 'person-overlap' && p.memberId === 'k')).toBe(true);
-      expect(analyzeDraft(draftOf(session(0, C4X, '08:30', '09:30', four, '', 'ali')), [{ id: 'ali', name: 'Ali', answer: 'attending' }]).unassignedAttending).toEqual([]);
+      expect(analyzeDraft(draftOf(session(0, C4X, '08:30', '09:30', four, 'ali')), [{ id: 'ali', name: 'Ali', answer: 'attending' }]).unassignedAttending).toEqual([]);
     });
 
     it('is required on boats that have one before publishing — drafts may be incomplete, other boats need none', () => {
-      const draft = draftOf(session(0, C4X, '08:30', '09:30', four), session(1, C4X, '09:30', '10:30', four, '', 'k'), session(2, MAVI, '08:00', '09:00', ['x']), session(3, C4X, '11:00', '12:00'));
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four), session(1, C4X, '09:30', '10:30', four, 'k'), session(2, MAVI, '08:00', '09:00', ['x']), session(3, C4X, '11:00', '12:00'));
       expect(coxProblems(draft, boats)).toEqual([{ sessionId: 0, boatId: C4X, start: '08:30', end: '09:30' }]);
-      expect(coxProblems(draftOf(session(0, C4X, '08:30', '09:30', four, '', 'k')), boats)).toEqual([]);
+      expect(coxProblems(draftOf(session(0, C4X, '08:30', '09:30', four, 'k')), boats)).toEqual([]);
     });
 
     it('is dropped from boats that no longer have the role (the setting was switched off after saving)', () => {
-      const draft = draftOf(session(0, C4X, '08:30', '09:30', four, '', 'k'), session(1, MAVI, '08:00', '09:00', ['x'], '', 'stale'));
+      const draft = draftOf(session(0, C4X, '08:30', '09:30', four, 'k'), session(1, MAVI, '08:00', '09:00', ['x'], 'stale'));
       const cleaned = withoutCoxOn(draft, boats);
       expect(sessionById(cleaned, 0)?.cox).toBe('k');
       expect(sessionById(cleaned, 1)?.cox).toBeNull();

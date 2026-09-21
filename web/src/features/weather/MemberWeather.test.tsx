@@ -20,13 +20,14 @@ const programData = () => ({
 vi.mock('../auth/AuthProvider', () => ({ useProfile: () => ({ id: 'me' }) }));
 vi.mock('../program/hooks', () => ({ useProgram: () => ({ isPending: false, data: programData() }) }));
 vi.mock('./hooks', () => ({ useWeather: () => ({ isPending: false, isError: false, data: state.rows }) }));
+vi.mock('../settings/api', () => ({ useClubSettings: () => ({ data: { site_name: 'Yenimahalle Kürek Tesisi' } }) }));
 
 import { MemberWeather } from './MemberWeather';
 
-// 08:00 Istanbul, three sessions of forecast.
+// 08:00 Istanbul; the forecast rows are for the hours 08:00, 09:00 and 10:00 (05:00Z, 06:00Z, 07:00Z), one per session number.
 const training = { id: 't', starts_at: '2026-09-22T05:00:00Z', status: 'scheduled' as const };
 const forecast = (slot: number, over: Partial<WeatherSnapshot> = {}): WeatherSnapshot => ({
-  training_id: 't', slot_index: slot, fetched_at: '2026-09-21T14:30:00Z', source: 'open-meteo', forecast_for: '2026-09-22T05:00:00Z',
+  training_id: 't', slot_index: slot, fetched_at: '2026-09-21T14:30:00Z', source: 'open-meteo', forecast_for: `2026-09-22T0${5 + slot}:00:00+00:00`,
   temperature_c: 21.4, apparent_c: 20, wind_kmh: 14.2, gust_kmh: 24, wind_dir_deg: 315, precip_prob: 10, precip_mm: 0, weather_code: 2, cloud_pct: 40,
   wave_height_m: 0.6, wave_period_s: 4, wave_dir_deg: 300, ...over,
 });
@@ -44,8 +45,36 @@ describe('MemberWeather (one small forecast card per training)', () => {
     expect(within(card).getByText(/Yağmurlu · 24°/)).toBeInTheDocument();
     expect(within(card).queryByText(/Açık/)).not.toBeInTheDocument();
     expect(within(card).queryByText(/Kapalı/)).not.toBeInTheDocument();
-    // a single hour needs no time label: the hour is already shown on the boat card above
+    // a single hour needs no per-row time label: the card's own line names the date and the time
     expect(within(card).queryByRole('group')).not.toBeInTheDocument();
+  });
+
+  it('says WHICH date and time the forecast is for: the start of my own session, not when it was fetched', () => {
+    state.sessions = [{ slot: 1, from: '06:15', to: '07:15', members: ['me'] }]; // 09:15 Istanbul
+    render(<MemberWeather training={training} />);
+    const card = screen.getByRole('region', { name: tr.weather.heading });
+    expect(within(card).getByText('22 Eyl, 09:15 tahmini')).toBeInTheDocument();
+    // and the forecast shown is the one of THAT hour (the 09:00 row: slot 1 = "Yağmurlu · 24°")
+    expect(within(card).getByText(/Yağmurlu · 24°/)).toBeInTheDocument();
+    expect(within(card).getByText(tr.weather.location('Yenimahalle Kürek Tesisi'), { exact: false })).toBeInTheDocument();
+  });
+
+  it('names the date once and the own time of each session when I row more than once', () => {
+    state.sessions = [{ slot: 0, from: '05:00', to: '06:00', members: ['me'] }, { slot: 2, from: '07:00', to: '08:00', members: ['me'] }];
+    render(<MemberWeather training={training} />);
+    expect(screen.getByText('22 Eyl tahmini')).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: tr.weather.forSession('08:00–09:00') })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: tr.weather.forSession('10:00–11:00') })).toBeInTheDocument();
+  });
+
+  it('never shows a forecast made for another hour: a row left over from an earlier session time is ignored', () => {
+    // my session was moved to 10:00 (07:00Z) but its number still holds the old 08:00 forecast
+    state.sessions = [{ slot: 0, from: '07:00', to: '08:00', members: ['me'] }];
+    state.rows = [forecast(0, { weather_code: 0, temperature_c: 18.2 })]; // for 08:00
+    render(<MemberWeather training={training} />);
+    expect(screen.getByText(tr.weather.mySessionLater)).toBeInTheDocument();
+    expect(screen.queryByText(/Açık/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('region')).not.toBeInTheDocument();
   });
 
   it('lists each of my sessions labelled with ITS OWN time (boats do not share a schedule) when I row more than once', () => {
@@ -66,15 +95,15 @@ describe('MemberWeather (one small forecast card per training)', () => {
     expect(within(card).queryByText(/Yağmurlu/)).not.toBeInTheDocument();
   });
 
-  it('credits the source and says when the forecast was made — once, not per row', () => {
+  it('credits the source and says when the forecast was last updated — once, not per row', () => {
     state.sessions = [{ slot: 0, from: '05:00', to: '06:00', members: ['me'] }, { slot: 1, from: '06:00', to: '07:00', members: ['me'] }];
     render(<MemberWeather training={training} />);
-    expect(screen.getAllByText(/Tahmin: \d\d:\d\d/)).toHaveLength(1);
+    expect(screen.getAllByText(/Güncelleme: \d\d:\d\d/)).toHaveLength(1);
     expect(screen.getAllByRole('link', { name: 'Open-Meteo' })).toHaveLength(1);
   });
 
   it('says the forecast for my hour is not there yet when other hours have one but mine does not', () => {
-    state.sessions = [{ slot: 5, from: '05:00', to: '06:00', members: ['me'] }];
+    state.sessions = [{ slot: 5, from: '12:00', to: '13:00', members: ['me'] }];
     render(<MemberWeather training={training} />);
     expect(screen.getByText(tr.weather.mySessionLater)).toBeInTheDocument();
     expect(screen.queryByRole('region')).not.toBeInTheDocument();

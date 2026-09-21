@@ -37,10 +37,8 @@ import {
   sessionProblems,
   setCox,
   setEnd,
-  setSessionNotes,
   setStart,
   setTrainingNotes,
-  setWeatherNote,
   toggleMember,
   toPayload,
   withDefaultSessions,
@@ -177,31 +175,20 @@ function ProgramEditorInner({ training, programData, boats, roster, nameOf, coac
             onMoveMember={(id, memberId, direction) => change(moveMember(draft, id, memberId, direction))}
             onPickCox={(session) => setPicker({ id: session.id, mode: 'cox' })}
             onRemoveCox={(id) => change(setCox(draft, id, null).draft)}
-            onNotes={(id, text) => change(setSessionNotes(draft, id, text))}
             onMove={(id, direction) => change(moveTeam(draft, id, direction))}
             onRemove={requestRemove}
           />
         ))}
       </div>
 
-      <div className="flex flex-col gap-4">
-        <TextAreaField
-          label={tr.program.weatherNote}
-          hint={tr.program.weatherNoteHint}
-          value={draft.weatherNote}
-          onChange={(e) => change(setWeatherNote(draft, e.target.value))}
-          counter={{ current: draft.weatherNote.length, max: 500 }}
-          rows={2}
-        />
-        <TextAreaField
-          label={tr.program.trainingNotesLabel}
-          hint={tr.program.trainingNotesHint}
-          value={draft.trainingNotes}
-          onChange={(e) => change(setTrainingNotes(draft, e.target.value))}
-          counter={{ current: draft.trainingNotes.length, max: 1000 }}
-          rows={3}
-        />
-      </div>
+      <TextAreaField
+        label={tr.program.trainingNotesLabel}
+        hint={tr.program.trainingNotesHint}
+        value={draft.trainingNotes}
+        onChange={(e) => change(setTrainingNotes(draft, e.target.value))}
+        counter={{ current: draft.trainingNotes.length, max: 1000 }}
+        rows={3}
+      />
 
       <ParticipantSummary draft={draft} roster={roster} analysis={analysis} boatName={boatName} />
 

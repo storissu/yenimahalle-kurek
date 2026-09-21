@@ -28,7 +28,6 @@ interface BoatScheduleProps {
   onMoveMember: (id: number, memberId: string, direction: -1 | 1) => void;
   onPickCox: (session: SessionDraft) => void;
   onRemoveCox: (id: number) => void;
-  onNotes: (id: number, text: string) => void;
   onMove: (id: number, direction: -1 | 1) => void;
   onRemove: (session: SessionDraft) => void;
 }
@@ -55,7 +54,6 @@ export function BoatSchedule({
   onMoveMember,
   onPickCox,
   onRemoveCox,
-  onNotes,
   onMove,
   onRemove,
 }: BoatScheduleProps) {
@@ -102,7 +100,6 @@ export function BoatSchedule({
             onMoveMember={(memberId, direction) => onMoveMember(session.id, memberId, direction)}
             onPickCox={() => onPickCox(session)}
             onRemoveCox={() => onRemoveCox(session.id)}
-            onNotes={(text) => onNotes(session.id, text)}
             onMove={(direction) => onMove(session.id, direction)}
             onRemove={() => onRemove(session)}
           />

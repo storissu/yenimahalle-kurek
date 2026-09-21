@@ -48,8 +48,8 @@ describe('buildByBoat (each boat with its OWN schedule)', () => {
   });
 
   it('puts the crew in seat order and keeps the note of a session', () => {
-    expect(boats[0]?.sessions[0]).toMatchObject({ slotIndex: 0, crew: ['alex', 'ashley'], notes: null });
-    expect(boats[0]?.sessions[1]).toMatchObject({ slotIndex: 1, crew: ['john', 'jamie'], notes: 'sprint' });
+    expect(boats[0]?.sessions[0]).toMatchObject({ slotIndex: 0, crew: ['alex', 'ashley'] });
+    expect(boats[0]?.sessions[1]).toMatchObject({ slotIndex: 1, crew: ['john', 'jamie'] });
   });
 
   it('leaves out boats and sessions nobody rows in', () => {
@@ -68,10 +68,10 @@ describe('buildByBoat (each boat with its OWN schedule)', () => {
 describe('myAssignments ("which boat am I in, and when?")', () => {
   it('finds each session of a member with its boat, ITS OWN times and the crew mates', () => {
     expect(myAssignments(data, 'jamie')).toEqual([
-      { slotIndex: 1, boatId: 'mavi', startsAt: at('09:00'), endsAt: at('10:00'), notes: 'sprint', mates: ['john'], cox: null, iAmCox: false, seat: 2 },
+      { slotIndex: 1, boatId: 'mavi', startsAt: at('09:00'), endsAt: at('10:00'), mates: ['john'], cox: null, iAmCox: false, seat: 2 },
     ]);
     expect(myAssignments(data, 'becca')).toEqual([
-      { slotIndex: 2, boatId: 'turuncu', startsAt: at('08:15'), endsAt: at('09:15'), notes: null, mates: ['ali'], cox: null, iAmCox: false, seat: 2 },
+      { slotIndex: 2, boatId: 'turuncu', startsAt: at('08:15'), endsAt: at('09:15'), mates: ['ali'], cox: null, iAmCox: false, seat: 2 },
     ]);
   });
 

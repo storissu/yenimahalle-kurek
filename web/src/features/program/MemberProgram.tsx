@@ -10,7 +10,7 @@ import { useProfile } from '../auth/AuthProvider';
 import { useMyResponses } from '../trainings/hooks';
 import { boatPositions, boatStyle } from './boatStyle';
 import { useBoats, useMemberNames, useProgram } from './hooks';
-import { MyBoatCard, TrainingNote, WeatherNote } from './ProgramParts';
+import { MyBoatCard, TrainingNote } from './ProgramParts';
 import { ProgramByBoat } from './ProgramByBoat';
 import { myAssignments } from './view';
 
@@ -79,7 +79,6 @@ export function MemberProgram({ training, variant }: MemberProgramProps) {
         </h2>
         <ProgramByBoat data={program.data} boats={boats.data} meId={me.id} nameOf={nameOf} contactOf={contactOf} />
       </section>
-      <WeatherNote note={program.data.program?.weather_note ?? null} />
     </>
   );
 

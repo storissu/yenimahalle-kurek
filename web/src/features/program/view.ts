@@ -12,7 +12,6 @@ export interface BoatSession {
   crew: string[];
   /** The dümenci (coxswain) who steers — a member or a coach — or null. Not one of the rowers. */
   cox: string | null;
-  notes: string | null;
 }
 
 export interface BoatSchedule {
@@ -41,7 +40,7 @@ export function buildByBoat(data: ProgramData, boatOrder: ReadonlyMap<string, nu
     const { crew, cox } = splitCrew(data.crew, assignment.id);
     if (crew.length === 0) continue;
     const sessions = boats.get(assignment.boat_id) ?? [];
-    sessions.push({ slotIndex: assignment.slot_index, startsAt: assignment.starts_at, endsAt: assignment.ends_at, crew, cox, notes: assignment.notes });
+    sessions.push({ slotIndex: assignment.slot_index, startsAt: assignment.starts_at, endsAt: assignment.ends_at, crew, cox });
     boats.set(assignment.boat_id, sessions);
   }
   const rank = (boatId: string) => boatOrder.get(boatId) ?? Number.MAX_SAFE_INTEGER;
@@ -66,7 +65,6 @@ export interface MyAssignment {
   boatId: string;
   startsAt: string;
   endsAt: string;
-  notes: string | null;
   /** The other ROWERS in the same boat in that session, in seat order. */
   mates: string[];
   /** The session's dümenci, or null. */
@@ -89,7 +87,6 @@ export function myAssignments(data: ProgramData, memberId: string): MyAssignment
       boatId: assignment.boat_id,
       startsAt: assignment.starts_at,
       endsAt: assignment.ends_at,
-      notes: assignment.notes,
       mates: crew.filter((id) => id !== memberId),
       cox,
       iAmCox,

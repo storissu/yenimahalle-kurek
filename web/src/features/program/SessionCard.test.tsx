@@ -9,7 +9,7 @@ import { SessionCard } from './SessionCard';
 const boat = (over: Partial<Boat> = {}): Boat => ({ id: 'mavi', name: 'Mavi', capacity: 2, is_active: true, sort_order: 1, requires_full_crew: false, has_coxswain: false, created_at: '', updated_at: '', ...over }) as Boat;
 const nameOf = (id: string) => ({ a: 'Alex', b: 'Ashley', c: 'Can', d: 'Deniz', k: 'Ayşe Antrenör' })[id as 'a' | 'b' | 'c' | 'd' | 'k'] ?? '?';
 const boatName = (id: string) => ({ mavi: 'Mavi', turuncu: 'Turuncu' })[id as 'mavi' | 'turuncu'] ?? '?';
-const session = (over: Partial<SessionDraft> = {}): SessionDraft => ({ id: 0, boatId: 'mavi', start: '08:15', end: '09:15', crew: [], cox: null, notes: '', ...over });
+const session = (over: Partial<SessionDraft> = {}): SessionDraft => ({ id: 0, boatId: 'mavi', start: '08:15', end: '09:15', crew: [], cox: null, ...over });
 
 const handlers = () => ({
   onStart: vi.fn(),
@@ -19,7 +19,6 @@ const handlers = () => ({
   onMoveMember: vi.fn(),
   onPickCox: vi.fn(),
   onRemoveCox: vi.fn(),
-  onNotes: vi.fn(),
   onMove: vi.fn(),
   onRemove: vi.fn(),
 });
@@ -160,7 +159,6 @@ describe('SessionCard: crew order and the dümenci', () => {
 
 describe('BoatSchedule (one boat and its own sequence)', () => {
   const draft: ProgramDraft = {
-    weatherNote: '',
     trainingNotes: '',
     sessions: [
       session({ id: 0, start: '08:15', end: '09:15', crew: ['a'] }),
@@ -187,7 +185,6 @@ describe('BoatSchedule (one boat and its own sequence)', () => {
         onMoveMember={vi.fn()}
         onPickCox={vi.fn()}
         onRemoveCox={vi.fn()}
-        onNotes={vi.fn()}
         onMove={vi.fn()}
         onRemove={vi.fn()}
         {...over}

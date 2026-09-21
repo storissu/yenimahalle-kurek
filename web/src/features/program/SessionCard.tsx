@@ -2,7 +2,6 @@ import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, ShipWheel, TriangleAlert, T
 import { Badge } from '@/components/ui/Badge';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Button } from '@/components/ui/Button';
-import { TextField } from '@/components/ui/TextField';
 import { cn } from '@/lib/cn';
 import { tr } from '@/strings/tr';
 import type { Boat } from '@/types/database';
@@ -32,7 +31,6 @@ interface SessionCardProps {
   onMoveMember: (memberId: string, direction: -1 | 1) => void;
   onPickCox: () => void;
   onRemoveCox: () => void;
-  onNotes: (text: string) => void;
   onMove: (direction: -1 | 1) => void;
   onRemove: () => void;
 }
@@ -74,7 +72,7 @@ function problemText(problem: SessionProblem, trainingStart: string, nameOf: (id
 
 /**
  * ONE session of ONE boat: its own start and end (an hour by default, freely adjustable), who rows it — in seat order, which
- * the coach can change — and, on boats that have one, its dümenci (a separate role, not a seat); a note, and the ways to reorder
+ * the coach can change — and, on boats that have one, its dümenci (a separate role, not a seat); and the ways to reorder
  * (swap teams with the neighbouring session) or remove it. The times belong to this boat's schedule only.
  */
 export function SessionCard({
@@ -95,7 +93,6 @@ export function SessionCard({
   onMoveMember,
   onPickCox,
   onRemoveCox,
-  onNotes,
   onMove,
   onRemove,
 }: SessionCardProps) {
@@ -228,8 +225,6 @@ export function SessionCard({
           {!session.cox && <p className="text-sm font-semibold text-warning">{tr.program.coxNone}</p>}
         </div>
       )}
-
-      {crew.length > 0 && <TextField label={tr.program.boatNoteLabel} value={session.notes} maxLength={200} onChange={(e) => onNotes(e.target.value)} autoComplete="off" />}
 
       <div className="flex items-center justify-between gap-2">
         <div className="flex gap-1">

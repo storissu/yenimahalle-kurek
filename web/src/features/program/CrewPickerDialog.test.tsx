@@ -6,7 +6,7 @@ import { CrewPickerDialog, type RosterMemberInfo } from './CrewPickerDialog';
 import type { ProgramDraft, SessionDraft } from './model';
 
 const c4x = { id: 'c4x', name: 'C4X', capacity: 4, is_active: true, sort_order: 3, requires_full_crew: true, has_coxswain: true, created_at: '', updated_at: '' } as Boat;
-const session = (over: Partial<SessionDraft>): SessionDraft => ({ id: 0, boatId: 'c4x', start: '08:30', end: '09:30', crew: [], cox: null, notes: '', ...over });
+const session = (over: Partial<SessionDraft>): SessionDraft => ({ id: 0, boatId: 'c4x', start: '08:30', end: '09:30', crew: [], cox: null, ...over });
 const roster: RosterMemberInfo[] = [
   { id: 'a', name: 'Alex', answer: 'attending', note: null },
   { id: 'b', name: 'Ashley', answer: 'attending', note: null },
@@ -18,9 +18,8 @@ const boatName = (id: string) => (id === 'mavi' ? 'Mavi' : 'C4X');
 function show(mode: 'crew' | 'cox', own: Partial<SessionDraft> = {}) {
   const target = session({ crew: ['a', 'b'], ...own });
   const draft: ProgramDraft = {
-    weatherNote: '',
     trainingNotes: '',
-    sessions: [target, { id: 1, boatId: 'mavi', start: '09:00', end: '10:00', crew: ['busy', 'x'], cox: null, notes: '' }],
+    sessions: [target, { id: 1, boatId: 'mavi', start: '09:00', end: '10:00', crew: ['busy', 'x'], cox: null }],
   };
   const onToggle = vi.fn();
   render(<CrewPickerDialog target={{ session: target, boat: c4x, position: 2 }} draft={draft} roster={roster} boatName={boatName} mode={mode} coach={{ id: 'coach', name: 'Ayşe Antrenör' }} onToggle={onToggle} onClose={vi.fn()} />);

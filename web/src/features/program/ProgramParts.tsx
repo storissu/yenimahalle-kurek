@@ -1,4 +1,4 @@
-import { CloudSun, NotebookText, Ship, ShipWheel } from 'lucide-react';
+import { NotebookText, Ship, ShipWheel } from 'lucide-react';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Card } from '@/components/ui/Card';
 import { cn } from '@/lib/cn';
@@ -74,7 +74,6 @@ export function MyBoatCard({ assignments, nameOf, boatName, capacityOf, styleOf 
                   )
                 )}
                 {a.seat !== null && a.mates.length > 0 && <p className="text-sm text-muted">{tr.program.yourSeat(a.seat)}</p>}
-                {a.notes && <p className="mt-1 text-sm text-muted">{a.notes}</p>}
               </div>
             </li>
           );
@@ -93,20 +92,6 @@ export function TrainingNote({ notes }: { notes: string | null }) {
       <div>
         <h3 className="text-sm font-bold">{tr.program.trainingNotes}</h3>
         <p className="whitespace-pre-line break-words text-sm">{notes}</p>
-      </div>
-    </Card>
-  );
-}
-
-/** The coach's weather note. Weather is never the main thing, so it comes AFTER the program, next to the forecast. */
-export function WeatherNote({ note }: { note: string | null }) {
-  if (!note) return null;
-  return (
-    <Card className="flex items-start gap-3">
-      <CloudSun aria-hidden="true" size={20} className="mt-0.5 shrink-0 text-primary" />
-      <div>
-        <h3 className="text-sm font-bold">{tr.program.weather}</h3>
-        <p className="whitespace-pre-line break-words text-sm">{note}</p>
       </div>
     </Card>
   );

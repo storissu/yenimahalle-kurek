@@ -24,7 +24,6 @@ export interface SessionDraft {
   crew: string[];
   /** The dümenci (coxswain) of a boat that has one: a member or a coach. Not one of the rowers. */
   cox: string | null;
-  notes: string;
 }
 
 /** Everybody in the session: the rowers in seat order, then the dümenci. */
@@ -34,7 +33,6 @@ export const peopleOf = (session: Pick<SessionDraft, 'crew' | 'cox'>): string[] 
 export const isInSession = (session: Pick<SessionDraft, 'crew' | 'cox'>, memberId: string): boolean => session.crew.includes(memberId) || session.cox === memberId;
 
 export interface ProgramDraft {
-  weatherNote: string;
   trainingNotes: string;
   /** Every session of every boat (grouped by boat and ordered by time only when shown). */
   sessions: SessionDraft[];
@@ -77,7 +75,7 @@ export function durationLabel(start: string, end: string): string {
 
 // --- loading -------------------------------------------------------------------------------------
 
-export const emptyDraft = (): ProgramDraft => ({ weatherNote: '', trainingNotes: '', sessions: [] });
+export const emptyDraft = (): ProgramDraft => ({ trainingNotes: '', sessions: [] });
 
 /** Turns what was loaded from the database into an editable draft (sessions without a crew are not part of a program). */
 export function draftFromProgram(data: ProgramData): ProgramDraft {
@@ -97,20 +95,18 @@ export function draftFromProgram(data: ProgramData): ProgramDraft {
       end: instantToWallTime(assignment.ends_at).time,
       crew,
       cox: rows.find((c) => c.is_cox)?.member_id ?? null,
-      notes: assignment.notes ?? '',
     });
   }
-  return normalize({ weatherNote: data.program?.weather_note ?? '', trainingNotes: data.program?.training_notes ?? '', sessions });
+  return normalize({ trainingNotes: data.program?.training_notes ?? '', sessions });
 }
 
 /** Canonical form: sessions without a crew dropped, a stable order, text trimmed. Used for comparing and saving. */
 export function normalize(draft: ProgramDraft): ProgramDraft {
   return {
-    weatherNote: draft.weatherNote.trim(),
     trainingNotes: draft.trainingNotes.trim(),
     sessions: draft.sessions
       .filter((s) => s.crew.length > 0)
-      .map((s) => ({ id: s.id, boatId: s.boatId, start: s.start, end: s.end, crew: [...s.crew], cox: s.cox, notes: s.notes.trim() }))
+      .map((s) => ({ id: s.id, boatId: s.boatId, start: s.start, end: s.end, crew: [...s.crew], cox: s.cox }))
       .sort((a, b) => a.id - b.id || a.boatId.localeCompare(b.boatId)),
   };
 }
@@ -167,7 +163,7 @@ export function addSession(draft: ProgramDraft, boatId: string, firstStart: stri
   const start = suggestedStart(draft, boatId, firstStart);
   const end = fromMinutes(toMinutes(start) + DEFAULT_MINUTES);
   const id = nextSessionId(draft, floor);
-  return { draft: { ...draft, sessions: [...draft.sessions, { id, boatId, start, end, crew: [], cox: null, notes: '' }] }, id };
+  return { draft: { ...draft, sessions: [...draft.sessions, { id, boatId, start, end, crew: [], cox: null }] }, id };
 }
 
 /**
@@ -247,8 +243,8 @@ export function moveTeam(draft: ProgramDraft, id: number, direction: -1 | 1): Pr
   return {
     ...draft,
     sessions: draft.sessions.map((s) => {
-      if (s.id === session.id) return { ...s, crew: [...other.crew], cox: other.cox, notes: other.notes };
-      if (s.id === other.id) return { ...s, crew: [...session.crew], cox: session.cox, notes: session.notes };
+      if (s.id === session.id) return { ...s, crew: [...other.crew], cox: other.cox };
+      if (s.id === other.id) return { ...s, crew: [...session.crew], cox: session.cox };
       return s;
     }),
   };
@@ -331,8 +327,6 @@ export function withoutCoxOn(draft: ProgramDraft, boats: ReadonlyArray<Pick<Boat
     : draft;
 }
 
-export const setSessionNotes = (draft: ProgramDraft, id: number, notes: string): ProgramDraft => mapSession(draft, id, (s) => ({ ...s, notes }));
-export const setWeatherNote = (draft: ProgramDraft, weatherNote: string): ProgramDraft => ({ ...draft, weatherNote });
 export const setTrainingNotes = (draft: ProgramDraft, trainingNotes: string): ProgramDraft => ({ ...draft, trainingNotes });
 
 // --- what is wrong with the schedule ------------------------------------------------------------------
@@ -430,10 +424,9 @@ export function coxProblems(draft: ProgramDraft, boats: ReadonlyArray<Pick<Boat,
 // --- saving --------------------------------------------------------------------------------------
 
 export interface SavePayload {
-  weather_note: string | null;
   training_notes: string | null;
   /** `crew` = the rowers in seat order; `cox` = the dümenci (null when there is none). */
-  assignments: Array<{ slot_index: number; boat_id: string; starts_at: string; ends_at: string; notes: string | null; crew: string[]; cox: string | null }>;
+  assignments: Array<{ slot_index: number; boat_id: string; starts_at: string; ends_at: string; crew: string[]; cox: string | null }>;
 }
 
 /**
@@ -443,14 +436,12 @@ export interface SavePayload {
 export function toPayload(draft: ProgramDraft, date: string): SavePayload {
   const n = normalize(draft);
   return {
-    weather_note: n.weatherNote || null,
     training_notes: n.trainingNotes || null,
     assignments: n.sessions.map((s) => ({
       slot_index: s.id,
       boat_id: s.boatId,
       starts_at: wallTimeToInstant(date, s.start).toISOString(),
       ends_at: wallTimeToInstant(date, s.end).toISOString(),
-      notes: s.notes || null,
       crew: s.crew,
       cox: s.cox,
     })),

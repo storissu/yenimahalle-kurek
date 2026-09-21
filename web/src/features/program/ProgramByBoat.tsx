@@ -177,7 +177,6 @@ export function ProgramByBoat({ data, boats, meId, nameOf, contactOf, profileLin
                             {person(session.cox, mine ? style : undefined, { cox: true })}
                           </div>
                         )}
-                        {session.notes && <p className={cn('mt-1 text-sm', mine ? 'text-fg' : 'text-muted')}>{session.notes}</p>}
                       </div>
                     </li>
                   );
