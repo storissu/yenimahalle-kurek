@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
+import { DialogFooter } from '@/components/ui/DialogFooter';
 import { matchesQuery } from '@/lib/search';
 import { tr } from '@/strings/tr';
 
@@ -55,9 +56,11 @@ function Body({ candidates, onPick, onClose }: Pick<WalkInDialogProps, 'candidat
         ))}
       </ul>
 
-      <Button size="lg" fullWidth onClick={onClose}>
-        {tr.attendance.pickerDone}
-      </Button>
+      <DialogFooter>
+        <Button size="lg" fullWidth onClick={onClose}>
+          {tr.attendance.pickerDone}
+        </Button>
+      </DialogFooter>
     </>
   );
 }

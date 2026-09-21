@@ -2097,6 +2097,54 @@ const shot = async (page, name, fullPage = false) => {
   await member.ctx.close();
 }
 
+// ---------- 11b. a LONG member list: the confirm button never scrolls away ----------
+{
+  const now = Date.now();
+  const fillers = Array.from({ length: 30 }, (_, i) => ({
+    id: `66666666-6666-4666-8666-6666666666${String(i).padStart(2, '0')}`, full_name: `Üye ${String(i + 1).padStart(2, '0')}`, username: `uye${i + 1}`, role: 'member', phone: null, is_active: true, must_change_password: false,
+  }));
+  roster.push(...fillers);
+  const t = makeTraining({ title: 'Uzun liste', starts_at: iso(Date.parse(`${istanbulDate(now + 6 * 24 * HOUR)}T08:00:00+03:00`)), slot_count: 1, rsvp_deadline: iso(now + 5 * 24 * HOUR) });
+  db.trainings.push(t);
+  for (const m of fillers) db.responses.push({ training_id: t.id, member_id: m.id, response: 'attending', note: null, responded_at: iso(now), set_by_coach: false });
+
+  const { page, ctx, problems } = await newPage();
+  await page.goto(BASE + '/giris');
+  await page.getByLabel('Kullanıcı adı').fill('ayse');
+  await page.getByLabel('Şifre').fill('Coach1234');
+  await page.getByRole('button', { name: 'Giriş yap' }).click();
+  await page.waitForURL('**/antrenor');
+  await page.goto(BASE + `/antrenor/antrenmanlar/${t.id}`);
+  await page.getByRole('tab', { name: 'Program' }).click();
+  await page.getByText('Taslak — üyeler görmüyor').waitFor();
+  await page.getByRole('group', { name: 'Mavi, 08:00–09:00', exact: true }).getByRole('button', { name: /Ekip seç/ }).click();
+
+  const d = page.getByRole('dialog');
+  const done = d.getByRole('button', { name: /^Tamam/ });
+  await d.getByRole('checkbox', { name: /Üye 30/ }).waitFor();
+  const viewportH = page.viewportSize().height;
+  const box = async (loc) => loc.boundingBox();
+  const scrollTop = () => d.evaluate((el) => el.scrollTop);
+  check('long list: the picker really is longer than the screen (it scrolls)', await d.evaluate((el) => el.scrollHeight > el.clientHeight + 200));
+  check('long list: at the top of the list the confirm button is already on screen (no scrolling needed)', (await scrollTop()) === 0 && (await box(done)).y + (await box(done)).height <= viewportH + 1);
+  check('long list: with nobody picked the button just says "Tamam"', (await done.innerText()).trim() === 'Tamam');
+  await d.getByRole('checkbox', { name: /Üye 01/ }).click();
+  await d.getByRole('checkbox', { name: /Üye 02/ }).click();
+  check('long list: after picking two people near the top the button shows the count and is still in reach', (await done.innerText()).trim() === 'Tamam (2 seçildi)' && (await scrollTop()) === 0 && (await box(done)).y + (await box(done)).height <= viewportH + 1);
+  await shot(page, '23b-crew-picker-long-list');
+  await d.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  const last = await box(d.getByRole('checkbox', { name: /Üye 30/ }));
+  const doneAtEnd = await box(done);
+  check('long list: scrolled to the very end the last member is fully visible above the button (nothing is covered)', last.y + last.height <= doneAtEnd.y + 1 && doneAtEnd.y + doneAtEnd.height <= viewportH + 1);
+  await done.click();
+  await d.waitFor({ state: 'hidden' });
+  check('long list: the button closes the picker with the two people in the boat', await page.getByRole('group', { name: 'Mavi, 08:00–09:00', exact: true }).getByText('2/2').isVisible());
+  check('long list: no unexpected errors', problems.filter((x) => !/Failed to fetch|net::ERR/.test(x)).length === 0, problems.join(' | '));
+  await ctx.close();
+  roster.splice(roster.indexOf(fillers[0]), fillers.length); // the other scenarios never see them
+  db.responses = db.responses.filter((r) => r.training_id !== t.id);
+}
+
 // ---------- 12. help pages (members and coaches) ----------
 {
   const member = await newPage('dark');

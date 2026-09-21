@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/Badge';
 import { BoatIcon } from '@/components/ui/BoatIcon';
 import { Button } from '@/components/ui/Button';
 import { Dialog } from '@/components/ui/Dialog';
+import { DialogFooter } from '@/components/ui/DialogFooter';
 import { cn } from '@/lib/cn';
 import { tr } from '@/strings/tr';
 import type { Boat } from '@/types/database';
@@ -78,6 +79,7 @@ function PickerBody({ session: target, boat, draft, roster, boatName, mode = 'cr
   const inBoat = session.crew;
   const full = inBoat.length >= boat.capacity;
   const choosingCox = mode === 'cox';
+  const selected = choosingCox ? (session.cox ? 1 : 0) : inBoat.length;
 
   const renderRow = (member: RosterMemberInfo) => {
     const checked = choosingCox ? session.cox === member.id : inBoat.includes(member.id);
@@ -146,12 +148,15 @@ function PickerBody({ session: target, boat, draft, roster, boatName, mode = 'cr
         </details>
       )}
 
-      <Button size="lg" fullWidth onClick={onClose}>
-        {tr.program.pickerDone}
-      </Button>
       <span className="sr-only" aria-live="polite">
         {session.start}–{session.end} {boat.name} {choosingCox ? tr.program.cox : tr.program.crewCount(inBoat.length, boat.capacity)}
       </span>
+      {/* Stays at the bottom edge while the (long) list scrolls; says how many are picked so far. */}
+      <DialogFooter>
+        <Button size="lg" fullWidth onClick={onClose}>
+          {selected > 0 ? tr.program.pickerDoneCount(selected) : tr.program.pickerDone}
+        </Button>
+      </DialogFooter>
     </>
   );
 }

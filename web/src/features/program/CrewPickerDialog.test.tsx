@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { tr } from '@/strings/tr';
 import type { Boat } from '@/types/database';
@@ -27,6 +27,26 @@ function show(mode: 'crew' | 'cox', own: Partial<SessionDraft> = {}) {
 }
 // the accessible name also carries the reason a row is disabled, so match on its beginning
 const option = (name: string) => screen.getByRole('checkbox', { name: new RegExp('^' + name.replace(/[()]/g, '.')), hidden: true });
+
+describe('CrewPickerDialog confirm button', () => {
+  const done = (name: RegExp | string) => screen.getByRole('button', { name, hidden: true });
+
+  it('says how many rowers are picked so far, and just "Tamam" while nobody is', () => {
+    show('crew');
+    expect(done(tr.program.pickerDoneCount(2))).toBeInTheDocument(); // the C4X fixture already has two rowers
+    cleanup();
+    show('crew', { crew: [] });
+    expect(done(tr.program.pickerDone)).toBeInTheDocument();
+  });
+
+  it('counts the dümenci as one while choosing the dümenci', () => {
+    show('cox', { cox: 'coach' });
+    expect(done(tr.program.pickerDoneCount(1))).toBeInTheDocument();
+    cleanup();
+    show('cox');
+    expect(done(tr.program.pickerDone)).toBeInTheDocument();
+  });
+});
 
 describe('CrewPickerDialog choosing the dümenci', () => {
   it('offers the coach themselves first ("Kendim"), then the members, and says what it is for', () => {

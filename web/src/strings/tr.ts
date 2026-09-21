@@ -460,6 +460,7 @@ export const tr = {
     noNotes: 'Not yok',
     // picker
     pickerDone: 'Tamam',
+    pickerDoneCount: (n: number) => `Tamam (${n} seçildi)`,
     attendingGroup: 'Katılıyor',
     noAnswerGroup: 'Yanıt vermedi',
     notAttendingGroup: 'Katılmıyor',
