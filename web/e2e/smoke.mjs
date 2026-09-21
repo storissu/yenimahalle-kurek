@@ -980,6 +980,7 @@ const shot = async (page, name, fullPage = false) => {
 
   // list + tab keyboard navigation
   await page.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Antrenmanlar', exact: true }).click();
+  await page.waitForURL('**/uye/antrenmanlar'); // Ana Sayfa also lists "Açık antrenman": wait for the navigation, or a slow runner counts badges on the wrong page
   await page.getByText('Açık antrenman').waitFor();
   check('Antrenmanlar is where cancellations show: both cancelled trainings carry the "İptal edildi" badge', (await page.getByText('İptal edildi', { exact: true }).count()) === 2);
   await page.getByRole('tab', { name: 'Yaklaşan' }).focus();
