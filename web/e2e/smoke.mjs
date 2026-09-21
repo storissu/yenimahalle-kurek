@@ -1658,6 +1658,9 @@ const shot = async (page, name, fullPage = false) => {
 
     await bell.click();
     await mp.getByRole('heading', { name: 'Bildirimler' }).waitFor();
+    // the list loads after the heading: wait for its rows before reading them (a slow machine otherwise reads an empty list)
+    await mp.getByText('(Okunmadı)').first().waitFor().catch(() => {});
+    await mp.locator('main ul li').nth(2).waitFor().catch(() => {});
     check('inbox: newest first, unread ones marked', (await mp.locator('main ul li').allInnerTexts()).map((s) => s.split('\n')[0]).join('|').startsWith('Programınız yayınlandı') && (await mp.getByText('(Okunmadı)').count()) === 2);
     check('inbox: relative times in Turkish', (await mp.getByText('5 dk önce').isVisible()) && ((await mp.getByText('1 sa önce').count()) === 1 || (await mp.getByText(/^Dün \d\d:\d\d$/).count()) === 1), // 90 minutes ago is "yesterday" in the first 90 minutes after midnight
       (await mp.locator('main ul li').allInnerTexts()).join(' | ').replace(/\s+/g, ' '));
@@ -1696,6 +1699,7 @@ const shot = async (page, name, fullPage = false) => {
     check('profile: saving sends just the number, and it shows at once', (state.phoneSaves ?? []).at(-1) === '0532 777 66 55' && (await mp.getByText('0532 777 66 55').isVisible()) && (await mp.getByRole('textbox', { name: 'Telefon' }).count()) === 0);
     await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Üyeler', exact: true }).click();
     await mp.getByRole('heading', { name: 'Üyeler', level: 1 }).waitFor();
+    await mp.getByText('0532 777 66 55').waitFor({ timeout: 10_000 }).catch(() => {}); // the directory reloads after the heading shows
     check('the member list shows the new number too (what the other members see)', await mp.getByText('0532 777 66 55').isVisible());
     await mp.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Profil', exact: true }).click();
     await mp.getByRole('button', { name: 'Telefon numarasını düzenle' }).click();
