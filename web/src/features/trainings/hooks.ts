@@ -141,7 +141,7 @@ export function useSaveTraining(id?: string) {
 export function useCancelTraining(id: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (reason: string) => cancelTraining(id, reason),
+    mutationFn: (reason: string | null) => cancelTraining(id, reason),
     onSuccess: () => Promise.all([queryClient.invalidateQueries({ queryKey: trainingKeys.all }), queryClient.invalidateQueries({ queryKey: responseKeys.all })]),
   });
 }

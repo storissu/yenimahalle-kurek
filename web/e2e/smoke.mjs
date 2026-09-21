@@ -318,9 +318,11 @@ async function newPage(scheme = 'light') {
       const { p_training_id, p_reason } = body();
       const t = db.trainings.find((x) => x.id === p_training_id && x.status === 'scheduled');
       if (!t) return dbError(route, 'P0001', 'Antrenman bulunamadı veya zaten iptal edilmiş / tamamlanmış');
-      if ((p_reason ?? '').trim().length < 3) return dbError(route, 'P0001', 'İptal nedeni 3–200 karakter olmalı');
+      const reason = (p_reason ?? '').trim(); // optional, like the database: blank = no reason; when given, 3–200 characters
+      if (reason && (reason.length < 3 || reason.length > 200)) return dbError(route, 'P0001', 'İptal nedeni 3–200 karakter olmalı');
       t.status = 'cancelled';
-      t.cancel_reason = p_reason.trim();
+      t.cancel_reason = reason || null;
+      state.cancelCalls = [...(state.cancelCalls ?? []), { p_training_id, p_reason }];
       return route.fulfill({ status: 204, headers: cors });
     }
     if (path === '/rest/v1/training_responses') {
@@ -898,13 +900,25 @@ const shot = async (page, name, fullPage = false) => {
   // cancel
   await page.getByRole('button', { name: 'İptal et' }).click();
   const cancelDlg = page.getByRole('dialog');
+  check('cancel: the reason is marked optional', await cancelDlg.getByLabel('İptal nedeni (isteğe bağlı)').isVisible());
+  await cancelDlg.getByLabel('İptal nedeni').fill('ab');
   await cancelDlg.getByRole('button', { name: 'Antrenmanı iptal et' }).click();
-  check('cancel needs a reason', await cancelDlg.getByText('İptal nedeni 3–200 karakter olmalı.').isVisible());
+  check('cancel: a reason that is given but too short is refused (nothing is sent)', (await cancelDlg.getByText('İptal nedeni 3–200 karakter olmalı ya da boş bırakılmalı.').isVisible()) && (state.cancelCalls ?? []).length === 0);
   await cancelDlg.getByLabel('İptal nedeni').fill('Şiddetli rüzgâr');
   await cancelDlg.getByRole('button', { name: 'Antrenmanı iptal et' }).click();
   await page.getByText('İptal nedeni: Şiddetli rüzgâr').waitFor();
   check('cancelled training shows badge + reason and can no longer be edited', (await page.getByText('İptal edildi').first().isVisible()) && (await page.getByRole('link', { name: 'Düzenle' }).count()) === 0);
   await shot(page, '16-coach-cancelled');
+
+  // cancelling WITHOUT a reason works, and no empty reason line is shown
+  const bare = makeTraining({ title: 'Nedensiz iptal', starts_at: iso(Date.now() + 9 * 24 * HOUR), rsvp_deadline: iso(Date.now() + 8 * 24 * HOUR), slot_count: 1 });
+  db.trainings.push(bare);
+  await page.goto(BASE + `/antrenor/antrenmanlar/${bare.id}`);
+  await page.getByRole('button', { name: 'İptal et' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Antrenmanı iptal et' }).click();
+  await page.getByText('Antrenman iptal edildi.').waitFor();
+  check('cancel without a reason: the training is cancelled, no reason is stored, and nothing asks for one', bare.status === 'cancelled' && bare.cancel_reason === null && state.cancelCalls.at(-1).p_reason === null);
+  check('cancel without a reason: the detail shows it as cancelled and no "İptal nedeni" line', (await page.getByText('İptal edildi').first().isVisible()) && (await page.getByText('İptal nedeni:').count()) === 0);
 
   // boats
   await page.getByRole('link', { name: 'Diğer', exact: true }).click();
@@ -945,6 +959,7 @@ const shot = async (page, name, fullPage = false) => {
     makeTraining({ title: 'Açık antrenman', starts_at: iso(now + 3 * 24 * HOUR), rsvp_deadline: iso(now + 2 * 24 * HOUR), slot_count: 2, notes: 'Ekipman getirin' }),
     makeTraining({ title: 'İkinci antrenman', starts_at: iso(now + 4 * 24 * HOUR), rsvp_deadline: iso(now + 3 * 24 * HOUR) }),
     makeTraining({ title: 'İptal antrenmanı', starts_at: iso(now + 5 * 24 * HOUR), rsvp_deadline: iso(now + 4 * 24 * HOUR), status: 'cancelled', cancel_reason: 'Şiddetli rüzgâr' }),
+    makeTraining({ title: 'Nedensiz iptal', starts_at: iso(now + 6 * 24 * HOUR), rsvp_deadline: iso(now + 5 * 24 * HOUR), status: 'cancelled', cancel_reason: null }),
     makeTraining({ title: 'Geçmiş antrenman', starts_at: iso(now - 3 * 24 * HOUR), rsvp_deadline: iso(now - 4 * 24 * HOUR) }),
   );
   const open = db.trainings[1];
@@ -959,13 +974,14 @@ const shot = async (page, name, fullPage = false) => {
   // home: next training is the one already locked; cancellation is called out
   await page.getByText('Sıradaki antrenman').waitFor();
   check('home: next training (locked) explains the deadline has passed', await page.getByRole('heading', { name: 'Yanıt süresi doldu' }).isVisible());
-  check('home: a cancellation in the coming week is highlighted with its reason', await page.getByText('İptal nedeni: Şiddetli rüzgâr').first().isVisible());
+  check('home: cancellations are not shown on Ana Sayfa at all — no notice, no reason, no "İptal edildi"', (await page.getByText('İptal nedeni').count()) === 0 && (await page.getByText('İptal edildi', { exact: true }).count()) === 0 && (await page.getByText('İptal antrenmanı').count()) === 0);
   check('home: further upcoming trainings show the member\'s answer status', (await page.getByText('Yanıt bekleniyor').first().isVisible()));
   await shot(page, '18-member-home-trainings');
 
   // list + tab keyboard navigation
   await page.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Antrenmanlar', exact: true }).click();
   await page.getByText('Açık antrenman').waitFor();
+  check('Antrenmanlar is where cancellations show: both cancelled trainings carry the "İptal edildi" badge', (await page.getByText('İptal edildi', { exact: true }).count()) === 2);
   await page.getByRole('tab', { name: 'Yaklaşan' }).focus();
   await page.keyboard.press('ArrowRight');
   check('tabs work with the keyboard (ArrowRight → Geçmiş)', (await page.getByRole('tab', { name: 'Geçmiş' }).getAttribute('aria-selected')) === 'true');
@@ -1015,6 +1031,10 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('heading', { name: 'Bu antrenman iptal edildi' }).waitFor();
   check('cancelled training shows why and offers no answer buttons', (await page.getByRole('radio').count()) === 0 && (await page.getByText('İptal nedeni: Şiddetli rüzgâr').first().isVisible()));
   await shot(page, '21-member-cancelled');
+  await page.goto(BASE + '/uye/antrenmanlar');
+  await page.getByRole('link', { name: /Nedensiz iptal/ }).click();
+  await page.getByRole('heading', { name: 'Bu antrenman iptal edildi' }).waitFor();
+  check('a training cancelled without a reason shows that it is cancelled, with no reason line', (await page.getByRole('radio').count()) === 0 && (await page.getByText('İptal nedeni').count()) === 0);
   check('member trainings: no unexpected errors', problems.length === 0, problems.join(' | '));
   await ctx.close();
 

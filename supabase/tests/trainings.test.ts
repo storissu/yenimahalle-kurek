@@ -165,7 +165,7 @@ describe('cancel_training', () => {
     await expect(as(db, 'anon', () => db.query(`select public.cancel_training($1, 'Fırtına var')`, [t.edit]))).rejects.toThrow(/permission denied/);
   });
 
-  it('needs a reason of 3–200 characters', async () => {
+  it('takes a reason of 3–200 characters when one is given', async () => {
     await expect(as(db, ids.coach1, () => db.query(`select public.cancel_training($1, '  ab ')`, [t.edit]))).rejects.toThrow(/İptal nedeni/);
     await expect(as(db, ids.coach1, () => db.query(`select public.cancel_training($1, $2)`, [t.edit, 'x'.repeat(201)]))).rejects.toThrow(/İptal nedeni/);
   });
@@ -176,6 +176,23 @@ describe('cancel_training', () => {
     const row = (await db.query<{ status: string; cancel_reason: string }>('select status, cancel_reason from public.trainings where id = $1', [id])).rows[0];
     expect(row).toEqual({ status: 'cancelled', cancel_reason: 'Şiddetli rüzgâr' });
     await expect(as(db, ids.coach1, () => db.query(`select public.cancel_training($1, 'Tekrar')`, [id]))).rejects.toThrow(/zaten iptal/);
+  });
+
+  it('does not need a reason: none, null or blank text cancels and keeps no reason', async () => {
+    const cancelWith = async (call: string) => {
+      const id = await insertTraining('6 days', '5 days');
+      await as(db, ids.coach1, () => db.query(call.replace('$id', `'${id}'`)));
+      return (await db.query<{ status: string; cancel_reason: string | null }>('select status, cancel_reason from public.trainings where id = $1', [id])).rows[0];
+    };
+    for (const call of [`select public.cancel_training($id)`, `select public.cancel_training($id, null)`, `select public.cancel_training($id, '')`, `select public.cancel_training($id, '    ')`]) {
+      expect(await cancelWith(call), call).toEqual({ status: 'cancelled', cancel_reason: null });
+    }
+  });
+
+  it('a reason can only exist on a cancelled training (the database says so too)', async () => {
+    await expect(db.query(`update public.trainings set cancel_reason = 'Fırtına' where id = $1`, [t.edit])).rejects.toThrow(/cancel_reason_only_cancelled/);
+    await expect(db.query(`update public.trainings set status = 'cancelled' where id = $1`, [t.edit])).resolves.toBeDefined(); // no reason needed any more
+    await db.query(`update public.trainings set status = 'scheduled' where id = $1`, [t.edit]); // put it back for the other tests
   });
 
   it('reports an unknown training', async () => {

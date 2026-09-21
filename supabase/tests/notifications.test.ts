@@ -172,6 +172,17 @@ describe('cancelled training', () => {
   });
 });
 
+describe('cancelled training without a reason', () => {
+  it('still tells all active members, with the date only (no empty "Neden:" line)', async () => {
+    const t = await insertTraining({ startsAt: '2026-10-13T05:00:00Z', deadline: '2026-10-12T05:00:00Z' });
+    await cleanOutbox();
+    await as(db, ids.coach1, () => db.query(`select public.cancel_training($1)`, [t]));
+    const rows = await notifsFor(t);
+    expect(recipients(rows)).toEqual([...ALL_MEMBERS].sort());
+    expect(rows[0]).toMatchObject({ type: 'training_cancelled', title: 'Antrenman iptal edildi', body: '13 Ekim Salı 08:00–10:00' });
+  });
+});
+
 describe('deadline reminders and summaries (run_scheduled_notifications)', () => {
   const run = async () => (await db.query<{ reminders: number; summaries: number; pruned: number }>('select * from public.run_scheduled_notifications()')).rows[0]!;
   const in_ = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();

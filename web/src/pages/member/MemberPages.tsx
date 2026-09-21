@@ -1,8 +1,7 @@
-import { CalendarX, TriangleAlert } from 'lucide-react';
+import { CalendarX } from 'lucide-react';
 import { useParams } from 'react-router';
 import { BackLink } from '@/components/layout/BackLink';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Card } from '@/components/ui/Card';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ErrorState } from '@/components/ui/ErrorState';
 import { Skeleton } from '@/components/ui/Skeleton';
@@ -16,8 +15,7 @@ import { NotificationBell } from '@/features/notifications/NotificationBell';
 import { MemberRsvp } from '@/features/trainings/MemberRsvp';
 import { MemberWeather } from '@/features/weather/MemberWeather';
 import { MyAnswerBadge } from '@/features/trainings/MyAnswerBadge';
-import { HOUR_MS, formatDayMonth } from '@/lib/time';
-import { endsAt, partitionTrainings, startsAt } from '@/features/trainings/schedule';
+import { endsAt, partitionTrainings } from '@/features/trainings/schedule';
 import { TrainingCard } from '@/features/trainings/TrainingCard';
 import { TrainingList } from '@/features/trainings/TrainingList';
 import { TrainingSummary } from '@/features/trainings/TrainingSummary';
@@ -36,8 +34,6 @@ export function MemberHomePage() {
   const scheduled = upcoming.filter((t) => t.status === 'scheduled');
   const next = scheduled[0];
   const others = scheduled.slice(1, 4);
-  // Cancellations in the coming week matter even though they are not "the next training".
-  const cancelledSoon = upcoming.filter((t) => t.status === 'cancelled' && startsAt(t).getTime() - now.getTime() < 7 * 24 * HOUR_MS);
   const answerOf = (id: string) => responses.data?.find((r) => r.training_id === id);
 
   return (
@@ -55,18 +51,6 @@ export function MemberHomePage() {
 
       {trainings.isSuccess && (
         <div className="flex flex-col gap-5">
-          {cancelledSoon.map((t) => (
-            <Card key={t.id} className="flex items-start gap-3 border-danger bg-danger-soft">
-              <TriangleAlert aria-hidden="true" className="mt-0.5 shrink-0 text-danger" size={20} />
-              <div className="min-w-0">
-                <p className="font-semibold text-danger">
-                  {formatDayMonth(t.starts_at)} — {tr.trainings.statusCancelled}
-                </p>
-                {t.cancel_reason && <p className="text-sm text-danger">{tr.trainings.cancelReasonShown(t.cancel_reason)}</p>}
-              </div>
-            </Card>
-          ))}
-
           {next ? (
             <section aria-labelledby="next-training-heading" className="flex flex-col gap-3">
               <h2 id="next-training-heading" className="text-sm font-bold text-muted">

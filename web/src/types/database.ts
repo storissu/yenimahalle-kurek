@@ -326,7 +326,7 @@ export type Database = {
     };
     Functions: {
       complete_password_change: { Args: never; Returns: undefined };
-      cancel_training: { Args: { p_training_id: string; p_reason: string }; Returns: undefined };
+      cancel_training: { Args: { p_training_id: string; p_reason?: string | null }; Returns: undefined };
       set_rsvp: { Args: { p_training_id: string; p_response: RsvpResponse; p_note?: string | null }; Returns: undefined };
       coach_set_rsvp: {
         Args: { p_training_id: string; p_member_id: string; p_response: RsvpResponse; p_note?: string | null };

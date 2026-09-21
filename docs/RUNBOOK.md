@@ -278,6 +278,9 @@ in Cloudflare (a WhatsApp link like `https://wa.me/905XXXXXXXXX`, or a form) to 
 then deploy the website as usual. Until the push, the profile page shows "Birlikte kürek çekme geçmişi yüklenemedi" and the
 leaderboard still hides members without sessions; nothing else is affected.
 
+**9.9 After updating to the "optional cancellation reason" release** — `npx supabase db push` (migration `20260928100000_optional_cancel_reason`),
+then deploy the website. Until the push, cancelling without a reason is refused by the database ("İptal nedeni 3–200 karakter olmalı") and nothing else changes.
+
 **9.8 After updating to the "change a member's role" release** — `npx supabase db push` (migration `20260927100000_set_member_role`),
 then deploy the website. Until the push, **Rolü değiştir** answers with an error and changes nothing.
 

@@ -13,10 +13,11 @@ interface CancelTrainingDialogProps {
   onClose: () => void;
 }
 
+// A reason is optional, but when there is one it must be a real sentence.
 const REASON_MIN = 3;
 const REASON_MAX = 200;
 
-/** Cancelling needs a reason that members will see. Goes through the cancel_training RPC (coach-only). */
+/** Cancelling may come with a reason that members will see; without one it just cancels. Goes through the cancel_training RPC (coach-only). */
 export function CancelTrainingDialog({ trainingId, open, onClose }: CancelTrainingDialogProps) {
   const cancel = useCancelTraining(trainingId);
   const toast = useToast();
@@ -24,7 +25,7 @@ export function CancelTrainingDialog({ trainingId, open, onClose }: CancelTraini
   const [touched, setTouched] = useState(false);
 
   const trimmed = reason.trim();
-  const invalid = trimmed.length < REASON_MIN || trimmed.length > REASON_MAX;
+  const invalid = trimmed.length > 0 && (trimmed.length < REASON_MIN || trimmed.length > REASON_MAX);
 
   const close = () => {
     cancel.reset();
@@ -37,7 +38,7 @@ export function CancelTrainingDialog({ trainingId, open, onClose }: CancelTraini
     setTouched(true);
     if (invalid) return;
     try {
-      await cancel.mutateAsync(trimmed);
+      await cancel.mutateAsync(trimmed || null);
       toast.show(tr.trainings.cancel.done, 'success');
       close();
     } catch {

@@ -68,7 +68,8 @@ export async function updateTraining(id: string, payload: TrainingPayload): Prom
   return data;
 }
 
-export async function cancelTraining(id: string, reason: string): Promise<void> {
+/** Cancels a training. The reason is optional: null (or blank) cancels without one. */
+export async function cancelTraining(id: string, reason: string | null): Promise<void> {
   const { error } = await supabase.rpc('cancel_training', { p_training_id: id, p_reason: reason });
   if (error) throw error;
 }

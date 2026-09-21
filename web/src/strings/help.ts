@@ -97,7 +97,7 @@ export const help = {
     },
     {
       q: `Antrenmanı iptal etmek`,
-      a: `Antrenman sayfasında "İptal et" → neden yazın (3–200 karakter). Tüm üyelere bildirim gider ve iptal geri alınamaz.`,
+      a: `Antrenman sayfasında "İptal et" → isterseniz neden yazın (isteğe bağlı; yazarsanız 3–200 karakter). Tüm üyelere bildirim gider, iptal yalnızca Antrenmanlar bölümünde görünür ve geri alınamaz.`,
     },
     {
       q: `Kim neyi değiştirdi?`,
