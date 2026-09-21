@@ -278,6 +278,9 @@ in Cloudflare (a WhatsApp link like `https://wa.me/905XXXXXXXXX`, or a form) to 
 then deploy the website as usual. Until the push, the profile page shows "Birlikte kürek çekme geçmişi yüklenemedi" and the
 leaderboard still hides members without sessions; nothing else is affected.
 
+**9.8 After updating to the "change a member's role" release** — `npx supabase db push` (migration `20260927100000_set_member_role`),
+then deploy the website. Until the push, **Rolü değiştir** answers with an error and changes nothing.
+
 **9.7 After updating to the "members edit their own phone" release** — `npx supabase db push` (migration `20260925100000_update_my_phone`),
 then deploy the website. Until the push, saving a number on the profile shows an error and changes nothing.
 

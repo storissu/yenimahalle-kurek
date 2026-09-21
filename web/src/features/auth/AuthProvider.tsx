@@ -41,6 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryKey: ['profile', userId],
     queryFn: () => fetchProfile(userId as string),
     enabled: Boolean(userId),
+    // A coach can change this person's role (or deactivate them) at any time: look again whenever the app comes back to the front.
+    refetchOnWindowFocus: 'always',
   });
 
   const profile = profileQuery.data;

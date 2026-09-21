@@ -194,6 +194,19 @@ async function newPage(scheme = 'light') {
       state.phoneSaves = [...(state.phoneSaves ?? []), phone];
       return route.fulfill({ status: 204, headers: cors });
     }
+    if (url.pathname === '/rest/v1/rpc/set_member_role') {
+      // like the database: coaches only, never oneself, an active account only; changes the role and nothing else
+      const me = callerOf(req);
+      const { p_member, p_role } = JSON.parse(req.postData() || '{}');
+      if (me?.role !== 'coach') return dbError(route, '42501', 'Yetkisiz');
+      if (p_member === me.id) return dbError(route, 'P0001', 'Kendi rolünüzü değiştiremezsiniz');
+      const target = roster.find((p) => p.id === p_member);
+      if (!target) return dbError(route, 'P0001', 'Kullanıcı bulunamadı');
+      if (!target.is_active) return dbError(route, 'P0001', 'Devre dışı hesabın rolü değiştirilemez. Önce hesabı etkinleştirin.');
+      state.roleChanges = [...(state.roleChanges ?? []), { p_member, p_role }];
+      target.role = p_role;
+      return route.fulfill({ status: 204, headers: cors });
+    }
     if (url.pathname === '/rest/v1/rpc/complete_password_change') {
       people.member.must_change_password = false;
       return route.fulfill({ status: 204, headers: cors });
@@ -682,7 +695,33 @@ const shot = async (page, name, fullPage = false) => {
   await page.getByRole('button', { name: /Ayşe Yılmaz/ }).click();
   check('coach cannot deactivate/reset themselves', (await page.getByRole('button', { name: 'Hesabı devre dışı bırak' }).count()) === 0 && (await page.getByRole('button', { name: 'Üyeyi sil' }).count()) === 0 && (await page.getByText('Siz').isVisible()));
   check('...but may still change their own phone number', await page.getByRole('dialog').getByLabel('Telefon').isVisible());
+  check('coach cannot change their own role either (nobody can demote themselves)', (await page.getByRole('dialog').getByRole('button', { name: 'Rolü değiştir' }).count()) === 0);
   await page.keyboard.press('Escape');
+
+  // ---- a coach changes a member's role: Üye -> Antrenör -> Üye, each after a confirmation ----
+  const yOfName = async (name) => (await page.getByRole('button', { name: new RegExp(name) }).first().boundingBox()).y;
+  const rd = page.getByRole('dialog');
+  await page.getByRole('button', { name: /Çağla Şahin/ }).click();
+  check('role: the dialog shows the current role (Üye) and offers "Rolü değiştir"', (await rd.getByText(/^Rol: Üye$/).isVisible()) && (await rd.getByRole('button', { name: 'Rolü değiştir' }).isVisible()));
+  await rd.getByRole('button', { name: 'Rolü değiştir' }).click();
+  const promoteText = (await rd.getByRole('alert').innerText()).replace(/\s+/g, ' ');
+  check('role: asks first, saying Üye → Antrenör, what it means, and that the records stay', promoteText.includes('Üye → Antrenör') && promoteText.includes('geçmiş kayıtları aynı kalır') && (state.roleChanges ?? []).length === 0);
+  await shot(page, '54-member-role-confirm');
+  await rd.getByRole('button', { name: 'Vazgeç' }).click();
+  check('role: "Vazgeç" changes nothing', (state.roleChanges ?? []).length === 0 && (await rd.getByRole('button', { name: 'Rolü değiştir' }).isVisible()));
+  await rd.getByRole('button', { name: 'Rolü değiştir' }).click();
+  await rd.getByRole('button', { name: 'Evet, rolü değiştir' }).click();
+  await page.getByText('Rol değiştirildi: Antrenör.').waitFor();
+  const cagla = roster.find((p) => p.username === 'cagla');
+  check('role: confirming promotes exactly that person, once, and changes nothing else about them', JSON.stringify(state.roleChanges) === JSON.stringify([{ p_member: cagla.id, p_role: 'coach' }]) && cagla.role === 'coach' && cagla.is_active === true && cagla.username === 'cagla');
+  await page.getByRole('button', { name: /Çağla Şahin/ }).getByText('Antrenör').waitFor();
+  check('role: the list shows her as Antrenör at once (coaches first)', (await page.getByRole('button', { name: /Çağla Şahin/ }).innerText()).includes('Antrenör') && (await yOfName('Çağla Şahin')) < (await yOfName('Ali Kaya')));
+  await page.getByRole('button', { name: /Çağla Şahin/ }).click();
+  await rd.getByRole('button', { name: 'Rolü değiştir' }).click();
+  check('role: for a coach it says Antrenör → Üye and that the coach powers end at once', ((await rd.getByRole('alert').innerText()).replace(/\s+/g, ' ')).includes('Antrenör → Üye') && (await rd.getByRole('alert').innerText()).includes('hemen kaybedecek'));
+  await rd.getByRole('button', { name: 'Evet, rolü değiştir' }).click();
+  await page.getByText('Rol değiştirildi: Üye.').waitFor();
+  check('role: and back to Üye — the same account (no duplicate), nothing else touched', cagla.role === 'member' && roster.filter((p) => p.username === 'cagla').length === 1 && state.roleChanges.length === 2);
 
   // ---- a coach changes a phone number, and deletes a member (with a confirmation) ----
   const temp = { id: '55555555-5555-4555-8555-555555555555', full_name: 'Silinecek Kişi', username: 'silinecek', role: 'member', phone: '0533 000 11 22', is_active: true, must_change_password: false };

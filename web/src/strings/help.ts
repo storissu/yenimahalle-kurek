@@ -89,7 +89,7 @@ export const help = {
     },
     {
       q: `Üye ekleme, şifre sıfırlama, hesabı kapatma`,
-      a: `Üyeler sayfasından. "Üye ekle" bir kullanıcı adı ve tek seferlik şifre üretir; "Davet mesajını kopyala" ile WhatsApp'tan gönderin. Şifre yalnızca bir kez gösterilir. Üyeye dokunup şifreyi sıfırlayabilir veya hesabı devre dışı bırakabilirsiniz (geçmişi korunur). Telefon numarası eklemek isteğe bağlıdır ve diğer üyelere görünür.`,
+      a: `Üyeler sayfasından. "Üye ekle" bir kullanıcı adı ve tek seferlik şifre üretir; "Davet mesajını kopyala" ile WhatsApp'tan gönderin. Şifre yalnızca bir kez gösterilir. Üyeye dokunup şifreyi sıfırlayabilir, rolünü Üye ↔ Antrenör olarak değiştirebilir (onay ister, geçmiş ve bilgiler aynı kalır) veya hesabı devre dışı bırakabilirsiniz (geçmişi korunur). Telefon numarası eklemek isteğe bağlıdır ve diğer üyelere görünür.`,
     },
     {
       q: `Hava uyarısı eşiklerini nasıl ayarlarım?`,

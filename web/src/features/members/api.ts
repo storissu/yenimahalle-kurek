@@ -38,6 +38,12 @@ export const resetPassword = (userId: string) => invokeFunction<Credentials>('ad
 export const setMemberActive = (userId: string, isActive: boolean) =>
   invokeFunction<{ ok: true; is_active: boolean }>('admin-set-active', { user_id: userId, is_active: isActive });
 
+/** A coach turns a member into a coach or a coach into a member. Only the role changes (coach-only, checked by the database, audited). */
+export async function setMemberRole(userId: string, role: UserRole): Promise<void> {
+  const { error } = await supabase.rpc('set_member_role', { p_member: userId, p_role: role });
+  if (error) throw error;
+}
+
 /** A coach changes a member's phone number (empty = remove it). Clients may update exactly full_name and phone. */
 export async function updateMemberPhone(userId: string, phone: string): Promise<void> {
   const { error } = await supabase.from('profiles').update({ phone: phone.trim() === '' ? null : phone.trim() }).eq('id', userId);

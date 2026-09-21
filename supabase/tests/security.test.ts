@@ -101,7 +101,7 @@ const AUTHENTICATED_COLUMN_PRIVILEGES: Record<string, Record<string, string>> = 
 };
 
 /** Functions app users may call (everything else is internal: triggers, helpers, cron jobs, the audit writer). */
-const CALLABLE_BY_AUTHENTICATED = ['update_my_phone', 'member_training_history', 'shared_boat_history', 'attendance_export', 'cancel_training', 'coach_month_table', 'coach_set_rsvp', 'complete_password_change', 'is_active_member', 'is_active_user', 'is_coach', 'monthly_leaderboard', 'my_month_stats', 'ping', 'program_is_published', 'register_push_subscription', 'save_attendance', 'save_program', 'server_now', 'set_rsvp', 'training_attendance_counts'];
+const CALLABLE_BY_AUTHENTICATED = ['update_my_phone', 'member_training_history', 'shared_boat_history', 'attendance_export', 'cancel_training', 'coach_month_table', 'coach_set_rsvp', 'complete_password_change', 'is_active_member', 'is_active_user', 'is_coach', 'monthly_leaderboard', 'my_month_stats', 'ping', 'program_is_published', 'register_push_subscription', 'save_attendance', 'save_program', 'server_now', 'set_member_role', 'set_rsvp', 'training_attendance_counts'];
 const CALLABLE_BY_ANON = ['ping']; // keep-alive: returns the server time, nothing else
 
 describe('anonymous visitors', () => {
@@ -204,6 +204,7 @@ describe('functions', () => {
       `select * from public.coach_month_table(current_date)`,
       `select * from public.attendance_export(current_date)`,
       `select * from public.training_attendance_counts(array[gen_random_uuid()])`,
+      `select public.set_member_role('${ids.member2}', 'coach')`,
     ]) {
       await expect(as(db, ids.member1, () => db.query(sql)), sql).rejects.toThrow(/Yetkisiz/);
     }

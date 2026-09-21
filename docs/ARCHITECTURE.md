@@ -227,6 +227,9 @@ Coaches get the same compact view: `CoachProgramView` renders `ProgramByBoat` (n
   caller is an **active coach** (`_shared/auth.ts`).
 - `profiles.role`, `username`, `is_active`, `must_change_password` cannot be changed by any client (column-level
   privileges). Coaches may edit only `full_name`/`phone`.
+- Roles change only through `set_member_role()`: coach-only, an active account only, never one's own, audited (`member.role_change`);
+  it updates `profiles.role` and nothing else. Permissions follow at once because RLS and the Edge Functions read the role from
+  `profiles` on every request (it is not in the JWT); the affected person's app re-reads its profile when it comes to the front.
 - A trigger protects the **last active coach** from being demoted/deactivated (applies to the service role too).
 - Members are **deactivated, never deleted**: Auth-level ban + `is_active=false`; history is preserved.
 - Members see other members only through `member_directory` (id + name + phone), never username/role. Coaches' names (id + name only) are readable through `coach_directory`, so members can see who steers a boat.

@@ -61,9 +61,9 @@ Antrenman **başlayınca** **Yoklama** sekmesi açılır.
 **Üyeler** sekmesi.
 - **Üye ekle**: ad soyad + kullanıcı adı (küçük harf, rakam, nokta, tire, alt çizgi; 3–30 karakter) + isteğe bağlı telefon. Uygulama **tek seferlik bir şifre** üretir ve yalnızca **bir kez** gösterir → **Davet mesajını kopyala** ile WhatsApp'tan gönderin. Üye ilk girişte kendi şifresini belirler.
 - **Telefon numarası diğer üyelere görünür** (ekip arkadaşlarına ulaşmak için). Üyeye bunu söyleyin.
-- Üyeye dokunun: **Telefon** kutusundan numarayı değiştirip **Telefonu kaydet**, **Şifreyi sıfırla** (yeni tek seferlik şifre) veya **Hesabı devre dışı bırak** (giriş yapamaz, her şeyi korunur; geri açabilirsiniz). Son aktif antrenör kapatılamaz.
+- Üyeye dokunun: **Telefon** kutusundan numarayı değiştirip **Telefonu kaydet**, **Şifreyi sıfırla** (yeni tek seferlik şifre), **Rolü değiştir** (Üye ↔ Antrenör; onay ister, hemen geçerli olur, kişinin bilgileri ve geçmişi aynı kalır; kendi rolünüzü değiştiremezsiniz) veya **Hesabı devre dışı bırak** (giriş yapamaz, her şeyi korunur; geri açabilirsiniz). Son aktif antrenör kapatılamaz.
 - **Üyeyi sil** (en altta, kırmızı çerçeveli, onay ister): hesap, kullanıcı adı ve telefon **kalıcı olarak** silinir, geri alınamaz; henüz yapılmamış antrenmanlardaki yanıt ve yerleri kalkar. Geçmiş **yoklama ve ekip kayıtları "Eski üye" adıyla saklanır**, aylık istatistikler ve diğer üyelerin "Birlikte" geçmişi değişmez. Hiç antrenmana katılmamış bir üye tamamen silinir. Kendinizi silemezsiniz. Geçici olarak ayrılan biri için silme yerine **devre dışı bırakmayı** seçin.
-- Yeni antrenör eklemek için rol olarak **Antrenör** seçin.
+- Yeni antrenör eklemek için rol olarak **Antrenör** seçin; mevcut bir üyeyi antrenör yapmak için üyeye dokunup **Rolü değiştir**'i kullanın. Kişinin ekranı uygulamayı bir sonraki açışında yeni role göre değişir.
 
 ## 7. Bildirimler
 
