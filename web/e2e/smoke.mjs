@@ -592,6 +592,14 @@ async function newPage(scheme = 'light') {
 const A11Y_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'];
 const a11yNotes = [];
 async function a11y(page, name) {
+  // A button that has only just been enabled is still fading in from its disabled opacity, and axe would measure the blended colour
+  // (a flaky contrast failure that depends on machine speed): let every finite transition finish first. Endless ones (spinners) are skipped.
+  await page.evaluate(() =>
+    Promise.race([
+      Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]),
+  );
   const result = await new AxeBuilder({ page }).withTags(A11Y_TAGS).analyze();
   const blocking = result.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical');
   for (const v of result.violations.filter((x) => !blocking.includes(x))) a11yNotes.push(`${name}: ${v.impact} ${v.id} (${v.nodes.length})`);
@@ -980,7 +988,8 @@ const shot = async (page, name, fullPage = false) => {
 
   // list + tab keyboard navigation
   await page.getByRole('navigation', { name: 'Ana gezinme' }).getByRole('link', { name: 'Antrenmanlar', exact: true }).click();
-  await page.waitForURL('**/uye/antrenmanlar'); // Ana Sayfa also lists "Açık antrenman": wait for the navigation, or a slow runner counts badges on the wrong page
+  // The URL changes before the new page renders, and Ana Sayfa also lists "Açık antrenman": wait for something only the list page has (its tabs)
+  await page.getByRole('tab', { name: 'Yaklaşan' }).waitFor();
   await page.getByText('Açık antrenman').waitFor();
   check('Antrenmanlar is where cancellations show: both cancelled trainings carry the "İptal edildi" badge', (await page.getByText('İptal edildi', { exact: true }).count()) === 2);
   await page.getByRole('tab', { name: 'Yaklaşan' }).focus();
